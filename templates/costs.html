@@ -1,0 +1,308 @@
+
+{% extends "base.html" %}
+
+{% block title %}Análisis de Costos - AWS Cost Auditor{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1><i class="fas fa-chart-line"></i> Análisis Detallado de Costos</h1>
+        <p class="lead">Monitoreo granular y tendencias de gasto en AWS</p>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5><i class="fas fa-filter"></i> Filtros</h5>
+                <div class="row">
+                    <div class="col-md-3">
+                        <label class="form-label">Período</label>
+                        <select class="form-select" id="period-select">
+                            <option value="7">Últimos 7 días</option>
+                            <option value="30" selected>Últimos 30 días</option>
+                            <option value="90">Últimos 3 meses</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Servicio</label>
+                        <select class="form-select" id="service-select">
+                            <option value="all">Todos los servicios</option>
+                            <option value="EC2">EC2</option>
+                            <option value="S3">S3</option>
+                            <option value="RDS">RDS</option>
+                            <option value="Lambda">Lambda</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Granularidad</label>
+                        <select class="form-select" id="granularity-select">
+                            <option value="daily">Diaria</option>
+                            <option value="weekly" selected>Semanal</option>
+                            <option value="monthly">Mensual</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button class="btn btn-primary w-100" onclick="loadCostAnalysis()">
+                            <i class="fas fa-sync-alt"></i> Actualizar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Métricas Principales -->
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h6>Costo Total Período</h6>
+                <h3 id="total-period-cost" class="text-primary">$0.00</h3>
+                <small id="period-range" class="text-muted">Cargando...</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h6>Costo Promedio Diario</h6>
+                <h3 id="avg-daily-cost" class="text-info">$0.00</h3>
+                <small class="text-muted">Por día</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h6>Servicio Más Costoso</h6>
+                <h3 id="top-service" class="text-warning">-</h3>
+                <small id="top-service-cost" class="text-muted">$0.00</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <h6>Tendencia</h6>
+                <h3 id="cost-trend" class="text-success">Estable</h3>
+                <small id="trend-percentage" class="text-muted">0%</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráficos de Costos -->
+<div class="row mt-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-bar"></i> Evolución de Costos en el Tiempo</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="costTimelineChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-pie"></i> Distribución por Servicio</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="serviceDistributionChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabla Detallada -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-table"></i> Desglose Detallado de Costos</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped" id="costs-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Servicio</th>
+                                <th>Costo</th>
+                                <th>Tendencia</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="costs-table-body">
+                            <tr>
+                                <td colspan="5" class="text-center">Cargando datos...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript Específico para Costs -->
+<script>
+let costChart = null;
+let distributionChart = null;
+
+async function loadCostAnalysis() {
+    try {
+        const days = document.getElementById('period-select').value;
+        const response = await fetch(`/api/cost-overview?days=${days}`);
+        const costData = await response.json();
+        
+        updateCostMetrics(costData);
+        renderCostCharts(costData);
+        renderCostsTable(costData);
+        
+    } catch (error) {
+        console.error('Error loading cost analysis:', error);
+        alert('Error cargando datos de costos');
+    }
+}
+
+function updateCostMetrics(costData) {
+    // Actualizar métricas principales
+    document.getElementById('total-period-cost').textContent = `$${costData.total_cost.toFixed(2)}`;
+    document.getElementById('avg-daily-cost').textContent = `$${(costData.total_cost / costData.services.length).toFixed(2)}`;
+    
+    // Encontrar servicio más costoso
+    const serviceCosts = {};
+    costData.services.forEach(service => {
+        serviceCosts[service.service] = (serviceCosts[service.service] || 0) + service.cost;
+    });
+    
+    const topService = Object.entries(serviceCosts).reduce((a, b) => a[1] > b[1] ? a : b);
+    document.getElementById('top-service').textContent = topService[0];
+    document.getElementById('top-service-cost').textContent = `$${topService[1].toFixed(2)}`;
+    
+    // Calcular tendencia (simplificado)
+    const trend = costData.total_cost > 50 ? 'Alza' : costData.total_cost < 10 ? 'Baja' : 'Estable';
+    const trendClass = trend === 'Alza' ? 'text-danger' : trend === 'Baja' ? 'text-success' : 'text-warning';
+    document.getElementById('cost-trend').textContent = trend;
+    document.getElementById('cost-trend').className = trendClass;
+}
+
+function renderCostCharts(costData) {
+    const timelineCtx = document.getElementById('costTimelineChart').getContext('2d');
+    
+    // Destruir gráficos existentes
+    if (costChart) costChart.destroy();
+    if (distributionChart) distributionChart.destroy();
+    
+    // Gráfico de timeline
+    costChart = new Chart(timelineCtx, {
+        type: 'line',
+        data: {
+            labels: costData.services.slice(-10).map(s => s.date),
+            datasets: [{
+                label: 'Costo Diario',
+                data: costData.services.slice(-10).map(s => s.cost),
+                borderColor: '#007bff',
+                backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Evolución de Costos (Últimos 10 días)'
+                }
+            }
+        }
+    });
+    
+    // Gráfico de distribución (datos de ejemplo mejorados)
+    const distributionCtx = document.getElementById('serviceDistributionChart').getContext('2d');
+    distributionChart = new Chart(distributionCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['EC2', 'S3', 'RDS', 'Lambda', 'CloudWatch', 'Otros'],
+            datasets: [{
+                data: [35, 25, 15, 12, 8, 5],
+                backgroundColor: [
+                    '#007bff', '#28a745', '#ffc107', '#dc3545', '#6c757d', '#17a2b8'
+                ]
+            }]
+        }
+    });
+}
+
+function renderCostsTable(costData) {
+    const tbody = document.getElementById('costs-table-body');
+    
+    if (costData.services && costData.services.length > 0) {
+        tbody.innerHTML = costData.services.map(service => `
+            <tr>
+                <td>${service.date}</td>
+                <td>
+                    <i class="fas fa-${getServiceIcon(service.service)}"></i>
+                    ${service.service}
+                </td>
+                <td class="cost-value">$${service.cost.toFixed(4)}</td>
+                <td>
+                    <span class="badge bg-${getCostTrendBadge(service.cost)}">
+                        ${getCostTrendText(service.cost)}
+                    </span>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="analyzeService('${service.service}')">
+                        <i class="fas fa-search"></i> Analizar
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    } else {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center">No se encontraron datos de costos</td>
+            </tr>
+        `;
+    }
+}
+
+function getServiceIcon(service) {
+    const icons = {
+        'EC2': 'server',
+        'S3': 'database',
+        'RDS': 'cloud',
+        'Lambda': 'bolt',
+        'CloudWatch': 'eye'
+    };
+    return icons[service] || 'cube';
+}
+
+function getCostTrendBadge(cost) {
+    if (cost > 1.0) return 'danger';
+    if (cost > 0.5) return 'warning';
+    return 'success';
+}
+
+function getCostTrendText(cost) {
+    if (cost > 1.0) return 'Alto';
+    if (cost > 0.5) return 'Medio';
+    return 'Bajo';
+}
+
+function analyzeService(service) {
+    alert(`Análisis detallado para: ${service}\n\nEsta funcionalidad estará disponible en la próxima versión.`);
+}
+
+// Cargar datos al iniciar
+document.addEventListener('DOMContentLoaded', loadCostAnalysis);
+</script>
+{% endblock %}
+ENDOFFILE

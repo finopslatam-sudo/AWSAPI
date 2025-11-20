@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - AWS Cost Auditor{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1><i class="fas fa-tachometer-alt"></i> Dashboard AWS</h1>
+        <p class="lead">Monitoreo de costos y recursos en tiempo real</p>
+    </div>
+</div>
+
+<!-- Tarjetas de Estado -->
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <h5><i class="fas fa-dollar-sign"></i> Free Tier</h5>
+                <h3 id="free-tier-remaining">$1000</h3>
+                <p id="free-tier-used">$0 usados</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <h5><i class="fas fa-server"></i> Instancias EC2</h5>
+                <h3 id="ec2-count">0</h3>
+                <p id="ec2-recommendations">0 recomendaciones</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <h5><i class="fas fa-exclamation-triangle"></i> Alertas</h5>
+                <h3 id="alerts-count">0</h3>
+                <p>Estado del sistema</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <h5><i class="fas fa-chart-line"></i> Costo Mes</h5>
+                <h3 id="monthly-cost">$0.00</h3>
+                <p id="cost-trend">Estable</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráficos -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-pie"></i> Distribución de Costos</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="costDistributionChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-bar"></i> Tendencia de Costos (7 días)</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="costTrendChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recomendaciones -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-lightbulb"></i> Recomendaciones de Optimización</h5>
+            </div>
+            <div class="card-body">
+                <div id="recommendations-list">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> Cargando recomendaciones...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

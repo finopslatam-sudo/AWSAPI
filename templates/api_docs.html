@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Documentación API - AWS Cost Auditor{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1><i class="fas fa-book"></i> Documentación de la API</h1>
+        <p class="lead">Endpoints REST para integrar con tu aplicación</p>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="list-group">
+            <a href="#overview" class="list-group-item list-group-item-action">Descripción General</a>
+            <a href="#authentication" class="list-group-item list-group-item-action">Autenticación</a>
+            <a href="#endpoints" class="list-group-item list-group-item-action">Endpoints</a>
+            <a href="#examples" class="list-group-item list-group-item-action">Ejemplos</a>
+        </div>
+    </div>
+    
+    <div class="col-md-9">
+        <!-- Descripción General -->
+        <section id="overview" class="mb-5">
+            <h3>Descripción General</h3>
+            <p>La API de AWS Cost Auditor proporciona endpoints RESTful para acceder a datos de costos, recomendaciones de optimización y métricas de AWS.</p>
+            
+            <div class="alert alert-info">
+                <strong>URL Base:</strong> <code>http://localhost:5001/api</code>
+            </div>
+        </section>
+
+        <!-- Autenticación -->
+        <section id="authentication" class="mb-5">
+            <h3>Autenticación</h3>
+            <p>Actualmente la API no requiere autenticación para desarrollo. En producción se implementará autenticación JWT.</p>
+        </section>
+
+        <!-- Endpoints -->
+        <section id="endpoints" class="mb-5">
+            <h3>Endpoints Disponibles</h3>
+
+            <!-- Health Check -->
+            <div class="card mb-3">
+                <div class="card-header bg-success text-white">
+                    <code>GET /api/health</code>
+                </div>
+                <div class="card-body">
+                    <p>Verifica el estado del servicio.</p>
+                    <h6>Respuesta:</h6>
+                    <pre><code>{
+  "status": "healthy",
+  "timestamp": "2024-01-15T10:30:00.123456",
+  "version": "1.0"
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Free Tier Status -->
+            <div class="card mb-3">
+                <div class="card-header bg-primary text-white">
+                    <code>GET /api/free-tier-status</code>
+                </div>
+                <div class="card-body">
+                    <p>Obtiene el estado actual del Free Tier de AWS.</p>
+                    <h6>Respuesta:</h6>
+                    <pre><code>{
+  "monthly_cost": 0,
+  "free_tier_remaining": 1000,
+  "status": "safe",
+  "alerts": []
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Cost Overview -->
+            <div class="card mb-3">
+                <div class="card-header bg-info text-white">
+                    <code>GET /api/cost-overview?days=7</code>
+                </div>
+                <div class="card-body">
+                    <p>Obtiene resumen de costos para un período específico.</p>
+                    <h6>Parámetros:</h6>
+                    <ul>
+                        <li><code>days</code> (opcional): Número de días a consultar (default: 7, max: 30)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- EC2 Recommendations -->
+            <div class="card mb-3">
+                <div class="card-header bg-warning text-white">
+                    <code>GET /api/ec2-recommendations</code>
+                </div>
+                <div class="card-body">
+                    <p>Obtiene recomendaciones de optimización para instancias EC2.</p>
+                </div>
+            </div>
+
+            <!-- Toggle Data Source -->
+            <div class="card mb-3">
+                <div class="card-header bg-secondary text-white">
+                    <code>GET /api/toggle-data-source</code>
+                </div>
+                <div class="card-body">
+                    <p>Cambia entre datos reales de AWS y datos de prueba.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Ejemplos -->
+        <section id="examples" class="mb-5">
+            <h3>Ejemplos de Uso</h3>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5>Ejemplo con JavaScript</h5>
+                </div>
+                <div class="card-body">
+                    <pre><code>// Obtener estado del Free Tier
+async function getFreeTierStatus() {
+    try {
+        const response = await fetch('http://localhost:5001/api/free-tier-status');
+        const data = await response.json();
+        
+        console.log('Costo mensual:', data.monthly_cost);
+        console.log('Free Tier restante:', data.free_tier_remaining);
+        console.log('Estado:', data.status);
+        
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+// Obtener costos de los últimos 14 días
+async function getCosts() {
+    const response = await fetch('/api/cost-overview?days=14');
+    const data = await response.json();
+    return data;
+}</code></pre>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}
+ENDOFFILE
