@@ -1,74 +1,125 @@
 {% extends "base.html" %}
 
-{% block title %}Inicio - AWS Cost Auditor{% endblock %}
-
 {% block content %}
 <div class="row">
-    <div class="col-12 text-center">
-        <h1 class="display-4">
-            <i class="fas fa-cloud"></i> AWS Cost Auditor
-        </h1>
-        <p class="lead">Sistema de Auditoría y Optimización de Costos AWS</p>
-        <p class="text-muted">FinOps Latam - Monitoreo Inteligente de tu Infraestructura Cloud</p>
-        
-        <div class="mt-5">
-            <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-lg me-3">
-                <i class="fas fa-tachometer-alt"></i> Ir al Dashboard
-            </a>
-            <a href="{{ url_for('costs') }}" class="btn btn-outline-primary btn-lg">
-                <i class="fas fa-chart-line"></i> Ver Análisis de Costos
-            </a>
+    <div class="col-12">
+        <div class="alert alert-info">
+            <h4><i class="fas fa-cloud"></i> Auditoría AWS en Tiempo Real</h4>
+            <p class="mb-0">Monitoreo continuo de costos y optimización de recursos en la nube</p>
         </div>
     </div>
 </div>
 
-<div class="row mt-5">
+<div class="row">
+    <!-- Resumen de Servicios -->
     <div class="col-md-4">
-        <div class="card text-center">
+        <div class="card service-card">
             <div class="card-body">
-                <i class="fas fa-dollar-sign fa-3x text-success mb-3"></i>
-                <h5>Optimización de Costos</h5>
-                <p>Identifica oportunidades de ahorro y elimina gastos innecesarios</p>
+                <h5 class="card-title">
+                    <i class="fas fa-server"></i>
+                    Servicios Activos
+                </h5>
+                <div class="resource-count">{{ services.total_services }}</div>
+                <p class="card-text">Servicios AWS en uso</p>
             </div>
         </div>
     </div>
+
     <div class="col-md-4">
-        <div class="card text-center">
+        <div class="card service-card">
             <div class="card-body">
-                <i class="fas fa-bell fa-3x text-warning mb-3"></i>
-                <h5>Alertas Inteligentes</h5>
-                <p>Recibe notificaciones proactivas sobre patrones de gasto anómalos</p>
+                <h5 class="card-title">
+                    <i class="fas fa-cube"></i>
+                    Recursos Totales
+                </h5>
+                <div class="resource-count">{{ services.total_resources }}</div>
+                <p class="card-text">Recursos detectados</p>
             </div>
         </div>
     </div>
+
     <div class="col-md-4">
-        <div class="card text-center">
+        <div class="card service-card">
             <div class="card-body">
-                <i class="fas fa-chart-pie fa-3x text-info mb-3"></i>
-                <h5>Dashboards en Tiempo Real</h5>
-                <p>Visualiza tus costos con gráficos interactivos y reportes detallados</p>
+                <h5 class="card-title">
+                    <i class="fas fa-percentage"></i>
+                    Cobertura
+                </h5>
+                <div class="resource-count">{{ services.coverage_percentage }}%</div>
+                <p class="card-text">Servicios analizados</p>
             </div>
         </div>
     </div>
 </div>
 
-<div class="row mt-5">
+<!-- Servicios Detectados -->
+<div class="row mt-4">
     <div class="col-12">
         <div class="card">
             <div class="card-header">
-                <h5><i class="fas fa-rocket"></i> Comenzar</h5>
+                <h5><i class="fas fa-list"></i> Servicios Detectados</h5>
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-6">
-                        <h6>📊 Dashboard Principal</h6>
-                        <p>Vista general de tu estado AWS, métricas clave y recomendaciones.</p>
-                        <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-primary">Explorar Dashboard</a>
+                    {% for service_name, details in services.breakdown.items() %}
+                    <div class="col-md-6 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="card-title text-uppercase">
+                                    <i class="fas fa-{% if details.resource_count > 0 %}check-circle text-success{% else %}times-circle text-warning{% endif %}"></i>
+                                    {{ service_name }}
+                                </h6>
+                                <span class="badge bg-{% if details.resource_count > 0 %}success{% else %}warning{% endif %}">
+                                    {{ details.resource_count }} recursos
+                                </span>
+                                {% if details.resources %}
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        {% for resource in details.resources[:3] %}
+                                        {{ resource.get('id', resource.get('name', 'N/A')) }}{% if not loop.last %}, {% endif %}
+                                        {% endfor %}
+                                        {% if details.resources|length > 3 %}...{% endif %}
+                                    </small>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-md-6">
-                        <h6>🔧 API REST</h6>
-                        <p>Accede a los datos mediante nuestra API para integraciones.</p>
-                        <a href="{{ url_for('api_docs') }}" class="btn btn-sm btn-outline-primary">Ver Documentación</a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Acciones Rápidas -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-bolt"></i> Acciones Rápidas</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <a href="/api/audit/full" class="btn btn-outline-primary w-100 mb-2">
+                            <i class="fas fa-search"></i> Auditoría Completa
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="/api/generate-pdf" class="btn btn-outline-success w-100 mb-2">
+                            <i class="fas fa-file-pdf"></i> Generar PDF
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="/costs" class="btn btn-outline-info w-100 mb-2">
+                            <i class="fas fa-chart-bar"></i> Análisis Costos
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="/api-docs" class="btn btn-outline-secondary w-100 mb-2">
+                            <i class="fas fa-code"></i> API Docs
+                        </a>
                     </div>
                 </div>
             </div>

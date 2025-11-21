@@ -1,4 +1,3 @@
-# app.py - VERSIÓN CORREGIDA CON PUERTO 5001
 from flask import Flask, jsonify, render_template, request
 from src.finops_auditor import FinOpsAuditor
 from src.service_discovery import AWSServiceDiscovery
@@ -7,63 +6,104 @@ from datetime import datetime
 
 app = Flask(__name__)
 
+# ==================== RUTAS DEL FRONTEND ====================
+
 @app.route('/')
 def index():
-    """Página principal del dashboard"""
-    return """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>FinOps Latam - Auditoría AWS</title>
-        <style>
-            body { font-family: Arial, sans-serif; margin: 40px; }
-            .card { border: 1px solid #ddd; padding: 20px; margin: 10px; border-radius: 8px; }
-            .success { background-color: #d4edda; border-color: #c3e6cb; }
-            .warning { background-color: #fff3cd; border-color: #ffeaa7; }
-            .danger { background-color: #f8d7da; border-color: #f5c6cb; }
-            .endpoint { background-color: #e9ecef; padding: 10px; margin: 5px 0; }
-        </style>
-    </head>
-    <body>
-        <h1>🚀 FinOps Latam - API de Auditoría AWS</h1>
-        
-        <div class="card success">
-            <h2>¡API Funcionando Correctamente! ✅</h2>
-            <p>Endpoints disponibles:</p>
+    """Página principal con dashboard integrado"""
+    try:
+        discovery = AWSServiceDiscovery()
+        stats = discovery.get_filtered_service_statistics()
+        return render_template('index.html', 
+                             services=stats['services_in_use'],
+                             title="FinOps Latam - Auditoría AWS")
+    except Exception as e:
+        # Fallback a la versión HTML simple si hay error
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>FinOps Latam - Auditoría AWS</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 40px; }
+                .card { border: 1px solid #ddd; padding: 20px; margin: 10px; border-radius: 8px; }
+                .success { background-color: #d4edda; border-color: #c3e6cb; }
+                .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+                .danger { background-color: #f8d7da; border-color: #f5c6cb; }
+                .endpoint { background-color: #e9ecef; padding: 10px; margin: 5px 0; }
+            </style>
+        </head>
+        <body>
+            <h1>🚀 FinOps Latam - API de Auditoría AWS</h1>
             
-            <div class="endpoint">
-                <strong>GET</strong> <a href="/api/health">/api/health</a> - Estado del servicio
+            <div class="card warning">
+                <h2>⚠️ Frontend Temporal</h2>
+                <p>Los templates no están disponibles. Usando versión básica.</p>
+                <p>Error: {}</p>
             </div>
             
-            <div class="endpoint">
-                <strong>GET</strong> <a href="/api/services/active">/api/services/active</a> - Servicios en uso
+            <div class="card success">
+                <h2>¡API Funcionando Correctamente! ✅</h2>
+                <p>Endpoints disponibles:</p>
+                
+                <div class="endpoint">
+                    <strong>GET</strong> <a href="/dashboard">/dashboard</a> - Dashboard visual
+                </div>
+                
+                <div class="endpoint">
+                    <strong>GET</strong> <a href="/api/health">/api/health</a> - Estado del servicio
+                </div>
+                
+                <div class="endpoint">
+                    <strong>GET</strong> <a href="/api/services/active">/api/services/active</a> - Servicios en uso
+                </div>
+                
+                <div class="endpoint">
+                    <strong>GET</strong> <a href="/api/audit/quick">/api/audit/quick</a> - Auditoría rápida
+                </div>
+                
+                <div class="endpoint">
+                    <strong>GET</strong> <a href="/api/audit/full">/api/audit/full</a> - Auditoría completa
+                </div>
             </div>
-            
-            <div class="endpoint">
-                <strong>GET</strong> <a href="/api/audit/quick">/api/audit/quick</a> - Auditoría rápida
-            </div>
-            
-            <div class="endpoint">
-                <strong>GET</strong> <a href="/api/audit/full">/api/audit/full</a> - Auditoría completa
-            </div>
-            
-            <div class="endpoint">
-                <strong>GET</strong> <a href="/api/discovery">/api/discovery</a> - Descubrimiento de servicios
-            </div>
-        </div>
-        
-        <div class="card warning">
-            <h3>📊 Próximos Pasos</h3>
-            <ul>
-                <li>Configurar credenciales AWS</li>
-                <li>Probar endpoints individuales</li>
-                <li>Generar reporte PDF</li>
-                <li>Integrar con frontend</li>
-            </ul>
-        </div>
-    </body>
-    </html>
-    """
+        </body>
+        </html>
+        """.format(str(e))
+
+@app.route('/dashboard')
+def dashboard():
+    """Dashboard detallado de servicios AWS"""
+    try:
+        discovery = AWSServiceDiscovery()
+        stats = discovery.get_filtered_service_statistics()
+        return render_template('dashboard.html', 
+                             services=stats['services_in_use'],
+                             title="Dashboard - FinOps Latam")
+    except Exception as e:
+        return f"Error cargando dashboard: {str(e)}", 500
+
+@app.route('/costs')
+def costs():
+    """Análisis de costos y recomendaciones"""
+    try:
+        auditor = FinOpsAuditor()
+        audit_results = auditor.run_comprehensive_audit()
+        return render_template('costs.html', 
+                             audit=audit_results,
+                             title="Análisis de Costos - FinOps Latam")
+    except Exception as e:
+        return f"Error cargando análisis de costos: {str(e)}", 500
+
+@app.route('/api-docs')
+def api_docs():
+    """Documentación de la API"""
+    try:
+        return render_template('api_docs.html', 
+                             title="API Docs - FinOps Latam")
+    except Exception as e:
+        return f"Error cargando documentación: {str(e)}", 500
+
+# ==================== RUTAS DE LA API ====================
 
 @app.route('/api/health')
 def health_check():
@@ -199,14 +239,32 @@ def generate_pdf():
             'timestamp': datetime.now().isoformat()
         }), 500
 
+# ==================== RUTA PARA DESCARGAR PDF ====================
+
+@app.route('/download/<filename>')
+def download_pdf(filename):
+    """Descargar archivo PDF generado"""
+    try:
+        from flask import send_file
+        return send_file(filename, as_attachment=True)
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error': f'Archivo no encontrado: {filename}',
+            'timestamp': datetime.now().isoformat()
+        }), 404
+
 if __name__ == '__main__':
     print("🚀 Iniciando FinOps Latam API...")
     print("📊 Endpoints disponibles:")
-    print("   http://localhost:5001/")
-    print("   http://localhost:5001/api/health") 
-    print("   http://localhost:5001/api/services/active")
-    print("   http://localhost:5001/api/audit/quick")
-    print("   http://localhost:5001/api/audit/full")
-    print("   http://localhost:5001/api/generate-pdf")
+    print("   http://localhost:5001/              - Dashboard principal")
+    print("   http://localhost:5001/dashboard     - Dashboard visual")
+    print("   http://localhost:5001/costs         - Análisis de costos")
+    print("   http://localhost:5001/api-docs      - Documentación API")
+    print("   http://localhost:5001/api/health    - Estado del servicio")
+    print("   http://localhost:5001/api/services/active - Servicios en uso")
+    print("   http://localhost:5001/api/audit/quick     - Auditoría rápida")
+    print("   http://localhost:5001/api/audit/full      - Auditoría completa")
+    print("   http://localhost:5001/api/generate-pdf    - Generar reporte PDF")
     
-    app.run(debug=True, host='0.0.0.0', port=5001)  # ✅ PUERTO CAMBIADO A 5001
+    app.run(debug=True, host='0.0.0.0', port=5001)
