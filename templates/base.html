@@ -20,35 +20,89 @@
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
         .resource-count {
-            font-size: 1.5rem;
+            font-size: 1.8rem;
             font-weight: bold;
             color: #667eea;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+        .navbar-brand {
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+        /* Estilos adicionales para auth */
+        .auth-buttons .btn {
+            margin-left: 8px;
+        }
+        .user-welcome {
+            color: white;
+            margin-right: 15px;
         }
     </style>
 </head>
 <body>
-    <!-- Navbar -->
+    <!-- Navbar - MANTENIENDO TU DISEÑO + agregando auth -->
     <nav class="navbar navbar-expand-lg navbar-dark finops-brand">
         <div class="container">
             <a class="navbar-brand" href="/">
                 <i class="fas fa-chart-line"></i>
                 FinOps Latam
             </a>
-            <div class="navbar-nav">
-                <a class="nav-link" href="/">Inicio</a>
-                <a class="nav-link" href="/dashboard">Dashboard</a>
-                <a class="nav-link" href="/costs">Costos</a>
-                <a class="nav-link" href="/api-docs">API Docs</a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <!-- Menú principal (igual que antes) -->
+                <div class="navbar-nav me-auto">
+                    <a class="nav-link" href="/">Inicio</a>
+                    <a class="nav-link" href="/dashboard">Dashboard</a>
+                    <a class="nav-link" href="/costs">Costos</a>
+                    <a class="nav-link" href="/api-docs">API Docs</a>
+                </div>
+                
+                <!-- SECCIÓN DE AUTH (NUEVO) -->
+                <div class="navbar-nav auth-buttons" id="auth-section">
+                    <!-- Botones para usuarios NO logueados -->
+                    <div id="guest-buttons">
+                        <button class="btn btn-outline-light btn-sm" onclick="showLoginModal()">
+                            <i class="fas fa-sign-in-alt"></i> Login
+                        </button>
+                        <button class="btn btn-light btn-sm" onclick="showRegisterModal()">
+                            <i class="fas fa-user-plus"></i> Registrarse
+                        </button>
+                    </div>
+                    
+                    <!-- Info para usuarios SÍ logueados -->
+                    <div id="user-buttons" style="display: none;">
+                        <span class="user-welcome">
+                            <i class="fas fa-user"></i> 
+                            <span id="user-email"></span>
+                        </span>
+                        <button class="btn btn-outline-light btn-sm" onclick="logout()">
+                            <i class="fas fa-sign-out-alt"></i> Salir
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </nav>
 
-    <!-- Contenido principal -->
+    <!-- Contenido principal (IGUAL QUE ANTES) -->
     <div class="container mt-4">
         {% block content %}{% endblock %}
     </div>
 
+    <!-- INCLUIR MODALES DE AUTH (AGREGA ESTA LÍNEA) -->
+    {% include 'auth_modals.html' %}
+
+    <!-- Scripts (AGREGAMOS auth.js) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .finops-gradient {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .hero-section {
+            padding: 100px 0;
+            color: white;
+        }
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        .nav-auth-buttons .btn {
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark finops-gradient">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-chart-line"></i> FinOps Latam
+            </a>
+            <div class="navbar-nav ms-auto nav-auth-buttons">
+                <a class="nav-link" href="/plataforma">Plataforma</a>
+                <a class="btn btn-outline-light btn-sm" href="/login">Login</a>
+                <a class="btn btn-light btn-sm" href="/register">Comenzar</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero-section finops-gradient text-center">
+        <div class="container">
+            <h1 class="display-4 fw-bold">Optimiza tus Costos AWS</h1>
+            <p class="lead">Auditoría automatizada, monitoreo en tiempo real y ahorros garantizados para empresas Latinoamericanas</p>
+            <div class="mt-4">
+                <a href="/register" class="btn btn-light btn-lg me-3">
+                    <i class="fas fa-rocket"></i> Prueba Gratuita
+                </a>
+                <a href="/plataforma" class="btn btn-outline-light btn-lg">
+                    <i class="fas fa-play-circle"></i> Ver Plataforma
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section class="py-5">
+        <div class="container">
+            <div class="row text-center">
+                <div class="col-md-4 mb-4">
+                    <i class="fas fa-search feature-icon text-primary"></i>
+                    <h4>Cloud Assessment</h4>
+                    <p>Descubre recursos no utilizados y oportunidades de ahorro inmediato</p>
+                    <small class="text-muted">Desde $499/mes</small>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <i class="fas fa-chart-line feature-icon text-success"></i>
+                    <h4>Cloud Intelligence</h4>
+                    <p>Dashboards en tiempo real y alertas proactivas de gasto</p>
+                    <small class="text-muted">Desde $899/mes</small>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <i class="fas fa-robot feature-icon text-warning"></i>
+                    <h4>Optimización Auto</h4>
+                    <p>Ahorros automatizados con ROI garantizado</p>
+                    <small class="text-muted">Consultar</small>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="bg-light py-5">
+        <div class="container text-center">
+            <h3>¿Listo para reducir tu factura AWS?</h3>
+            <p class="lead">Comienza hoy mismo con nuestra prueba gratuita</p>
+            <a href="/register" class="btn btn-primary btn-lg">
+                <i class="fas fa-play"></i> Comenzar Ahora
+            </a>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="finops-gradient text-white py-4">
+        <div class="container text-center">
+            <p>&copy; 2024 FinOps Latam. Todos los derechos reservados.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
