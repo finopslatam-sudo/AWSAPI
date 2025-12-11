@@ -1,9 +1,13 @@
+# ============================================
 # Entornos virtuales
+# ============================================
 venv/
 env/
 .venv/
 
+# ============================================
 # Archivos de Python
+# ============================================
 __pycache__/
 *.py[cod]
 *$py.class
@@ -25,27 +29,51 @@ wheels/
 .installed.cfg
 *.egg
 
+# ============================================
 # Archivos de IDE
+# ============================================
 .vscode/
 .idea/
-*.swp
 *.swo
+*.swp
 
+# ============================================
 # Archivos del sistema
+# ============================================
 .DS_Store
 Thumbs.db
 
-# Logs
+# ============================================
+# Logs y temporales
+# ============================================
 *.log
-
-# Archivos temporales
 *.tmp
 *.temp
 
-# Archivos de configuración local
+# ============================================
+# Configuración local y secretos
+# ============================================
 config/local.py
 .env
 .secrets
 
-# Reportes PDF generados
+# ============================================
+# Reportes o archivos generados
+# ============================================
 *.pdf
+
+# ============================================
+# Caché de Python/Frameworks
+# ============================================
+*.pyc
+*.pyo
+*.pyd
+*.cache/
+.mypy_cache/
+.pytest_cache/
+__pypackages__/
+
+# ============================================
+# Archivos de base de datos locales
+# ============================================
+*.sqlite3
