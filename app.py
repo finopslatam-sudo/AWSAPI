@@ -12,7 +12,7 @@ app = Flask(__name__)
 init_auth_system(app)
 create_auth_routes(app)
 
-# ==================== DETECCIÓN INTELIGENTE ====================
+# ==================== DETECCIÓN INTELIGENTE de usuarios ====================
 
 def usuario_autenticado():
     """Verificar si el usuario está logueado"""
