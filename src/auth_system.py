@@ -6,7 +6,7 @@ from datetime import datetime
 import bcrypt
 import os
 
-# Configuración de database separada
+# Configuración de database separadas
 db = SQLAlchemy()
 migrate = Migrate()
 jwt = JWTManager()
