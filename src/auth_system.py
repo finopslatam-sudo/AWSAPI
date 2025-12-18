@@ -111,6 +111,15 @@ class ClientSubscription(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # ✅ MÉTODO FALTANTE (CLAVE)
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "client_id": self.client_id,
+            "plan_id": self.plan_id,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat()
+        }
 
 # ===============================
 # INICIALIZACIÓN
