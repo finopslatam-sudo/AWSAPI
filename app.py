@@ -13,6 +13,10 @@ import json
 
 app = Flask(__name__)
 
+# 🔐 JWT fijo para desarrollo local
+app.config['JWT_SECRET_KEY'] = 'finopslatam-local-dev-secret'
+
+
 # CORS para permitir conexión desde el frontend
 CORS(
     app,
