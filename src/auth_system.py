@@ -118,20 +118,22 @@ class ClientSubscription(db.Model):
 
 def init_auth_system(app):
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
-        'SQLALCHEMY_DATABASE_URI',
-        'postgresql://richardchamorrohuircan@localhost:5432/finopslatam'
+        'SQLALCHEMY_DATABASE_URI'
     )
+
+    if not app.config['SQLALCHEMY_DATABASE_URI']:
+        raise RuntimeError("❌ SQLALCHEMY_DATABASE_URI no está definida")
+
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     app.config['JWT_SECRET_KEY'] = os.getenv(
         'JWT_SECRET_KEY',
-        'finopslatam-local-dev-secret'
+        'finopslatam-prod-secret'
     )
 
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
-
 
 # ===============================
 # RUTAS DE AUTENTICACIÓN
