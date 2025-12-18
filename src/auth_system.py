@@ -8,10 +8,7 @@ from datetime import datetime
 import bcrypt
 import os
 
-# ===============================
-# CONFIGURACIÓN GLOBAL
-# ===============================
-
+# Configuración de database separada
 db = SQLAlchemy()
 migrate = Migrate()
 jwt = JWTManager()

@@ -27,10 +27,7 @@ CORS(
 init_auth_system(app)
 create_auth_routes(app)
 
-
-# =====================================================
-#   FUNCIÓN PARA DETECTAR SESSION LOGIN
-# =====================================================
+# ==================== DETECCIÓN INTELIGENTE ====================
 
 def usuario_autenticado():
     """Verificar si el usuario está logueado vía JWT"""

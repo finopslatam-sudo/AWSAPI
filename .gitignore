@@ -4,6 +4,9 @@
 venv/
 env/
 .venv/
+.env.produccion
+.env.production
+.env.*
 
 # ============================================
 # Archivos de Python
