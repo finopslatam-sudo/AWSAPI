@@ -13,21 +13,22 @@ import json
 
 app = Flask(__name__)
 
-# 🔐 JWT fijo para desarrollo local
-app.config['JWT_SECRET_KEY'] = 'finopslatam-local-dev-secret'
-
-
 # CORS para permitir conexión desde el frontend
 CORS(
     app,
-    resources={r"/api/*": {"origins": [
-        "http://localhost:3000",
-        "https://finopslatam.vercel.app"
-    ]}},
+    resources={
+        r"/api/*": {
+            "origins": [
+                "http://localhost:3000",
+                "https://finopslatam.vercel.app",
+                "https://finopslatam.com",
+                "https://www.finopslatam.com"
+            ]
+        }
+    },
     supports_credentials=True
 )
-
-# Inicializar sistema de autenticación (rutinas automáticas)
+# Inicializar sistema de autenticación
 init_auth_system(app)
 create_auth_routes(app)
 
