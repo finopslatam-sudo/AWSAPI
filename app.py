@@ -127,27 +127,12 @@ def api_docs():
 
 @app.route('/api/health')
 def health_check():
-    try:
-        import boto3
-        sts = boto3.client('sts')
-        identity = sts.get_caller_identity()
-
-        return jsonify({
-            'status': 'healthy',
-            'service': 'FinOps Latam API',
-            'aws_identity': identity['Arn'],
-            'timestamp': datetime.now().isoformat(),
-            'version': '1.0.0'
-        })
-
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'service': 'FinOps Latam API',
-            'error': str(e),
-            'timestamp': datetime.now().isoformat()
-        }), 500
-
+    return jsonify({
+        'status': 'healthy',
+        'service': 'FinOps Latam API',
+        'timestamp': datetime.now().isoformat(),
+        'version': '1.0.0'
+    }), 200
 
 @app.route('/api/services/active')
 def get_active_services():
