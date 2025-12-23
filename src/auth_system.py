@@ -332,12 +332,12 @@ def create_auth_routes(app):
             return jsonify({"error": "Acceso denegado"}), 403
 
         data = request.get_json()
-        plan_code = data.get("plan_code")
+        plan_id = data.get("plan_id")
 
-        if not plan_code:
-            return jsonify({"error": "plan_code requerido"}), 400
+        if not plan_id:
+            return jsonify({"error": "plan_id requerido"}), 400
 
-        plan = Plan.query.filter_by(code=plan_code, is_active=True).first()
+        plan = Plan.query.filter_by(code=plan_id, is_active=True).first()
         if not plan:
             return jsonify({"error": "Plan no encontrado"}), 404
 
@@ -404,6 +404,28 @@ def create_auth_routes(app):
             "message": "Usuario actualizado correctamente",
             "user_id": user.id
         }), 200
+    # ---------------------------------------------
+    # ADMIN — LISTAR PLANES DISPONIBLES
+    # ---------------------------------------------
+    @app.route('/api/admin/plans', methods=['GET'])
+    @jwt_required()
+    def admin_list_plans():
+        admin_id = int(get_jwt_identity())
 
+        if not require_admin(admin_id):
+            return jsonify({"error": "Acceso denegado"}), 403
+
+        plans = Plan.query.filter_by(is_active=True).all()
+
+        return jsonify({
+            "plans": [
+                {
+                    "id": plan.id,
+                    "code": plan.code,
+                    "name": plan.name
+                }
+                for plan in plans
+            ]
+        }), 200
 
     return app
