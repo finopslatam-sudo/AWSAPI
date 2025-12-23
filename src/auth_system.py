@@ -405,27 +405,46 @@ def create_auth_routes(app):
             "user_id": user.id
         }), 200
     # ---------------------------------------------
-    # ADMIN — LISTAR PLANES DISPONIBLES
+    # ADMIN — LISTAR USUARIOS (CON PLAN)
     # ---------------------------------------------
-    @app.route('/api/admin/plans', methods=['GET'])
+    @app.route('/api/admin/users', methods=['GET'])
     @jwt_required()
-    def admin_list_plans():
+    def admin_list_users():
         admin_id = int(get_jwt_identity())
 
         if not require_admin(admin_id):
             return jsonify({"error": "Acceso denegado"}), 403
 
-        plans = Plan.query.filter_by(is_active=True).all()
+        users = (
+            db.session.query(Client, ClientSubscription, Plan)
+            .outerjoin(
+                ClientSubscription,
+                (Client.id == ClientSubscription.client_id)
+                & (ClientSubscription.is_active == True)
+            )
+            .outerjoin(
+                Plan,
+                ClientSubscription.plan_id == Plan.id
+            )
+            .all()
+        )
 
         return jsonify({
-            "plans": [
+            "users": [
                 {
-                    "id": plan.id,
-                    "code": plan.code,
-                    "name": plan.name
+                    "id": client.id,
+                    "email": client.email,
+                    "company_name": client.company_name,
+                    "contact_name": client.contact_name,
+                    "phone": client.phone,
+                    "role": client.role,
+                    "is_active": client.is_active,
+                    "plan": {
+                        "id": plan.id,
+                        "code": plan.code,
+                        "name": plan.name,
+                    } if plan else None
                 }
-                for plan in plans
+                for client, subscription, plan in users
             ]
         }), 200
-
-    return app
