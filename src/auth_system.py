@@ -161,6 +161,9 @@ def create_auth_routes(app):
     def register():
         data = request.get_json()
 
+        if not data:
+            return jsonify({"error": "Payload vacío"}), 400
+
         if not data or not data.get("email") or not data.get("password"):
             return jsonify({"error": "Datos inválidos"}), 400
 
@@ -362,7 +365,45 @@ def create_auth_routes(app):
                 "name": plan.name
             }
         }), 200
+    # ---------------------------------------------
+    # ADMIN — ACTUALIZAR DATOS DE USUARIO / ROL
+    # ---------------------------------------------
+    @app.route('/api/admin/users/<int:user_id>', methods=['PUT'])
+    @jwt_required()
+    def admin_update_user(user_id):
+        admin_id = int(get_jwt_identity())
 
+        if not require_admin(admin_id):
+            return jsonify({"error": "Acceso denegado"}), 403
+
+        data = request.get_json()
+
+        if not data:
+            return jsonify({"error": "Payload vacío"}), 400
+
+        user = Client.query.get_or_404(user_id)
+
+        user.company_name = data.get("company_name", user.company_name)
+        user.contact_name = data.get("contact_name", user.contact_name)
+        user.phone = data.get("phone", user.phone)
+
+        # 🔐 Evitar que admin se quite su propio rol
+        if "role" in data:
+            if user.id == admin_id:
+                return jsonify({"error": "No puedes modificar tu propio rol"}), 400
+            user.role = data["role"]
+
+        # 🧠 Logging
+        app.logger.info(
+            f"Admin {admin_id} actualizó usuario {user_id}"
+        )
+
+        db.session.commit()
+
+        return jsonify({
+            "message": "Usuario actualizado correctamente",
+            "user_id": user.id
+        }), 200
 
 
     return app
