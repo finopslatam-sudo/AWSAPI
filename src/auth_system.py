@@ -331,40 +331,65 @@ def create_auth_routes(app):
         if not require_admin(admin_id):
             return jsonify({"error": "Acceso denegado"}), 403
 
-        data = request.get_json()
+        data = request.get_json() or {}
         plan_id = data.get("plan_id")
 
-        if not plan_id:
+        # 🔴 Validación básica
+        if plan_id is None:
             return jsonify({"error": "plan_id requerido"}), 400
 
-        plan = Plan.query.filter_by(code=plan_id, is_active=True).first()
+        # 🔎 Validar usuario
+        user = Client.query.get(user_id)
+        if not user:
+            return jsonify({"error": "Usuario no encontrado"}), 404
+
+        # 🔎 Buscar plan POR ID (no por code)
+        plan = Plan.query.get(plan_id)
         if not plan:
             return jsonify({"error": "Plan no encontrado"}), 404
 
-        # 🔥 desactivar planes anteriores
-        ClientSubscription.query.filter_by(
+        # 🔎 Obtener suscripción activa actual
+        current_sub = ClientSubscription.query.filter_by(
             client_id=user_id,
             is_active=True
-        ).update({"is_active": False})
+        ).first()
 
-        # crear nueva suscripción
-        subscription = ClientSubscription(
+        # 🧠 Si el plan es el mismo, no hacer nada (idempotente)
+        if current_sub and current_sub.plan_id == plan.id:
+            return jsonify({
+                "message": "El usuario ya tiene este plan",
+                "user_id": user_id,
+                "plan": {
+                    "id": plan.id,
+                    "code": plan.code,
+                    "name": plan.name
+                }
+            }), 200
+
+        # 🔥 Desactivar suscripción activa anterior
+        if current_sub:
+            current_sub.is_active = False
+
+        # ➕ Crear nueva suscripción
+        new_sub = ClientSubscription(
             client_id=user_id,
             plan_id=plan.id,
             is_active=True
         )
 
-        db.session.add(subscription)
+        db.session.add(new_sub)
         db.session.commit()
 
         return jsonify({
             "message": "Plan actualizado correctamente",
             "user_id": user_id,
             "plan": {
+                "id": plan.id,
                 "code": plan.code,
                 "name": plan.name
             }
         }), 200
+
     # ---------------------------------------------
     # ADMIN — ACTUALIZAR DATOS DE USUARIO / ROL
     # ---------------------------------------------

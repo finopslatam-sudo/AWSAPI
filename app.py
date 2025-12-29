@@ -2,9 +2,18 @@ from flask import Flask, jsonify, render_template, request, redirect, url_for, s
 from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity, create_access_token
 from src.finops_auditor import FinOpsAuditor
 from src.service_discovery import AWSServiceDiscovery
-from src.auth_system import init_auth_system, create_auth_routes, Client, ClientSubscription
+from src.auth_system import (
+    init_auth_system,
+    create_auth_routes,
+    db,
+    Client,
+    ClientSubscription,
+    Plan
+)
 from datetime import datetime
 from flask_cors import CORS
+from sqlalchemy.exc import IntegrityError
+import bcrypt
 import json
 
 # =====================================================
@@ -13,7 +22,10 @@ import json
 
 app = Flask(__name__)
 
-# CORS para permitir conexión desde el frontend
+# =====================================================
+#   CORS PROFESIONAL (PRODUCCIÓN)
+# =====================================================
+
 CORS(
     app,
     resources={
@@ -26,11 +38,133 @@ CORS(
             ]
         }
     },
-    supports_credentials=True
+    supports_credentials=True,
+    allow_headers=[
+        "Content-Type",
+        "Authorization"
+    ],
+    methods=[
+        "GET",
+        "POST",
+        "PUT",
+        "DELETE",
+        "OPTIONS"
+    ]
 )
-# Inicializar sistema de autenticación
+
+# =====================================================
+#   AUTH
+# =====================================================
+
 init_auth_system(app)
 create_auth_routes(app)
+
+# =====================================================
+#   ADMIN - LISTAR PLANES (NO SE TOCA)
+# =====================================================
+
+@app.route('/api/admin/plans', methods=['GET'])
+@jwt_required()
+def admin_list_plans():
+    client_id = get_jwt_identity()
+    admin = Client.query.get(client_id)
+
+    if not admin or admin.role != 'admin':
+        return jsonify({"msg": "Unauthorized"}), 403
+
+    plans = Plan.query.order_by(Plan.id.asc()).all()
+
+    return jsonify({
+        "plans": [
+            {
+                "id": plan.id,
+                "code": plan.code,
+                "name": plan.name
+            }
+            for plan in plans
+        ]
+    }), 200
+
+
+# =====================================================
+#   ADMIN - CREAR USUARIO (NUEVO)
+# =====================================================
+
+@app.route('/api/admin/users', methods=['POST'])
+@jwt_required()
+def admin_create_user():
+    admin_id = get_jwt_identity()
+    admin = Client.query.get(admin_id)
+
+    # Validar admin
+    if not admin or admin.role != 'admin':
+        return jsonify({"msg": "Unauthorized"}), 403
+
+    data = request.get_json()
+
+    # Validación básica
+    required_fields = [
+        "company_name",
+        "email",
+        "password",
+        "contact_name",
+        "phone",
+        "plan_id"
+    ]
+
+    for field in required_fields:
+        if field not in data or not data[field]:
+            return jsonify({"error": f"Campo requerido: {field}"}), 400
+
+    try:
+        # Hash de password
+        password_hash = bcrypt.hashpw(
+            data["password"].encode("utf-8"),
+            bcrypt.gensalt()
+        ).decode("utf-8")
+        # Crear cliente
+        client = Client(
+            company_name=data["company_name"],
+            email=data["email"],
+            contact_name=data["contact_name"],
+            phone=data["phone"],
+            role=data.get("role", "client"),
+            is_active=data.get("is_active", True),
+            created_at=datetime.utcnow()
+        )
+
+        # ✅ hashing centralizado en el modelo
+        client.set_password(data["password"])
+
+        db.session.add(client)
+        db.session.flush()  # ← obtiene client.id
+
+        # Crear suscripción
+        subscription = ClientSubscription(
+            client_id=client.id,
+            plan_id=data["plan_id"],
+            created_at=datetime.utcnow()
+        )
+
+        db.session.add(subscription)
+        db.session.commit()
+
+        return jsonify({
+            "msg": "Usuario creado correctamente",
+            "client_id": client.id
+        }), 201
+
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({
+            "error": "Email ya existe o violación de integridad"
+        }), 400
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "error": str(e)
+        }), 500
 
 # ==================== DETECCIÓN INTELIGENTE ====================
 
@@ -226,7 +360,6 @@ def generate_pdf():
             'error': str(e),
             'timestamp': datetime.now().isoformat()
         }), 500
-
 
 @app.route('/api/protected/services')
 @jwt_required()
