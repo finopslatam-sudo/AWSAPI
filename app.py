@@ -13,8 +13,11 @@ from src.auth_system import (
 from datetime import datetime
 from flask_cors import CORS
 from sqlalchemy.exc import IntegrityError
+from src.auth_system import send_email
 import bcrypt
 import json
+import os
+
 
 # =====================================================
 #   CONFIGURACIÓN BASE DEL SERVICIO
@@ -26,39 +29,72 @@ app = Flask(__name__)
 #   CORS PROFESIONAL (PRODUCCIÓN)
 # =====================================================
 
+from flask_cors import CORS
+
 CORS(
     app,
     resources={
         r"/api/*": {
             "origins": [
-                "http://localhost:3000",
-                "https://finopslatam.vercel.app",
+                "https://www.finopslatam.com",
                 "https://finopslatam.com",
-                "https://www.finopslatam.com"
-            ]
+                "https://finopslatam.vercel.app",
+                "http://localhost:3000"
+            ],
+            "allow_headers": ["Content-Type", "Authorization"],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         }
     },
-    supports_credentials=True,
-    allow_headers=[
-        "Content-Type",
-        "Authorization"
-    ],
-    methods=[
-        "GET",
-        "POST",
-        "PUT",
-        "DELETE",
-        "OPTIONS"
-    ]
+    supports_credentials=False
 )
+
+# =====================================================
+#   PRE-FLIGHT OPTIONS (OBLIGATORIO PARA CORS)
+# =====================================================
+
+@app.before_request
+def handle_preflight():
+    if request.method == "OPTIONS":
+        return "", 204
 
 # =====================================================
 #   AUTH
 # =====================================================
 
 init_auth_system(app)
-create_auth_routes(app)
 
+# 🔐 Evitar doble registro de rutas (scripts / mantenimiento)
+if not os.getenv("FLASK_SKIP_ROUTES"):
+    create_auth_routes(app)
+
+# =====================================================
+#   EMAIL HELPERS (TRANSACCIONALES)
+# =====================================================
+
+def build_welcome_email(nombre, email, password):
+    return f"""
+Hola {nombre},
+
+¡Bienvenido a FinOpsLatam! 🚀
+
+Tu cuenta ha sido creada correctamente y ya puedes acceder a la plataforma.
+
+🔐 Datos de acceso
+Correo: {email}
+Contraseña temporal: {password}
+
+👉 Acceso a la plataforma:
+https://www.finopslatam.com/
+
+Por seguridad, deberás cambiar tu contraseña en tu primer inicio de sesión.
+
+Si necesitas ayuda o tienes dudas, escríbenos a:
+soporte@finopslatam.com
+
+Saludos,
+Equipo FinOpsLatam
+"""
+    
 # =====================================================
 #   ADMIN - LISTAR PLANES (NO SE TOCA)
 # =====================================================
@@ -149,10 +185,22 @@ def admin_create_user():
         db.session.add(subscription)
         db.session.commit()
 
+        # 📧 CORREO DE BIENVENIDA
+        send_email(
+            to=client.email,
+            subject="Bienvenido a FinOpsLatam 🚀 | Acceso a tu cuenta",
+            body=build_welcome_email(
+                nombre=client.contact_name,
+                email=client.email,
+                password=data["password"]
+            )
+        )
+
         return jsonify({
             "msg": "Usuario creado correctamente",
             "client_id": client.id
         }), 201
+
 
     except IntegrityError:
         db.session.rollback()
