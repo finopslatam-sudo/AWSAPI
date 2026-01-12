@@ -4,6 +4,8 @@ from flask_jwt_extended import (
     JWTManager, create_access_token, jwt_required, get_jwt_identity
 )
 from flask_migrate import Migrate
+import secrets
+import string
 from datetime import datetime
 import os
 
@@ -17,6 +19,10 @@ jwt = JWTManager()
 # ===============================
 # HELPERS
 # ===============================
+def generate_temp_password(length=10):
+    chars = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(chars) for _ in range(length))
+
 def require_admin(client_id: int) -> bool:
     client = Client.query.get(client_id)
     return bool(client and client.role == "admin")
@@ -54,6 +60,27 @@ def send_email(to: str, subject: str, body: str):
 # ===============================
 # EMAIL HELPERS (SEGURIDAD)
 # ===============================
+def build_forgot_password_email(nombre, email, temp_password):
+    return f"""
+Hola {nombre},
+
+Recibimos una solicitud para recuperar tu acceso a FinOpsLatam 🔐
+
+Se ha generado una contraseña temporal para que puedas ingresar:
+
+Usuario: {email}
+Contraseña temporal: {temp_password}
+
+👉 Accede aquí:
+https://www.finopslatam.com/
+
+⚠️ Al iniciar sesión se te pedirá cambiar esta contraseña por una definitiva.
+
+Si no solicitaste este acceso, ignora este correo.
+
+Saludos,
+Equipo FinOpsLatam
+"""
 
 def build_password_changed_email(nombre):
     return f"""
@@ -236,68 +263,75 @@ def init_auth_system(app):
 # ===============================
 # ROUTES
 # ===============================
-# ===============================
-# ROUTES
-# ===============================
 def create_auth_routes(app):
 
-    # ---------------------------------------------
-    # AUTH — RECUPERAR CONTRASEÑA (USUARIO)
-    # ---------------------------------------------
-    @app.route("/api/auth/forgot-password", methods=["POST"])
-    def forgot_password():
+    # -------- LOGIN (ÚNICO Y DEFINITIVO) --------
+    @app.route("/api/auth/login", methods=["POST"])
+    def login():
         data = request.get_json() or {}
         email = data.get("email")
+        password = data.get("password")
 
-        generic_response = {
-            "message": "Si el correo existe, recibirás instrucciones"
+        if not email or not password:
+            return jsonify({"error": "Email y password son obligatorios"}), 400
+
+        result = (
+            db.session.query(Client, ClientSubscription, Plan)
+            .outerjoin(
+                ClientSubscription,
+                ClientSubscription.client_id == Client.id
+            )
+            .outerjoin(
+                Plan,
+                Plan.id == ClientSubscription.plan_id
+            )
+            .filter(
+                Client.email == email,
+                Client.is_active == True
+            )
+            .first()
+        )
+
+        if not result:
+            return jsonify({"error": "Credenciales inválidas"}), 401
+
+        client, subscription, plan = result
+
+        if not client.check_password(password):
+            return jsonify({"error": "Credenciales inválidas"}), 401
+
+        # 🔐 CLIENTE: debe tener plan activo
+        if client.role == "client":
+            if not subscription or not subscription.is_active or not plan:
+                return jsonify({
+                    "error": "Usuario sin plan activo"
+                }), 403
+
+        token = create_access_token(identity=str(client.id))
+
+        response = {
+            "access_token": token,
+            "user": {
+                "id": client.id,
+                "email": client.email,
+                "company_name": client.company_name,
+                "contact_name": client.contact_name,
+                "phone": client.phone,
+                "role": client.role,
+                "is_active": client.is_active,
+                "force_password_change": client.force_password_change,
+            }
         }
 
-        if not email:
-            return jsonify(generic_response), 200
+        # 📦 Solo clientes llevan plan
+        if client.role == "client":
+            response["user"]["plan"] = {
+                "id": plan.id,
+                "code": plan.code,
+                "name": plan.name
+            }
 
-        user = Client.query.filter_by(
-            email=email,
-            is_active=True
-        ).first()
-
-        if not user:
-            return jsonify(generic_response), 200
-
-        import secrets
-        temp_password = secrets.token_urlsafe(8)
-
-        user.set_password(temp_password)
-        user.force_password_change = True
-        db.session.commit()
-
-        try:
-            send_email(
-                to=user.email,
-                subject="Recuperación de contraseña | FinOpsLatam",
-                body=f"""
-Hola {user.contact_name},
-
-Se solicitó la recuperación de acceso a tu cuenta.
-
-🔐 Datos temporales:
-Correo: {user.email}
-Contraseña temporal: {temp_password}
-
-👉 Accede aquí:
-https://www.finopslatam.com/
-
-Por seguridad, deberás cambiar tu contraseña al ingresar.
-
-Si no solicitaste este cambio, ignora este mensaje.
-
-Equipo FinOpsLatam
-"""
-            )
-        except Exception as e:
-            app.logger.error(f"Error enviando correo recuperación: {e}")
-
-        return jsonify(generic_response), 200
+        return jsonify(response), 200
 
     # ---------------------------------------------
     # USUARIO — ACTUALIZAR MI PERFIL (SEGURO)
@@ -466,7 +500,7 @@ Equipo FinOpsLatam
                 return jsonify({"error": "No puedes modificar tu propio rol"}), 400
             user.role = data["role"]
 
-        # �� Persistir cambios
+        # 💾 Persistir cambios
         db.session.commit()
 
         # 🧠 Logging
@@ -538,6 +572,56 @@ Equipo FinOpsLatam
             "message": "Contraseña actualizada correctamente"
         }), 200
 
+    # ---------------------------------------------
+    # AUTH — RECUPERAR CONTRASEÑA (USUARIO)
+    # ---------------------------------------------
+    @app.route("/api/auth/forgot-password", methods=["POST"])
+    def forgot_password():
+        data = request.get_json() or {}
+        email = data.get("email")
+
+        # ⚠️ Respuesta SIEMPRE genérica
+        if not email:
+            return jsonify({
+                "message": "Si el correo existe, recibirás instrucciones"
+            }), 200
+
+        user = Client.query.filter_by(email=email).first()
+
+        # ⚠️ NO revelar si existe o no
+        if not user or not user.is_active:
+            return jsonify({
+                "message": "Si el correo existe, recibirás instrucciones"
+            }), 200
+
+        # 🔐 Generar contraseña temporal
+        temp_password = generate_temp_password()
+
+        # 🔐 Guardar password + forzar cambio
+        user.set_password(temp_password)
+        user.force_password_change = True
+
+        db.session.commit()
+
+        # 📧 Enviar correo
+        try:
+            send_email(
+                to=user.email,
+                subject="Recuperación de acceso | FinOpsLatam",
+                body=build_forgot_password_email(
+                    user.contact_name,
+                    user.email,
+                    temp_password
+                )
+            )
+        except Exception as e:
+            app.logger.error(
+                f"Error enviando email recuperación usuario {user.id}: {e}"
+            )
+
+        return jsonify({
+            "message": "Si el correo existe, recibirás instrucciones"
+        }), 200
 
     # ---------------------------------------------
     # ADMIN — ELIMINAR USUARIO (SOFT DELETE)
