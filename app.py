@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, render_template, request, redirect, send_file
+from flask import Flask, jsonify, render_template, request, redirect
 from flask_jwt_extended import (
     JWTManager,
     jwt_required,
@@ -21,6 +21,12 @@ from flask_cors import CORS
 import json
 import os
 from sqlalchemy.exc import IntegrityError
+
+# 🔗 REGISTRO DE RUTAS MODULARES (CLAVE)
+from src.routes import admin_reports_routes
+from src.routes import client_reports_routes
+
+
 
 # =====================================================
 #   CONFIGURACIÓN BASE DEL SERVICIO
