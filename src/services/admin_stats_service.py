@@ -18,16 +18,17 @@ def get_inactive_users():
 def get_users_grouped_by_plan():
     result = (
         db.session.query(
-            ClientSubscription.tier,
+            Plan.name.label("plan_name"),
             db.func.count(ClientSubscription.id).label("count")
         )
-        .group_by(ClientSubscription.tier)
+        .join(ClientSubscription, ClientSubscription.plan_id == Plan.id)
+        .group_by(Plan.name)
         .all()
     )
 
     return [
         {
-            "plan": row.tier.value if row.tier else "unknown",
+            "plan": row.plan_name,
             "count": row.count
         }
         for row in result
