@@ -1,7 +1,7 @@
 from src.models.database import db
 from src.models.client import Client
-from src.models.subscription import ClientSubscription, SubscriptionTier
-
+from src.models.subscription import ClientSubscription
+from src.models.plan import Plan
 
 def get_total_users():
     return db.session.query(Client).count()

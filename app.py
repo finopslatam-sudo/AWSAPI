@@ -41,6 +41,9 @@ app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("SQLALCHEMY_DATABASE_URI")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+if not app.config["SQLALCHEMY_DATABASE_URI"]:
+    raise RuntimeError("❌ SQLALCHEMY_DATABASE_URI no definida")
+
 init_db(app)
 
 # =====================================================
