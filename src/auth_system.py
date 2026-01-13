@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify, Response
-from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import (
     JWTManager, create_access_token, jwt_required, get_jwt_identity
 )
@@ -26,8 +25,6 @@ import tempfile
 # ===============================
 # INIT EXTENSIONS
 # ===============================
-db = SQLAlchemy()
-migrate = Migrate()
 jwt = JWTManager()
 
 # ===============================

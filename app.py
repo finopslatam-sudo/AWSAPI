@@ -10,9 +10,6 @@ from src.service_discovery import AWSServiceDiscovery
 from src.auth_system import (
     init_auth_system,
     create_auth_routes,
-    Client,
-    ClientSubscription,
-    Plan,
     send_email
 )
 from datetime import datetime
@@ -21,6 +18,9 @@ import json
 import os
 from sqlalchemy.exc import IntegrityError
 from src.models.database import init_db, db
+from src.models.client import Client
+from src.models.subscription import ClientSubscription
+from src.models.plan import Plan
 
 
 # 🔗 REGISTRO DE RUTAS MODULARES (CLAVE)
