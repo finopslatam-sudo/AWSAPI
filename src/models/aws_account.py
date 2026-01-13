@@ -1,4 +1,4 @@
-from src.database import db
+from src.models.database import db
 from datetime import datetime
 
 class AWSAccount(db.Model):
