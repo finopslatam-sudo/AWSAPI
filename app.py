@@ -19,6 +19,9 @@ from src.auth_system import (
 from datetime import datetime
 from flask_cors import CORS
 import json
+import os
+from sqlalchemy.exc import IntegrityError
+
 
 # =====================================================
 #   CONFIGURACIÓN BASE DEL SERVICIO

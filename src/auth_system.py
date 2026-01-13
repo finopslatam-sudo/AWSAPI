@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-from flask import jsonify, request
-=======
 from flask import Flask, request, jsonify, Response
->>>>>>> 80f6716 (reestructuracion de pdf y cdv profeesional)
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import (
     JWTManager, create_access_token, jwt_required, get_jwt_identity
@@ -22,13 +18,10 @@ from io import BytesIO
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Image
 from reportlab.lib.styles import getSampleStyleSheet
 
-<<<<<<< HEAD
-=======
 
 import matplotlib.pyplot as plt
 import tempfile
 
->>>>>>> 80f6716 (reestructuracion de pdf y cdv profeesional)
 # ===============================
 # INIT EXTENSIONS
 # ===============================
@@ -76,8 +69,6 @@ def send_email(to: str, subject: str, body: str):
     except Exception as e:
         print(f"[EMAIL ERROR] No se pudo enviar correo a {to}: {e}")
 
-<<<<<<< HEAD
-=======
 # =====================================================
 # 📊 ADMIN — MÉTRICAS REUTILIZABLES (DASHBOARD)
 # =====================================================
@@ -122,7 +113,6 @@ def generate_users_by_plan_chart(stats):
 
     return temp_file.name
 
->>>>>>> 80f6716 (reestructuracion de pdf y cdv profeesional)
 
 # ===============================
 # EMAIL HELPERS (SEGURIDAD)
@@ -268,10 +258,7 @@ class Client(db.Model):
     role = db.Column(db.String(20), default="client", nullable=False)
     force_password_change = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-<<<<<<< HEAD
-=======
     password_expires_at = db.Column(db.DateTime, nullable=True)
->>>>>>> 80f6716 (reestructuracion de pdf y cdv profeesional)
 
     # 🔐 ÚNICO LUGAR DONDE EXISTE bcrypt
     def set_password(self, password: str):
@@ -370,8 +357,6 @@ def create_auth_routes(app):
 
         if not client.check_password(password):
             return jsonify({"error": "Credenciales inválidas"}), 401
-<<<<<<< HEAD
-=======
         
         # 🔐 BLOQUEAR CLAVE TEMPORAL VENCIDA
         if client.force_password_change and client.password_expires_at:
@@ -380,7 +365,6 @@ def create_auth_routes(app):
                 return jsonify({
                     "error": "La clave temporal ha expirado. Solicita una nueva."
                 }), 401
->>>>>>> 80f6716 (reestructuracion de pdf y cdv profeesional)
 
         # 🔐 CLIENTE: debe tener plan activo
         if client.role == "client":
@@ -465,24 +449,15 @@ def create_auth_routes(app):
             return jsonify({"error": "plan_id requerido"}), 400
 
         # ✅ BUSCAR POR ID (NO code)
-<<<<<<< HEAD
-        plan = Plan.query.filter_by(id=plan_id, is_active=True).first()
-=======
         plan = Plan.query.filter_by(id=plan_id).first()
->>>>>>> 80f6716 (reestructuracion de pdf y cdv profeesional)
         if not plan:
             return jsonify({"error": "Plan no encontrado"}), 404
 
         # 🔎 Buscar suscripción existente
         subscription = ClientSubscription.query.filter_by(
-<<<<<<< HEAD
-            client_id=user_id
-        ).first()
-=======
             client_id=user_id,
             is_active=True
         ).order_by(ClientSubscription.id.desc()).first()
->>>>>>> 80f6716 (reestructuracion de pdf y cdv profeesional)
 
         if subscription:
             # ✅ UPDATE (NO INSERT)
@@ -645,28 +620,16 @@ def create_auth_routes(app):
                 "error": "La nueva contraseña no puede ser igual a la actual"
             }), 400
 
-<<<<<<< HEAD
-        # 🔐 Guardar nueva contraseña
-        user.set_password(password)
-
-        # 🔥 DESACTIVAR FORZADO
-        user.force_password_change = False
-=======
         user.set_password(password)
         user.force_password_change = False
         user.password_expires_at = None
->>>>>>> 80f6716 (reestructuracion de pdf y cdv profeesional)
 
         db.session.commit()
 
         # 📧 AVISO DE CAMBIO DE CONTRASEÑA
         send_email(
             to=user.email,
-<<<<<<< HEAD
-            subject="Tu contraseña ha sido actualizada 🔐 | FinOpsLatam",
-=======
             subject="Tu contraseña ha sido actualizada �� | FinOpsLatam",
->>>>>>> 80f6716 (reestructuracion de pdf y cdv profeesional)
             body=build_password_changed_email(user.contact_name)
         )
 
@@ -700,14 +663,6 @@ def create_auth_routes(app):
         temp_password = generate_temp_password()
 
         # 🔐 Guardar password + forzar cambio
-<<<<<<< HEAD
-        user.set_password(temp_password)
-        user.force_password_change = True
-
-        db.session.commit()
-
-        # 📧 Enviar correo
-=======
         from datetime import datetime, timedelta
 
         user.set_password(temp_password)
@@ -717,7 +672,6 @@ def create_auth_routes(app):
         db.session.commit()
 
         # �� Enviar correo
->>>>>>> 80f6716 (reestructuracion de pdf y cdv profeesional)
         try:
             send_email(
                 to=user.email,
@@ -830,20 +784,12 @@ def create_auth_routes(app):
         # -------------------------------
         # PASSWORD (ÚNICO LUGAR)
         # -------------------------------
-<<<<<<< HEAD
-        user.set_password(password)
-        user.force_password_change = True
-        user.is_active = True  
-
-        db.session.commit()
-=======
         from datetime import datetime, timedelta
 
         user.set_password(password)
         user.force_password_change = True
         user.password_expires_at = datetime.utcnow() + timedelta(minutes=30)
         user.is_active = True
->>>>>>> 80f6716 (reestructuracion de pdf y cdv profeesional)
 
         # -------------------------------
         # 📧 EMAIL CON CREDENCIALES
@@ -915,8 +861,6 @@ def create_auth_routes(app):
                 for client, subscription, plan in users
             ]
         }), 200
-<<<<<<< HEAD
-=======
 
 
     # ---------------------------------------------
@@ -933,4 +877,3 @@ def create_auth_routes(app):
         return jsonify(get_admin_stats()), 200
 
    
->>>>>>> 80f6716 (reestructuracion de pdf y cdv profeesional)
