@@ -1,7 +1,7 @@
-from models.database import db
-from models.client import Client
-from models.subscription import Subscription
-from models.aws_account import AWSAccount
+from src.models.database import db
+from src.models.client import Client
+from src.models.subscription import Subscription
+from src.models.aws_account import AWSAccount
 
 
 def get_total_users():
