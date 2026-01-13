@@ -17,8 +17,10 @@ from src.auth_system import (
     send_email
 )
 from datetime import datetime
-from flask_cors import CORS
-import json
+from sqlalchemy.exc import IntegrityError
+import bcrypt
+import os
+
 
 # =====================================================
 #   CONFIGURACIÓN BASE DEL SERVICIO
