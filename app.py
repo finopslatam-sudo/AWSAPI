@@ -23,9 +23,8 @@ import os
 from sqlalchemy.exc import IntegrityError
 
 # 🔗 REGISTRO DE RUTAS MODULARES (CLAVE)
-from src.routes import admin_reports_routes
-from src.routes import client_reports_routes
-
+from src.routes.admin_reports_routes import register_admin_report_routes
+from src.routes.client_reports_routes import register_client_report_routes
 
 
 # =====================================================
@@ -40,6 +39,9 @@ app = Flask(__name__)
 # =====================================================
 
 init_auth_system(app)
+
+register_admin_report_routes(app)
+register_client_report_routes(app)
 
 # 🔐 Evitar doble registro de rutas
 if not os.getenv("FLASK_SKIP_ROUTES"):

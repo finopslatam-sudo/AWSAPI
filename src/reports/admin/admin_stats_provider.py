@@ -22,7 +22,7 @@ def get_admin_stats():
         "users_by_plan": users_by_plan,
     }
 
-from services.admin_stats_service import (
+from src.services.admin_stats_service import (
     get_total_users,
     get_active_users,
     get_inactive_users,
@@ -37,4 +37,3 @@ def get_admin_stats():
         "inactive_users": get_inactive_users(),
         "users_by_plan": get_users_grouped_by_plan(),
     }
-
