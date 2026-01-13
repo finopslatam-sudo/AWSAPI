@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify, Response
-from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import (
     JWTManager, create_access_token, jwt_required, get_jwt_identity
 )
@@ -17,6 +16,12 @@ from reportlab.lib.colors import HexColor
 from io import BytesIO
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Image
 from reportlab.lib.styles import getSampleStyleSheet
+from src.models.database import db
+from src.models.client import Client
+from src.models.subscription import ClientSubscription
+from src.models.plan import Plan
+
+
 
 
 import matplotlib.pyplot as plt
@@ -25,8 +30,6 @@ import tempfile
 # ===============================
 # INIT EXTENSIONS
 # ===============================
-db = SQLAlchemy()
-migrate = Migrate()
 jwt = JWTManager()
 
 # ===============================
@@ -243,79 +246,17 @@ Equipo FinOpsLatam
 """
 
 # ===============================
-# MODELS
-# ===============================
-class Client(db.Model):
-    __tablename__ = "clients"
-
-    id = db.Column(db.Integer, primary_key=True)
-    company_name = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(255), nullable=False)
-    contact_name = db.Column(db.String(100))
-    phone = db.Column(db.String(20))
-    is_active = db.Column(db.Boolean, default=True)
-    role = db.Column(db.String(20), default="client", nullable=False)
-    force_password_change = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    password_expires_at = db.Column(db.DateTime, nullable=True)
-
-    # 🔐 ÚNICO LUGAR DONDE EXISTE bcrypt
-    def set_password(self, password: str):
-        import bcrypt
-        self.password_hash = bcrypt.hashpw(
-            password.encode("utf-8"),
-            bcrypt.gensalt()
-        ).decode("utf-8")
-
-    def check_password(self, password: str) -> bool:
-        if not password or not self.password_hash:
-            return False
-        try:
-            import bcrypt
-            return bcrypt.checkpw(
-                password.encode("utf-8"),
-                self.password_hash.encode("utf-8")
-            )
-        except Exception:
-            return False
-
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "company_name": self.company_name,
-            "email": self.email,
-            "role": self.role,
-            "is_active": self.is_active,
-        }
-
-class Plan(db.Model):
-    __tablename__ = "plans"
-    id = db.Column(db.Integer, primary_key=True)
-    code = db.Column(db.String(50), unique=True, nullable=False)
-    name = db.Column(db.String(100), nullable=False)
-
-class ClientSubscription(db.Model):
-    __tablename__ = "client_subscriptions"
-    id = db.Column(db.Integer, primary_key=True)
-    client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False)
-    plan_id = db.Column(db.Integer, db.ForeignKey("plans.id"), nullable=False)
-    is_active = db.Column(db.Boolean, default=True)
-
-# ===============================
 # INIT SYSTEM
 # ===============================
-def init_auth_system(app):
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("SQLALCHEMY_DATABASE_URI")
-    if not app.config["SQLALCHEMY_DATABASE_URI"]:
-        raise RuntimeError("❌ SQLALCHEMY_DATABASE_URI no definida")
 
+def init_auth_system(app):
     app.config["JWT_SECRET_KEY"] = os.getenv(
         "JWT_SECRET_KEY", "finopslatam-prod-secret"
     )
 
-    db.init_app(app)
-    migrate.init_app(app, db)
+    if not app.config["JWT_SECRET_KEY"]:
+        raise RuntimeError("❌ JWT_SECRET_KEY no definida")
+
     jwt.init_app(app)
 
 # ===============================
@@ -876,137 +817,4 @@ def create_auth_routes(app):
 
         return jsonify(get_admin_stats()), 200
 
-    # ---------------------------------------------
-    # ADMIN — EXPORTAR MÉTRICAS CSV
-    # ---------------------------------------------
-    @app.route('/api/admin/stats/export/csv', methods=['GET'])
-    @jwt_required()
-    def export_admin_stats_csv():
-        admin_id = int(get_jwt_identity())
-
-        if not require_admin(admin_id):
-            return jsonify({"error": "Acceso denegado"}), 403
-
-        # 📊 Obtener métricas reutilizables
-        stats = get_admin_stats()
-
-        output = StringIO()
-        writer = csv.writer(output)
-
-        # 🧾 Cabecera general
-        writer.writerow(["Métrica", "Valor"])
-        writer.writerow(["Usuarios totales", stats["total_users"]])
-        writer.writerow(["Usuarios activos", stats["active_users"]])
-        writer.writerow(["Usuarios inactivos", stats["inactive_users"]])
-
-        writer.writerow([])
-        writer.writerow(["Usuarios por plan", "Cantidad"])
-
-        for item in stats["users_by_plan"]:
-            writer.writerow([item["plan"], item["count"]])
-
-        # ✅ RESPUESTA FINAL (UTF-8 CORRECTO)
-        return Response(
-            output.getvalue(),
-            mimetype="text/csv; charset=utf-8",
-            headers={
-                "Content-Disposition": (
-                    "attachment; filename=finopslatam_admin_stats.csv"
-                )
-            }
-        )
-    # ---------------------------------------------
-    # ADMIN — EXPORTAR MÉTRICAS PDF 
-    # ---------------------------------------------
-    @app.route('/api/admin/stats/export/pdf', methods=['GET'])
-    @jwt_required()
-    def export_admin_stats_pdf():
-        admin_id = int(get_jwt_identity())
-
-        if not require_admin(admin_id):
-            return jsonify({"error": "Acceso denegado"}), 403
-
-        # 📊 Obtener métricas
-        stats = get_admin_stats()
-
-        # 📄 Crear archivo PDF temporal
-        pdf_path = tempfile.NamedTemporaryFile(
-            suffix=".pdf", delete=False
-        ).name
-
-        doc = SimpleDocTemplate(
-            pdf_path,
-            pagesize=A4,
-            rightMargin=2 * cm,
-            leftMargin=2 * cm,
-            topMargin=2 * cm,
-            bottomMargin=2 * cm,
-        )
-
-        styles = getSampleStyleSheet()
-        elements = []
-
-        # ===============================
-        # TÍTULO
-        # ===============================
-        elements.append(
-            Paragraph("Reporte Administrativo FinOpsLatam", styles["Title"])
-        )
-        elements.append(Spacer(1, 12))
-
-        elements.append(
-            Paragraph(
-                f"Generado: {datetime.utcnow().strftime('%d-%m-%Y %H:%M UTC')}",
-                styles["Normal"]
-            )
-        )
-        elements.append(Spacer(1, 20))
-
-        # ===============================
-        # KPIs
-        # ===============================
-        elements.append(
-            Paragraph(f"Usuarios totales: {stats['total_users']}", styles["Normal"])
-        )
-        elements.append(
-            Paragraph(f"Usuarios activos: {stats['active_users']}", styles["Normal"])
-        )
-        elements.append(
-            Paragraph(f"Usuarios inactivos: {stats['inactive_users']}", styles["Normal"])
-        )
-        elements.append(Spacer(1, 16))
-
-        # ===============================
-        # TABLA USUARIOS POR PLAN
-        # ===============================
-        table_data = [["Plan", "Cantidad"]]
-        for item in stats["users_by_plan"]:
-            table_data.append([item["plan"], item["count"]])
-
-        elements.append(Table(table_data))
-        elements.append(Spacer(1, 20))
-
-        # ===============================
-        # GRÁFICO
-        # ===============================
-        chart_path = generate_users_by_plan_chart(stats)
-        elements.append(
-            Image(chart_path, width=12 * cm, height=8 * cm)
-        )
-
-        # ===============================
-        # CONSTRUIR PDF
-        # ===============================
-        doc.build(elements)
-
-        with open(pdf_path, "rb") as f:
-            pdf_data = f.read()
-
-        return Response(
-            pdf_data,
-            mimetype="application/pdf",
-            headers={
-                "Content-Disposition":
-                    "attachment; filename=finopslatam_admin_report.pdf"
-            }
-        )
+   

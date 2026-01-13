@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, render_template, request, redirect, send_file
+from flask import Flask, jsonify, render_template, request, redirect
 from flask_jwt_extended import (
     JWTManager,
     jwt_required,
@@ -10,16 +10,24 @@ from src.service_discovery import AWSServiceDiscovery
 from src.auth_system import (
     init_auth_system,
     create_auth_routes,
-    db,
-    Client,
-    ClientSubscription,
-    Plan,
     send_email
 )
 from datetime import datetime
-from sqlalchemy.exc import IntegrityError
-import bcrypt
+from flask_cors import CORS
+import json
 import os
+from sqlalchemy.exc import IntegrityError
+from src.models.database import init_db, db
+from src.models.client import Client
+from src.models.subscription import ClientSubscription
+from src.models.plan import Plan
+from src.routes.admin_users_routes import register_admin_users_routes
+
+
+
+# 🔗 REGISTRO DE RUTAS MODULARES (CLAVE)
+from src.routes.admin_reports_routes import register_admin_report_routes
+from src.routes.client_reports_routes import register_client_report_routes
 
 
 # =====================================================
@@ -28,12 +36,26 @@ import os
 
 app = Flask(__name__)
 
+# =====================================================
+#   DATABASE (SQLALCHEMY)
+# =====================================================
+
+app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("SQLALCHEMY_DATABASE_URI")
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+if not app.config["SQLALCHEMY_DATABASE_URI"]:
+    raise RuntimeError("❌ SQLALCHEMY_DATABASE_URI no definida")
+
+init_db(app)
 
 # =====================================================
 #   AUTH SYSTEM
 # =====================================================
 
 init_auth_system(app)
+
+register_admin_report_routes(app)
+register_client_report_routes(app)
 
 # 🔐 Evitar doble registro de rutas
 if not os.getenv("FLASK_SKIP_ROUTES"):
@@ -231,3 +253,12 @@ def active_services():
 if __name__ == '__main__':
     print("🚀 Iniciando FinOps Latam API")
     app.run(host='0.0.0.0', port=5001)
+
+# =====================================================
+#  Validar que la DB realmente quedó inicializada
+# =====================================================
+
+@app.route("/debug/db")
+def debug_db():
+    return {"db_engine": str(db.engine)}
+
