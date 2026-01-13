@@ -16,6 +16,11 @@ from reportlab.lib.colors import HexColor
 from io import BytesIO
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Image
 from reportlab.lib.styles import getSampleStyleSheet
+from src.models.database import db
+from src.models.client import Client
+from src.models.subscription import ClientSubscription
+from src.models.plan import Plan
+
 
 
 
@@ -250,15 +255,21 @@ class Client(db.Model):
     company_name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+
     contact_name = db.Column(db.String(100))
     phone = db.Column(db.String(20))
+
     is_active = db.Column(db.Boolean, default=True)
     role = db.Column(db.String(20), default="client", nullable=False)
+
     force_password_change = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     password_expires_at = db.Column(db.DateTime, nullable=True)
 
-    # 🔐 ÚNICO LUGAR DONDE EXISTE bcrypt
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # ==========================
+    # PASSWORD HELPERS
+    # ==========================
     def set_password(self, password: str):
         import bcrypt
         self.password_hash = bcrypt.hashpw(
@@ -286,19 +297,6 @@ class Client(db.Model):
             "role": self.role,
             "is_active": self.is_active,
         }
-
-class Plan(db.Model):
-    __tablename__ = "plans"
-    id = db.Column(db.Integer, primary_key=True)
-    code = db.Column(db.String(50), unique=True, nullable=False)
-    name = db.Column(db.String(100), nullable=False)
-
-class ClientSubscription(db.Model):
-    __tablename__ = "client_subscriptions"
-    id = db.Column(db.Integer, primary_key=True)
-    client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False)
-    plan_id = db.Column(db.Integer, db.ForeignKey("plans.id"), nullable=False)
-    is_active = db.Column(db.Boolean, default=True)
 
 # ===============================
 # INIT SYSTEM
