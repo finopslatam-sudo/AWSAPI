@@ -1,5 +1,5 @@
 from src.models.client import Client
-from src.models.subscription import Subscription
+from src.models.subscription import ClientSubscription
 from src.models.aws_account import AWSAccount
 from src.models.database import db
 
@@ -21,9 +21,13 @@ def get_active_services_by_client(client_id: int):
 
 
 def get_client_plan(client_id: int):
-    plan = (
-        db.session.query(Subscription.plan_name)
-        .filter_by(client_id=client_id)
+    subscription = (
+        ClientSubscription.query
+        .filter_by(client_id=client_id, is_active=True)
         .first()
     )
-    return plan[0] if plan else "Sin plan"
+
+    if not subscription or not subscription.tier:
+        return None
+
+    return subscription.tier.value

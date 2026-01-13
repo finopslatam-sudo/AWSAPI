@@ -1,7 +1,6 @@
 from src.models.database import db
 from src.models.client import Client
-from src.models.subscription import ClientSubscription
-from src.models.aws_account import AWSAccount
+from src.models.subscription import ClientSubscription, SubscriptionTier
 
 
 def get_total_users():
@@ -9,24 +8,27 @@ def get_total_users():
 
 
 def get_active_users():
-    return db.session.query(Client).filter_by(active=True).count()
+    return db.session.query(Client).filter_by(is_active=True).count()
 
 
 def get_inactive_users():
-    return db.session.query(Client).filter_by(active=False).count()
+    return db.session.query(Client).filter_by(is_active=False).count()
 
 
 def get_users_grouped_by_plan():
     result = (
         db.session.query(
-            ClientSubscription.plan_name,
-            db.func.count(ClientSubscription.id)
+            ClientSubscription.tier,
+            db.func.count(ClientSubscription.id).label("count")
         )
-        .group_by(ClientSubscription.plan_name)
+        .group_by(ClientSubscription.tier)
         .all()
     )
 
     return [
-        {"plan": row[0], "count": row[1]}
+        {
+            "plan": row.tier.value if row.tier else "unknown",
+            "count": row.count
+        }
         for row in result
     ]
