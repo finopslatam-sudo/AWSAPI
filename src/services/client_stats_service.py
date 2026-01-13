@@ -1,12 +1,14 @@
 from src.models.database import db
 from src.models.client import Client
 from src.models.aws_account import AWSAccount
+from src.models.subscription import ClientSubscription
+from src.auth_system import Plan
 
 
 def get_users_by_client(client_id: int):
     return (
         db.session.query(Client)
-        .filter(Client.id == client_id)
+        .filter_by(id=client_id)
         .count()
     )
 
@@ -14,9 +16,17 @@ def get_users_by_client(client_id: int):
 def get_active_services_by_client(client_id: int):
     return (
         db.session.query(AWSAccount)
-        .filter(
-            AWSAccount.client_id == client_id,
-            AWSAccount.active.is_(True)
-        )
+        .filter_by(client_id=client_id, active=True)
         .count()
     )
+
+
+def get_client_plan(client_id: int):
+    row = (
+        db.session.query(Plan.name)
+        .join(ClientSubscription, ClientSubscription.plan_id == Plan.id)
+        .filter(ClientSubscription.client_id == client_id)
+        .first()
+    )
+
+    return row.name if row else None
