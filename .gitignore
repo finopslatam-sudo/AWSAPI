@@ -49,6 +49,7 @@ wheels/
 *.log
 *.tmp
 *.temp
+*.sock
 
 # ============================================
 # IDEs / editores
@@ -84,3 +85,8 @@ node_modules/
 package.json
 package-lock.json
 
+# ============================================
+# Reportes generados
+# ============================================
+*.pdf
+*.csv
