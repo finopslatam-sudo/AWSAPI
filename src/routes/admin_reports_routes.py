@@ -14,22 +14,34 @@ def register_admin_report_routes(app):
     @app.route("/api/v1/reports/admin/pdf", methods=["GET"])
     @jwt_required()
     def admin_pdf_report():
-        admin_id = int(get_jwt_identity())
+        try:
+            admin_id = int(get_jwt_identity())
+            print("🧪 ADMIN PDF | admin_id =", admin_id)
 
-        if not require_admin(admin_id):
-            return jsonify({"error": "Acceso denegado"}), 403
+            stats = get_admin_stats()
+            print("🧪 ADMIN PDF | stats =", stats)
 
-        stats = get_admin_stats()
-        pdf_data = build_admin_pdf(stats)
+            pdf_data = build_admin_pdf(stats)
+            print("🧪 ADMIN PDF | pdf type =", type(pdf_data))
+            print("🧪 ADMIN PDF | pdf size =", len(pdf_data))
 
-        return Response(
-            pdf_data,
-            mimetype="application/pdf",
-            headers={
-                "Content-Disposition": "attachment; filename=finopslatam_admin_report.pdf"
-            }
-        )
+            return Response(
+                pdf_data,
+                mimetype="application/pdf",
+                headers={
+                    "Content-Disposition": "attachment; filename=admin_report.pdf"
+                }
+            )
 
+        except Exception as e:
+            print("❌ ADMIN PDF ERROR:", str(e))
+            import traceback
+            traceback.print_exc()
+
+            return jsonify({
+                "error": "Error generando PDF admin",
+                "detail": str(e)
+            }), 500
     # ===============================
     # Endpoint CSV
     # ===============================
