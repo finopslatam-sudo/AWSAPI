@@ -1,53 +1,164 @@
-from reportlab.platypus import Paragraph, Spacer, Image, Table, TableStyle
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Image,
+    Table,
+    TableStyle
+)
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
+from reportlab.lib.units import cm
+import matplotlib.pyplot as plt
+import tempfile
+import os
 from datetime import datetime
 
-from src.reports.exporters.pdf_base import build_pdf
-from src.reports.charts.admin_charts import generate_users_by_plan_chart
 
 def build_admin_pdf(stats: dict) -> bytes:
-    styles = getSampleStyleSheet()
-    elements = []
-
-    # Título
-    elements.append(
-        Paragraph("Reporte Administrativo FinOpsLatam", styles["Title"])
+    buffer = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+    doc = SimpleDocTemplate(
+        buffer.name,
+        pagesize=A4,
+        rightMargin=36,
+        leftMargin=36,
+        topMargin=36,
+        bottomMargin=36,
     )
-    elements.append(Spacer(1, 12))
 
-    # Fecha
-    elements.append(
+    styles = getSampleStyleSheet()
+    story = []
+
+    # =====================================================
+    # LOGO
+    # =====================================================
+    logo_path = os.path.join(
+        os.getcwd(), "app", "public", "logo2.png"
+    )
+
+    if os.path.exists(logo_path):
+        logo = Image(logo_path, width=4 * cm, height=4 * cm)
+        story.append(logo)
+
+    story.append(Spacer(1, 12))
+
+    # =====================================================
+    # TITLE
+    # =====================================================
+    story.append(
         Paragraph(
-            f"Generado: {datetime.utcnow().strftime('%d-%m-%Y %H:%M UTC')}",
-            styles["Normal"]
+            "<b>Reporte Administrativo – FinOpsLatam</b>",
+            styles["Title"],
         )
     )
-    elements.append(Spacer(1, 20))
 
+    story.append(
+        Paragraph(
+            f"Generado el {datetime.utcnow().strftime('%d/%m/%Y %H:%M UTC')}",
+            styles["Normal"],
+        )
+    )
+
+    story.append(Spacer(1, 20))
+
+    # =====================================================
     # KPIs
-    elements.append(Paragraph(f"Usuarios totales: {stats['total_users']}", styles["Normal"]))
-    elements.append(Paragraph(f"Usuarios activos: {stats['active_users']}", styles["Normal"]))
-    elements.append(Paragraph(f"Usuarios inactivos: {stats['inactive_users']}", styles["Normal"]))
-    elements.append(Spacer(1, 16))
+    # =====================================================
+    kpi_table = Table(
+        [
+            ["Usuarios totales", stats["total_users"]],
+            ["Usuarios activos", stats["active_users"]],
+            ["Usuarios inactivos", stats["inactive_users"]],
+        ],
+        colWidths=[8 * cm, 4 * cm],
+    )
 
-    # Tabla planes
+    kpi_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                ("GRID", (0, 0), (-1, -1), 1, colors.grey),
+                ("FONT", (0, 0), (-1, -1), "Helvetica"),
+            ]
+        )
+    )
+
+    story.append(kpi_table)
+    story.append(Spacer(1, 20))
+
+    # =====================================================
+    # CHART: USERS STATUS
+    # =====================================================
+    def render_pie(labels, values, filename):
+        plt.figure(figsize=(4, 4))
+        plt.pie(values, labels=labels, autopct="%1.1f%%")
+        plt.title("Usuarios activos vs inactivos")
+        plt.savefig(filename, bbox_inches="tight")
+        plt.close()
+
+    pie_path = tempfile.NamedTemporaryFile(delete=False, suffix=".png").name
+    render_pie(
+        ["Activos", "Inactivos"],
+        [stats["active_users"], stats["inactive_users"]],
+        pie_path,
+    )
+
+    story.append(Image(pie_path, width=10 * cm, height=10 * cm))
+    story.append(Spacer(1, 20))
+
+    # =====================================================
+    # CHART: USERS BY PLAN
+    # =====================================================
+    plans = [p["plan"] for p in stats["users_by_plan"]]
+    counts = [p["count"] for p in stats["users_by_plan"]]
+
+    bar_path = tempfile.NamedTemporaryFile(delete=False, suffix=".png").name
+
+    plt.figure(figsize=(6, 4))
+    plt.bar(plans, counts)
+    plt.xticks(rotation=30, ha="right")
+    plt.title("Usuarios por plan")
+    plt.tight_layout()
+    plt.savefig(bar_path)
+    plt.close()
+
+    story.append(Image(bar_path, width=14 * cm, height=8 * cm))
+    story.append(Spacer(1, 20))
+
+    # =====================================================
+    # TABLE: USERS BY PLAN
+    # =====================================================
     table_data = [["Plan", "Cantidad"]]
-    for item in stats["users_by_plan"]:
-        table_data.append([item["plan"], item["count"]])
+    for p in stats["users_by_plan"]:
+        table_data.append([p["plan"], p["count"]])
 
-    table = Table(table_data, colWidths=[10 * 28.35, 3 * 28.35])
-    table.setStyle(TableStyle([
-        ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
-        ("FONT", (0,0), (-1,0), "Helvetica-Bold"),
-        ("ALIGN", (0,0), (-1,-1), "LEFT"),
-    ]))
+    plan_table = Table(table_data, colWidths=[10 * cm, 4 * cm])
+    plan_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                ("GRID", (0, 0), (-1, -1), 1, colors.grey),
+            ]
+        )
+    )
 
-    elements.append(table)
-    elements.append(Spacer(1, 20))
+    story.append(plan_table)
+    story.append(Spacer(1, 30))
 
-    # Gráfico
-    chart_path = generate_users_by_plan_chart(stats)
-    elements.append(Image(chart_path, width=12 * 28.35, height=6 * 28.35))
+    # =====================================================
+    # FOOTER LEGAL
+    # =====================================================
+    story.append(
+        Paragraph(
+            "© 2026 FinOpsLatam — Información confidencial. Uso exclusivo interno.",
+            styles["Italic"],
+        )
+    )
 
-    return build_pdf(elements)
+    doc.build(story)
+
+    with open(buffer.name, "rb") as f:
+        pdf_bytes = f.read()
+
+    return pdf_bytes
