@@ -1,7 +1,7 @@
 from flask import Response
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from reports.client.client_stats_provider import get_client_stats
+from src.reports.client.client_stats_provider import get_client_stats
 from reports.client.client_pdf_report import build_client_pdf
 from reports.client.client_csv_report import build_client_csv
 from app import app

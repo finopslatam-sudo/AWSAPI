@@ -1,11 +1,11 @@
 from flask import Response, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from reports.admin.admin_stats_provider import get_admin_stats
-from reports.admin.admin_pdf_report import build_admin_pdf
-from reports.admin.admin_csv_report import build_admin_csv
+from src.reports.admin.admin_stats_provider import get_admin_stats
+from src.reports.admin.admin_pdf_report import build_admin_pdf
+from src.reports.admin.admin_csv_report import build_admin_csv
 from auth_system import require_admin
-from app import app  # ⚠️ ajusta si tu Flask app vive en otro archivo
+from app import app  
 
 # ===============================
 # Endpoint PDF
