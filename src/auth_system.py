@@ -19,6 +19,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Imag
 from reportlab.lib.styles import getSampleStyleSheet
 
 
+
 import matplotlib.pyplot as plt
 import tempfile
 
@@ -305,17 +306,13 @@ class ClientSubscription(db.Model):
 # ===============================
 # INIT SYSTEM
 # ===============================
-def init_auth_system(app):
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("SQLALCHEMY_DATABASE_URI")
-    if not app.config["SQLALCHEMY_DATABASE_URI"]:
-        raise RuntimeError("❌ SQLALCHEMY_DATABASE_URI no definida")
 
+def init_auth_system(app):
+    # 🔐 JWT
     app.config["JWT_SECRET_KEY"] = os.getenv(
         "JWT_SECRET_KEY", "finopslatam-prod-secret"
     )
 
-    db.init_app(app)
-    migrate.init_app(app, db)
     jwt.init_app(app)
 
 # ===============================
