@@ -22,7 +22,6 @@ import json
 import os
 from sqlalchemy.exc import IntegrityError
 
-
 # =====================================================
 #   CONFIGURACIÓN BASE DEL SERVICIO
 # =====================================================
