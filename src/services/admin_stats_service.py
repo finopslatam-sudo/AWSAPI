@@ -19,10 +19,10 @@ def get_inactive_users():
 def get_users_grouped_by_plan():
     result = (
         db.session.query(
-            Subscription.plan_name,
-            db.func.count(Subscription.id)
+            ClientSubscription.plan_name,
+            db.func.count(ClientSubscription.id)
         )
-        .group_by(Subscription.plan_name)
+        .group_by(ClientSubscription.plan_name)
         .all()
     )
 
