@@ -4,20 +4,40 @@ from reportlab.platypus import (
     Spacer,
     Image,
     Table,
-    TableStyle
+    TableStyle,
 )
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import cm
+
 import matplotlib.pyplot as plt
 import tempfile
 import os
 from datetime import datetime
 
 
+# =====================================================
+# PATHS & ASSETS
+# =====================================================
+BASE_DIR = os.path.dirname(
+    os.path.dirname(os.path.dirname(__file__))
+)
+
+LOGO_PATH = os.path.join(
+    BASE_DIR,
+    "assets",
+    "logos",
+    "logoFinopsLatam.png"
+)
+
+
+# =====================================================
+# MAIN BUILDER
+# =====================================================
 def build_admin_pdf(stats: dict) -> bytes:
     buffer = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+
     doc = SimpleDocTemplate(
         buffer.name,
         pagesize=A4,
@@ -31,14 +51,11 @@ def build_admin_pdf(stats: dict) -> bytes:
     story = []
 
     # =====================================================
-    # LOGO
+    # HEADER — LOGO
     # =====================================================
-    logo_path = os.path.join(
-        os.getcwd(), "app", "public", "logo2.png"
-    )
-
-    if os.path.exists(logo_path):
-        logo = Image(logo_path, width=4 * cm, height=4 * cm)
+    if os.path.exists(LOGO_PATH):
+        logo = Image(LOGO_PATH, width=5 * cm, height=2 * cm)
+        logo.hAlign = "LEFT"
         story.append(logo)
 
     story.append(Spacer(1, 12))
@@ -48,7 +65,7 @@ def build_admin_pdf(stats: dict) -> bytes:
     # =====================================================
     story.append(
         Paragraph(
-            "<b>Reporte Administrativo – FinOpsLatam</b>",
+            "<b>Reporte Administrativo — FinOpsLatam</b>",
             styles["Title"],
         )
     )
@@ -63,102 +80,135 @@ def build_admin_pdf(stats: dict) -> bytes:
     story.append(Spacer(1, 20))
 
     # =====================================================
-    # KPIs
+    # KPIs TABLE
     # =====================================================
     kpi_table = Table(
         [
-            ["Usuarios totales", stats["total_users"]],
-            ["Usuarios activos", stats["active_users"]],
-            ["Usuarios inactivos", stats["inactive_users"]],
+            ["Usuarios totales", stats.get("total_users", 0)],
+            ["Usuarios activos", stats.get("active_users", 0)],
+            ["Usuarios inactivos", stats.get("inactive_users", 0)],
         ],
-        colWidths=[8 * cm, 4 * cm],
+        colWidths=[9 * cm, 4 * cm],
     )
 
     kpi_table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                ("GRID", (0, 0), (-1, -1), 1, colors.grey),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.whitesmoke),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
                 ("FONT", (0, 0), (-1, -1), "Helvetica"),
+                ("ALIGN", (1, 0), (1, -1), "RIGHT"),
             ]
         )
     )
 
     story.append(kpi_table)
-    story.append(Spacer(1, 20))
+    story.append(Spacer(1, 24))
 
     # =====================================================
-    # CHART: USERS STATUS
+    # CHART — USERS STATUS
     # =====================================================
     def render_pie(labels, values, filename):
         plt.figure(figsize=(4, 4))
-        plt.pie(values, labels=labels, autopct="%1.1f%%")
+        plt.pie(
+            values,
+            labels=labels,
+            autopct="%1.1f%%",
+            startangle=90,
+        )
         plt.title("Usuarios activos vs inactivos")
-        plt.savefig(filename, bbox_inches="tight")
+        plt.tight_layout()
+        plt.savefig(filename, dpi=120)
         plt.close()
 
-    pie_path = tempfile.NamedTemporaryFile(delete=False, suffix=".png").name
+    pie_file = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
     render_pie(
         ["Activos", "Inactivos"],
-        [stats["active_users"], stats["inactive_users"]],
-        pie_path,
+        [
+            stats.get("active_users", 0),
+            stats.get("inactive_users", 0),
+        ],
+        pie_file.name,
     )
 
-    story.append(Image(pie_path, width=10 * cm, height=10 * cm))
-    story.append(Spacer(1, 20))
+    story.append(Image(pie_file.name, width=9 * cm, height=9 * cm))
+    story.append(Spacer(1, 24))
 
     # =====================================================
-    # CHART: USERS BY PLAN
+    # CHART — USERS BY PLAN
     # =====================================================
-    plans = [p["plan"] for p in stats["users_by_plan"]]
-    counts = [p["count"] for p in stats["users_by_plan"]]
+    plans = [p["plan"] for p in stats.get("users_by_plan", [])]
+    counts = [p["count"] for p in stats.get("users_by_plan", [])]
 
-    bar_path = tempfile.NamedTemporaryFile(delete=False, suffix=".png").name
+    bar_file = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
 
     plt.figure(figsize=(6, 4))
-    plt.bar(plans, counts)
+    plt.bar(plans, counts, color="#6366F1")
     plt.xticks(rotation=30, ha="right")
     plt.title("Usuarios por plan")
     plt.tight_layout()
-    plt.savefig(bar_path)
+    plt.savefig(bar_file.name, dpi=120)
     plt.close()
 
-    story.append(Image(bar_path, width=14 * cm, height=8 * cm))
-    story.append(Spacer(1, 20))
+    story.append(Image(bar_file.name, width=14 * cm, height=7 * cm))
+    story.append(Spacer(1, 24))
 
     # =====================================================
-    # TABLE: USERS BY PLAN
+    # TABLE — USERS BY PLAN
     # =====================================================
     table_data = [["Plan", "Cantidad"]]
-    for p in stats["users_by_plan"]:
+    for p in stats.get("users_by_plan", []):
         table_data.append([p["plan"], p["count"]])
 
-    plan_table = Table(table_data, colWidths=[10 * cm, 4 * cm])
+    plan_table = Table(
+        table_data,
+        colWidths=[10 * cm, 3 * cm],
+    )
+
     plan_table.setStyle(
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                ("GRID", (0, 0), (-1, -1), 1, colors.grey),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
             ]
         )
     )
 
     story.append(plan_table)
-    story.append(Spacer(1, 30))
+    story.append(Spacer(1, 36))
 
     # =====================================================
-    # FOOTER LEGAL
+    # FOOTER — LEGAL
     # =====================================================
+    footer_style = ParagraphStyle(
+        "Footer",
+        fontSize=8,
+        textColor=colors.grey,
+        alignment=1,
+    )
+
     story.append(
         Paragraph(
             "© 2026 FinOpsLatam — Información confidencial. Uso exclusivo interno.",
-            styles["Italic"],
+            footer_style,
         )
     )
 
+    # =====================================================
+    # BUILD PDF
+    # =====================================================
     doc.build(story)
 
     with open(buffer.name, "rb") as f:
         pdf_bytes = f.read()
+
+    # Cleanup temp files
+    try:
+        os.unlink(buffer.name)
+        os.unlink(pie_file.name)
+        os.unlink(bar_file.name)
+    except Exception:
+        pass
 
     return pdf_bytes
