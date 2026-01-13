@@ -4,44 +4,43 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from src.reports.client.client_stats_provider import get_client_stats
 from src.reports.client.client_pdf_report import build_client_pdf
 from src.reports.client.client_csv_report import build_client_csv
-from app import app
 
-# ===============================
-# Endpoint PDF
-# ===============================
 
-@app.route("/api/v1/reports/client/pdf", methods=["GET"])
-@jwt_required()
-def client_pdf_report():
-    client_id = int(get_jwt_identity())
+def register_client_report_routes(app):
+    # ===============================
+    # Endpoint PDF
+    # ===============================
+    @app.route("/api/v1/reports/client/pdf", methods=["GET"])
+    @jwt_required()
+    def client_pdf_report():
+        client_id = int(get_jwt_identity())
 
-    stats = get_client_stats(client_id)
-    pdf_data = build_client_pdf(stats)
+        stats = get_client_stats(client_id)
+        pdf_data = build_client_pdf(stats)
 
-    return Response(
-        pdf_data,
-        mimetype="application/pdf",
-        headers={
-            "Content-Disposition": "attachment; filename=finopslatam_client_report.pdf"
-        }
-    )
+        return Response(
+            pdf_data,
+            mimetype="application/pdf",
+            headers={
+                "Content-Disposition": "attachment; filename=finopslatam_client_report.pdf"
+            }
+        )
 
-# ===============================
-# Endpoint CSV
-# ===============================
-@app.route("/api/v1/reports/client/csv", methods=["GET"])
-@jwt_required()
-def client_csv_report():
-    client_id = int(get_jwt_identity())
+    # ===============================
+    # Endpoint CSV
+    # ===============================
+    @app.route("/api/v1/reports/client/csv", methods=["GET"])
+    @jwt_required()
+    def client_csv_report():
+        client_id = int(get_jwt_identity())
 
-    stats = get_client_stats(client_id)
-    csv_data = build_client_csv(stats)
+        stats = get_client_stats(client_id)
+        csv_data = build_client_csv(stats)
 
-    return Response(
-        csv_data,
-        mimetype="text/csv",
-        headers={
-            "Content-Disposition": "attachment; filename=finopslatam_client_report.csv"
-        }
-    )
-
+        return Response(
+            csv_data,
+            mimetype="text/csv",
+            headers={
+                "Content-Disposition": "attachment; filename=finopslatam_client_report.csv"
+            }
+        )
