@@ -77,3 +77,10 @@ Thumbs.db
 *.cache/
 __pypackages__/
 
+# ============================================
+# Node / Frontend
+# ============================================
+node_modules/
+package.json
+package-lock.json
+
