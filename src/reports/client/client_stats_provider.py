@@ -15,7 +15,7 @@ def get_client_stats(client_id: int):
         "active_services": active_services,
         "plan": current_plan,
     }
-from services.client_stats_service import (
+from src.services.client_stats_service import (
     get_users_by_client,
     get_active_services_by_client,
     get_client_plan,
