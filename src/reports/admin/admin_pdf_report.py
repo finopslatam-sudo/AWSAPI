@@ -3,8 +3,8 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from datetime import datetime
 
-from reports.exporters.pdf_base import build_pdf
-from reports.charts.admin_charts import generate_users_by_plan_chart
+from src.reports.exporters.pdf_base import build_pdf
+from src.reports.charts.admin_charts import generate_users_by_plan_chart
 
 def build_admin_pdf(stats: dict) -> bytes:
     styles = getSampleStyleSheet()

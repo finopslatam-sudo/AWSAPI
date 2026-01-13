@@ -2,7 +2,7 @@ from reportlab.platypus import Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from datetime import datetime
 
-from reports.exporters.pdf_base import build_pdf
+from src.reports.exporters.pdf_base import build_pdf
 
 def build_client_pdf(stats: dict) -> bytes:
     styles = getSampleStyleSheet()
