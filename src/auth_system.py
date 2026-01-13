@@ -308,10 +308,12 @@ class ClientSubscription(db.Model):
 # ===============================
 
 def init_auth_system(app):
-    # 🔐 JWT
     app.config["JWT_SECRET_KEY"] = os.getenv(
         "JWT_SECRET_KEY", "finopslatam-prod-secret"
     )
+
+    if not app.config["JWT_SECRET_KEY"]:
+        raise RuntimeError("❌ JWT_SECRET_KEY no definida")
 
     jwt.init_app(app)
 
