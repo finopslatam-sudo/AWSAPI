@@ -1,6 +1,6 @@
 from src.models.database import db
 from src.models.client import Client
-from src.models.subscription import Subscription
+from src.models.subscription import ClientSubscription
 from src.models.aws_account import AWSAccount
 
 
