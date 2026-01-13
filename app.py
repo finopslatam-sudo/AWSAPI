@@ -10,7 +10,6 @@ from src.service_discovery import AWSServiceDiscovery
 from src.auth_system import (
     init_auth_system,
     create_auth_routes,
-    db,
     Client,
     ClientSubscription,
     Plan,
@@ -21,6 +20,8 @@ from flask_cors import CORS
 import json
 import os
 from sqlalchemy.exc import IntegrityError
+from src.models.database import init_db, db
+
 
 # 🔗 REGISTRO DE RUTAS MODULARES (CLAVE)
 from src.routes.admin_reports_routes import register_admin_report_routes
@@ -33,6 +34,14 @@ from src.routes.client_reports_routes import register_client_report_routes
 
 app = Flask(__name__)
 
+# =====================================================
+#   DATABASE (SQLALCHEMY)
+# =====================================================
+
+app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("SQLALCHEMY_DATABASE_URI")
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+init_db(app)
 
 # =====================================================
 #   AUTH SYSTEM
@@ -239,3 +248,12 @@ def active_services():
 if __name__ == '__main__':
     print("🚀 Iniciando FinOps Latam API")
     app.run(host='0.0.0.0', port=5001)
+
+# =====================================================
+#  Validar que la DB realmente quedó inicializada
+# =====================================================
+
+@app.route("/debug/db")
+def debug_db():
+    return {"db_engine": str(db.engine)}
+
