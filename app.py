@@ -21,6 +21,8 @@ from src.models.database import init_db, db
 from src.models.client import Client
 from src.models.subscription import ClientSubscription
 from src.models.plan import Plan
+from src.routes.admin_users_routes import register_admin_users_routes
+
 
 
 # 🔗 REGISTRO DE RUTAS MODULARES (CLAVE)
