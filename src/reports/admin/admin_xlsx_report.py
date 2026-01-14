@@ -1,12 +1,12 @@
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment
 from openpyxl.drawing.image import Image as XLImage
-from openpyxl.chart import PieChart, BarChart, Reference
+from openpyxl.chart import PieChart, Reference, BarChart
 from openpyxl.utils import get_column_letter
 from datetime import datetime
-from zoneinfo import ZoneInfo
+from io import BytesIO
 import os
-import tempfile
+import pytz
 
 
 def build_admin_xlsx(stats: dict) -> bytes:
@@ -14,15 +14,16 @@ def build_admin_xlsx(stats: dict) -> bytes:
     ws = wb.active
     ws.title = "Reporte Administrativo"
 
-    title_font = Font(size=16, bold=True)
-    header_font = Font(bold=True)
-    center = Alignment(horizontal="center")
+    # ============================
+    # CONFIGURACIÓN DE COLUMNAS
+    # ============================
+    widths = [28, 18, 18, 18, 18, 18]
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
 
-    chile_time = datetime.now(ZoneInfo("America/Santiago"))
-
-    # =====================================================
+    # ============================
     # HEADER
-    # =====================================================
+    # ============================
     logo_path = os.path.join(
         os.getcwd(),
         "src",
@@ -30,105 +31,125 @@ def build_admin_xlsx(stats: dict) -> bytes:
         "logos",
         "logoFinopsLatam.png"
     )
+
     if os.path.exists(logo_path):
         logo = XLImage(logo_path)
-        logo.width = 120
-        logo.height = 120
+        logo.width = 110
+        logo.height = 110
         ws.add_image(logo, "A1")
 
+    ws.merge_cells("C2:F2")
     ws["C2"] = "Reporte Administrativo — FinOpsLatam"
-    ws["C2"].font = title_font
+    ws["C2"].font = Font(size=16, bold=True)
+    ws["C2"].alignment = Alignment(horizontal="center")
 
-    ws["C3"] = f"Generado el {chile_time.strftime('%d/%m/%Y %H:%M CLT')}"
+    chile_tz = pytz.timezone("America/Santiago")
+    now_cl = datetime.now(chile_tz).strftime("%d/%m/%Y %H:%M CLT")
 
-    # =====================================================
-    # TABLA 1 — RESUMEN USUARIOS
-    # =====================================================
-    ws["A6"] = "Indicador"
-    ws["B6"] = "Valor"
-    ws["A6"].font = header_font
-    ws["B6"].font = header_font
+    ws.merge_cells("C3:F3")
+    ws["C3"] = f"Generado el {now_cl}"
+    ws["C3"].alignment = Alignment(horizontal="right")
+    ws["C3"].font = Font(size=10)
 
-    resumen = [
-        ("Usuarios totales", stats.get("total_users", 0)),
-        ("Usuarios activos", stats.get("active_users", 0)),
-        ("Usuarios inactivos", stats.get("inactive_users", 0)),
+    # ============================
+    # KPIs
+    # ============================
+    start_row = 6
+
+    ws["A5"] = "Métrica"
+    ws["B5"] = "Valor"
+    ws["C5"] = "Estado"
+    ws["D5"] = "Porcentaje"
+
+    for col in ["A", "B", "C", "D"]:
+        ws[f"{col}5"].font = Font(bold=True)
+
+    total = stats["total_users"]
+    active = stats["active_users"]
+    inactive = stats["inactive_users"]
+
+    active_pct = round((active / total) * 100, 1) if total else 0
+    inactive_pct = round((inactive / total) * 100, 1) if total else 0
+
+    data = [
+        ("Usuarios totales", total, "", ""),
+        ("Usuarios activos", active, "Activo", f"{active_pct}%"),
+        ("Usuarios inactivos", inactive, "Inactivo", f"{inactive_pct}%"),
     ]
 
-    for i, (label, value) in enumerate(resumen, start=7):
-        ws[f"A{i}"] = label
-        ws[f"B{i}"] = value
+    for i, row in enumerate(data, start=start_row):
+        ws[f"A{i}"], ws[f"B{i}"], ws[f"C{i}"], ws[f"D{i}"] = row
 
-    # =====================================================
-    # GRÁFICO 1 — ESTADO USUARIOS
-    # =====================================================
-    total = stats.get("active_users", 0) + stats.get("inactive_users", 0)
-    active_pct = round((stats.get("active_users", 0) / total) * 100, 2) if total else 0
-    inactive_pct = round(100 - active_pct, 2)
-
-    ws["D6"] = "Estado"
-    ws["E6"] = "Porcentaje"
-    ws["D6"].font = header_font
-    ws["E6"].font = header_font
-
-    ws.append(["Activos", active_pct])
-    ws.append(["Inactivos", inactive_pct])
-
+    # ============================
+    # PIE CHART (DEBAJO KPI)
+    # ============================
     pie = PieChart()
     pie.title = "Usuarios activos vs inactivos"
-    labels = Reference(ws, min_col=4, min_row=7, max_row=8)
-    data = Reference(ws, min_col=5, min_row=6, max_row=8)
-    pie.add_data(data, titles_from_data=True)
+
+    labels = Reference(ws, min_col=1, min_row=7, max_row=8)
+    values = Reference(ws, min_col=2, min_row=7, max_row=8)
+
+    pie.add_data(values, titles_from_data=False)
     pie.set_categories(labels)
-    ws.add_chart(pie, "D10")
 
-    # =====================================================
-    # TABLA 2 — USUARIOS POR PLAN
-    # =====================================================
-    start_row = 20
-    ws[f"A{start_row}"] = "Plan"
-    ws[f"B{start_row}"] = "Cantidad"
-    ws[f"A{start_row}"].font = header_font
-    ws[f"B{start_row}"].font = header_font
+    ws.add_chart(pie, "F6")
 
-    for i, plan in enumerate(stats.get("users_by_plan", []), start=start_row + 1):
-        ws[f"A{i}"] = plan.get("plan", "")
-        ws[f"B{i}"] = plan.get("count", 0)
+    # ============================
+    # USUARIOS POR PLAN (TABLA)
+    # ============================
+    plan_start = 14
 
-    # =====================================================
-    # GRÁFICO 2 — USUARIOS POR PLAN
-    # =====================================================
-    last_row = start_row + len(stats.get("users_by_plan", []))
+    ws["A13"] = "Plan"
+    ws["B13"] = "Cantidad"
+    ws["A13"].font = ws["B13"].font = Font(bold=True)
+
+    for i, p in enumerate(stats["users_by_plan"], start=plan_start):
+        ws[f"A{i}"] = p["plan"]
+        ws[f"B{i}"] = p["count"]
+
+    # ============================
+    # BAR CHART (DEBAJO TABLA PLAN)
+    # ============================
     bar = BarChart()
     bar.title = "Usuarios por plan"
     bar.y_axis.title = "Cantidad"
     bar.x_axis.title = "Plan"
 
-    data = Reference(ws, min_col=2, min_row=start_row, max_row=last_row)
-    cats = Reference(ws, min_col=1, min_row=start_row + 1, max_row=last_row)
-    bar.add_data(data, titles_from_data=True)
-    bar.set_categories(cats)
-
-    ws.add_chart(bar, "D20")
-
-    # =====================================================
-    # FOOTER
-    # =====================================================
-    ws[f"A{last_row + 8}"] = (
-        "© 2026 FinOpsLatam — Información confidencial. Uso exclusivo interno."
+    data_ref = Reference(
+        ws,
+        min_col=2,
+        min_row=plan_start - 1,
+        max_row=plan_start + len(stats["users_by_plan"]) - 1,
     )
 
-    # =====================================================
-    # AJUSTES
-    # =====================================================
-    for col in range(1, 6):
-        ws.column_dimensions[get_column_letter(col)].width = 30
+    cats_ref = Reference(
+        ws,
+        min_col=1,
+        min_row=plan_start,
+        max_row=plan_start + len(stats["users_by_plan"]) - 1,
+    )
 
-    # =====================================================
+    bar.add_data(data_ref, titles_from_data=True)
+    bar.set_categories(cats_ref)
+
+    ws.add_chart(bar, "F14")
+
+    # ============================
+    # FOOTER
+    # ============================
+    footer_row = plan_start + len(stats["users_by_plan"]) + 10
+    ws.merge_cells(f"A{footer_row}:F{footer_row}")
+    ws[f"A{footer_row}"] = (
+        "© 2026 FinOpsLatam — Información confidencial. Uso exclusivo interno."
+    )
+    ws[f"A{footer_row}"].alignment = Alignment(horizontal="center")
+    ws[f"A{footer_row}"].font = Font(size=9)
+
+    # ============================
     # EXPORT
-    # =====================================================
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
-    wb.save(tmp.name)
+    # ============================
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
 
-    with open(tmp.name, "rb") as f:
-        return f.read()
+    return buffer.read()
