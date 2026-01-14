@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 import tempfile
 import os
 from datetime import datetime
+from zoneinfo import ZoneInfo
+
 
 
 def build_admin_pdf(stats: dict) -> bytes:
@@ -64,13 +66,15 @@ def build_admin_pdf(stats: dict) -> bytes:
         textColor=colors.grey,
     )
 
+    chile_time = datetime.now(ZoneInfo("America/Santiago"))
+
     header_table = Table(
         [
             [
                 logo,
                 Paragraph("Reporte Administrativo<br/>FinOpsLatam", title_style),
                 Paragraph(
-                    f"Generado el<br/>{datetime.utcnow().strftime('%d/%m/%Y %H:%M UTC')}",
+                    f"Generado el<br/>{chile_time.strftime('%d/%m/%Y %H:%M CLT')}",
                     date_style,
                 ),
             ]
