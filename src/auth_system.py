@@ -816,5 +816,3 @@ def create_auth_routes(app):
             return jsonify({"error": "Acceso denegado"}), 403
 
         return jsonify(get_admin_stats()), 200
-
-   
