@@ -20,3 +20,10 @@ class ClientSubscription(db.Model):
     )
 
     is_active = db.Column(db.Boolean, default=True)
+
+    # ✅ ESTE CAMPO FALTA Y ES LA CAUSA DEL ERROR
+    created_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        nullable=False
+    )
