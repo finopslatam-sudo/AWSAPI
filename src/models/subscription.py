@@ -3,22 +3,20 @@ from datetime import datetime
 from enum import Enum
 
 class ClientSubscription(db.Model):
-    __tablename__ = 'client_subscriptions'
+    __tablename__ = "client_subscriptions"
 
     id = db.Column(db.Integer, primary_key=True)
 
-    user_id = db.Column(
+    client_id = db.Column(
         db.Integer,
+        db.ForeignKey("clients.id"),
         nullable=False
     )
 
     plan_id = db.Column(
         db.Integer,
+        db.ForeignKey("plans.id"),
         nullable=False
     )
 
-    created_at = db.Column(
-        db.DateTime,
-        nullable=False,
-        default=datetime.utcnow
-    )
+    is_active = db.Column(db.Boolean, default=True)
