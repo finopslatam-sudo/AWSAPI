@@ -36,33 +36,50 @@ class Client(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     # ==========================
-    # DOMAIN HELPERS (IMPORTANT)
+    # ROLE HELPERS (CLARITY)
     # ==========================
-    def is_protected(self) -> bool:
-        """
-        ROOT users are immutable from administrative actions
-        """
+    def is_root_user(self) -> bool:
         return self.is_root is True
 
+    def is_admin_user(self) -> bool:
+        return self.role == "admin"
+
+    def is_client_user(self) -> bool:
+        return self.role == "client"
+
+    # ==========================
+    # DOMAIN PERMISSIONS (CRITICAL)
+    # ==========================
     def can_be_modified_by(self, actor: "Client") -> bool:
         """
-        Domain-level permission check.
-        This MUST be respected by use cases.
+        Enterprise-grade domain permission rules.
+
+        Rules:
+        - ROOT can modify anyone (including itself)
+        - ADMIN can modify CLIENT only
+        - ADMIN cannot modify ADMIN or ROOT
+        - CLIENT cannot modify anyone
         """
 
-        # ROOT cannot be modified by anyone
-        if self.is_root:
+        # Sanity check
+        if not actor:
             return False
 
-        # Admin cannot modify another admin
-        if self.role == "admin" and actor.role != "root":
+        # ROOT can do everything
+        if actor.is_root_user():
+            return True
+
+        # Target is ROOT → nobody except ROOT
+        if self.is_root_user():
             return False
 
-        # Regular users cannot modify anyone
-        if actor.role == "client":
-            return False
+        # ADMIN rules
+        if actor.is_admin_user():
+            # Admin can modify clients only
+            return self.is_client_user()
 
-        return True
+        # CLIENT can modify nobody
+        return False
 
     # ==========================
     # PASSWORD HELPERS
@@ -94,7 +111,7 @@ class Client(db.Model):
     def to_dict(self):
         """
         Public-safe representation.
-        NEVER expose is_root.
+        NEVER expose is_root or password hash.
         """
         return {
             "id": self.id,
