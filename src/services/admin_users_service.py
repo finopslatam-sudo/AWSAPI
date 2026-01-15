@@ -12,13 +12,20 @@ def get_all_users_with_plan():
         db.session.query(
             Client.id,
             Client.company_name,
+            Client.contact_name,
             Client.email,
             Client.role,
             Client.is_active,
-            Plan.name.label("plan")
+            Plan.name.label("plan"),
         )
-        .join(ClientSubscription, ClientSubscription.client_id == Client.id)
-        .join(Plan, Plan.id == ClientSubscription.plan_id)
+        .outerjoin(
+            ClientSubscription,
+            ClientSubscription.client_id == Client.id
+        )
+        .outerjoin(
+            Plan,
+            Plan.id == ClientSubscription.plan_id
+        )
         .order_by(Client.created_at.desc())
         .all()
     )
@@ -27,10 +34,11 @@ def get_all_users_with_plan():
         {
             "id": r.id,
             "company_name": r.company_name,
+            "contact_name": r.contact_name,
             "email": r.email,
             "role": r.role,
             "is_active": r.is_active,
-            "plan": r.plan,
+            "plan": r.plan,  # None → “Sin plan” en frontend
         }
         for r in rows
     ]
