@@ -62,16 +62,11 @@ CORS(
     app,
     resources={r"/api/*": {"origins": [
         "https://www.finopslatam.com",
-        "https://www.finopslatam.com/",
-        "http://localhost:3000"
+        "https://finopslatam.com"
     ]}},
     supports_credentials=True,
-    expose_headers=["Authorization"],
-    allow_headers=[
-        "Content-Type",
-        "Authorization",
-        "X-Requested-With"
-    ]
+    allow_headers=["Content-Type", "Authorization"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
 )
 
 # =====================================================
