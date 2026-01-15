@@ -5,7 +5,10 @@ from src.models.plan import Plan
 from src.models.database import db
 
 
-def get_all_users_with_plan():
+# =====================================================
+# ADMIN VIEW — TODOS LOS USUARIOS (CON O SIN PLAN)
+# =====================================================
+def get_all_users_admin_view():
     ActiveSubscription = aliased(ClientSubscription)
 
     rows = (
@@ -16,12 +19,8 @@ def get_all_users_with_plan():
             Client.email,
             Client.role,
             Client.is_active,
-            Client.is_root,
-
-            # 🔹 PLAN COMPLETO
-            Plan.id.label("plan_id"),
-            Plan.code.label("plan_code"),
-            Plan.name.label("plan_name"),
+            getattr(Client, "is_root", False).label("is_root"),
+            Plan.name.label("plan"),
         )
         .outerjoin(
             ActiveSubscription,
@@ -36,10 +35,8 @@ def get_all_users_with_plan():
         .all()
     )
 
-    users = []
-
-    for r in rows:
-        users.append({
+    return [
+        {
             "id": r.id,
             "company_name": r.company_name,
             "contact_name": r.contact_name,
@@ -47,17 +44,7 @@ def get_all_users_with_plan():
             "role": r.role,
             "is_active": r.is_active,
             "is_root": r.is_root,
-
-            # 🔹 OBJETO PLAN (o null)
-            "plan": (
-                {
-                    "id": r.plan_id,
-                    "code": r.plan_code,
-                    "name": r.plan_name,
-                }
-                if r.plan_id
-                else None
-            ),
-        })
-
-    return users
+            "plan": r.plan,  # None si admin/root
+        }
+        for r in rows
+    ]
