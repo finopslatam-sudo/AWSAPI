@@ -10,17 +10,17 @@ def register_admin_users_routes(app):
     @app.route("/api/admin/users", methods=["GET"])
     @jwt_required()
     def admin_users():
-        actor_id = get_jwt_identity()
+        actor_id = int(get_jwt_identity())
         actor = Client.query.get(actor_id)
 
-        # 🔒 Autenticación básica
+        # 🔒 Autenticación
         if not actor or not actor.is_active:
             return jsonify({"error": "Unauthorized"}), 403
 
-        # 🔒 Autorización a nivel dominio
-        # ROOT y ADMIN pueden listar usuarios
+        # 🔐 Autorización CORRECTA
+        # ROOT (is_root=True) y ADMIN (role=admin) pueden listar
         if not (actor.is_root or actor.role == "admin"):
             return jsonify({"error": "Forbidden"}), 403
 
         users = get_admin_users()
-        return jsonify(users), 200
+        return jsonify({"users": users}), 200
