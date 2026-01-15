@@ -1,75 +1,97 @@
+# =====================================================
+#   ENV & CORE IMPORTS (PRIMERO SIEMPRE)
+# =====================================================
+from dotenv import load_dotenv
+load_dotenv()  # Permite CLI + systemd sin romper prod
+
+import os
+import json
+from datetime import datetime
+
 from flask import Flask, jsonify, render_template, request, redirect
+from flask_cors import CORS
 from flask_jwt_extended import (
     JWTManager,
     jwt_required,
     get_jwt_identity,
     create_access_token
 )
+from sqlalchemy.exc import IntegrityError
+
+# =====================================================
+#   APP & DATABASE
+# =====================================================
+from src.models.database import init_db, db
+from src.models.client import Client
+from src.models.subscription import ClientSubscription
+from src.models.plan import Plan
+
+# =====================================================
+#   CORE SERVICES
+# =====================================================
 from src.finops_auditor import FinOpsAuditor
 from src.service_discovery import AWSServiceDiscovery
+
+# =====================================================
+#   AUTH SYSTEM
+# =====================================================
 from src.auth_system import (
     init_auth_system,
     create_auth_routes,
     send_email
 )
-from datetime import datetime
-from flask_cors import CORS
-import json
-import os
-from sqlalchemy.exc import IntegrityError
-from src.models.database import init_db, db
-from src.models.client import Client
-from src.models.subscription import ClientSubscription
-from src.models.plan import Plan
-from src.routes.admin_users_routes import register_admin_users_routes
-from src.models.database import init_db
 
-
-
-# 🔗 REGISTRO DE RUTAS MODULARES (CLAVE)
+# =====================================================
+#   ROUTES (MODULARES)
+# =====================================================
 from src.routes.admin_reports_routes import register_admin_report_routes
 from src.routes.client_reports_routes import register_client_report_routes
+from src.routes.admin_users_routes import register_admin_users_routes
 
 
 # =====================================================
-#   CONFIGURACIÓN BASE DEL SERVICIO
+#   APP INIT
 # =====================================================
-
 app = Flask(__name__)
-
-# 🔑 INICIALIZAR DB + MIGRACIONES
-init_db(app)
+CORS(app)
 
 # =====================================================
-#   DATABASE (SQLALCHEMY)
+#   CONFIGURACIÓN BASE
 # =====================================================
-
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("SQLALCHEMY_DATABASE_URI")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY")
 
 if not app.config["SQLALCHEMY_DATABASE_URI"]:
     raise RuntimeError("❌ SQLALCHEMY_DATABASE_URI no definida")
 
+if not app.config["JWT_SECRET_KEY"]:
+    raise RuntimeError("❌ JWT_SECRET_KEY no definida")
+
+# =====================================================
+#   INIT DB + MIGRATIONS (SOLO UNA VEZ)
+# =====================================================
 init_db(app)
 
 # =====================================================
-#   AUTH SYSTEM
+#   AUTH SYSTEM INIT
 # =====================================================
-
 init_auth_system(app)
 
+# =====================================================
+#   REGISTRO DE RUTAS MODULARES
+# =====================================================
 register_admin_report_routes(app)
 register_client_report_routes(app)
+register_admin_users_routes(app)
 
-# 🔐 Evitar doble registro de rutas
+# Evitar doble registro de rutas auth
 if not os.getenv("FLASK_SKIP_ROUTES"):
     create_auth_routes(app)
-
 
 # =====================================================
 #   EMAIL HELPERS
 # =====================================================
-
 def build_welcome_email(nombre, email, password):
     return f"""
 Hola {nombre},
@@ -98,7 +120,6 @@ Equipo FinOpsLatam
 # =====================================================
 #   ADMIN - LISTAR PLANES
 # =====================================================
-
 @app.route('/api/admin/plans', methods=['GET'])
 @jwt_required()
 def admin_list_plans():
@@ -121,7 +142,6 @@ def admin_list_plans():
 # =====================================================
 #   ADMIN - CREAR USUARIO
 # =====================================================
-
 @app.route('/api/admin/users', methods=['POST'])
 @jwt_required()
 def admin_create_user():
@@ -196,14 +216,13 @@ def admin_create_user():
 
 
 # =====================================================
-#   RUTAS FRONTEND
+#   FRONTEND ROUTES
 # =====================================================
-
 def usuario_autenticado():
     try:
         get_jwt_identity()
         return True
-    except:
+    except Exception:
         return False
 
 
@@ -233,7 +252,6 @@ def dashboard():
 # =====================================================
 #   API ENDPOINTS
 # =====================================================
-
 @app.route('/api/health')
 def health():
     return jsonify({
@@ -251,18 +269,16 @@ def active_services():
 
 
 # =====================================================
-#   RUN SERVER
+#   DEBUG
 # =====================================================
-
-if __name__ == '__main__':
-    print("🚀 Iniciando FinOps Latam API")
-    app.run(host='0.0.0.0', port=5001)
-
-# =====================================================
-#  Validar que la DB realmente quedó inicializada
-# =====================================================
-
 @app.route("/debug/db")
 def debug_db():
     return {"db_engine": str(db.engine)}
 
+
+# =====================================================
+#   RUN SERVER (LOCAL)
+# =====================================================
+if __name__ == '__main__':
+    print("🚀 Iniciando FinOps Latam API")
+    app.run(host='0.0.0.0', port=5001)
