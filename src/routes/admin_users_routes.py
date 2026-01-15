@@ -19,7 +19,7 @@ def register_admin_users_routes(app):
 
         # 🔒 Autorización a nivel dominio
         # ROOT y ADMIN pueden listar usuarios
-        if not (actor.is_root_user() or actor.is_admin_user()):
+        if not (actor.is_root or actor.role == "admin"):
             return jsonify({"error": "Forbidden"}), 403
 
         users = get_admin_users()
