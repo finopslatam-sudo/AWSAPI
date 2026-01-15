@@ -48,3 +48,16 @@ def get_all_users_admin_view():
         }
         for r in rows
     ]
+
+
+# =====================================================
+# ✅ FUNCIÓN ESPERADA POR admin_reports_routes.py
+# =====================================================
+def get_admin_stats():
+    """
+    Wrapper de compatibilidad.
+    Evita romper imports existentes.
+    """
+    return {
+        "users": get_all_users_admin_view()
+    }
