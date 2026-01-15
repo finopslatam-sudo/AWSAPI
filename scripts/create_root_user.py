@@ -1,8 +1,14 @@
+import sys
+import os
 from datetime import datetime, timedelta
 
+# ⬅️ AÑADIR RAÍZ DEL PROYECTO AL PYTHONPATH
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, BASE_DIR)
+
+from app import app
 from src.models.database import db
 from src.models.client import Client
-from app import app
 
 
 def create_root_user():
@@ -28,8 +34,8 @@ def create_root_user():
             created_at=datetime.utcnow()
         )
 
-        # ⚠️ CONTRASEÑA TEMPORAL — SOLO PARA BOOTSTRAP
-        root.set_password("CAMBIAR_ESTA_PASSWORD")
+        # ⚠️ Password temporal
+        root.set_password("PASSWORD")
 
         db.session.add(root)
         db.session.commit()
