@@ -3,6 +3,12 @@ from datetime import datetime, timedelta, timezone
 from src.models.database import db
 from src.models.client import Client
 from app import app
+import sys
+import os
+
+# ⬅️ AÑADIR RAÍZ DEL PROYECTO AL PYTHONPATH
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, BASE_DIR)
 
 
 def reset_root_password():
