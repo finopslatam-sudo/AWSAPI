@@ -1,39 +1,50 @@
-def get_admin_stats():
-    """
-    Fuente única de datos administrativos.
-    Este método puede ser reutilizado por:
-    - PDF
-    - CSV
-    - Dashboards
-    - API
-    """
-
-    # ⚠️ Usa aquí tus queries reales
-    total_users = get_total_users()
-    active_users = get_active_users()
-    inactive_users = get_inactive_users()
-
-    users_by_plan = get_users_grouped_by_plan()
-
-    return {
-        "total_users": total_users,
-        "active_users": active_users,
-        "inactive_users": inactive_users,
-        "users_by_plan": users_by_plan,
-    }
-
-from src.services.admin_stats_service import (
-    get_total_users,
-    get_active_users,
-    get_inactive_users,
-    get_users_grouped_by_plan,
-)
+from sqlalchemy.orm import aliased
+from src.models.client import Client
+from src.models.subscription import ClientSubscription
+from src.models.plan import Plan
+from src.models.database import db
 
 
-def get_admin_stats():
-    return {
-        "total_users": get_total_users(),
-        "active_users": get_active_users(),
-        "inactive_users": get_inactive_users(),
-        "users_by_plan": get_users_grouped_by_plan(),
-    }
+# =====================================================
+# ADMIN VIEW — TODOS LOS USUARIOS (CON O SIN PLAN)
+# =====================================================
+def get_all_users_admin_view():
+    ActiveSubscription = aliased(ClientSubscription)
+
+    rows = (
+        db.session.query(
+            Client.id,
+            Client.company_name,
+            Client.contact_name,
+            Client.email,
+            Client.role,
+            Client.is_active,
+            getattr(Client, "is_root", False).label("is_root"),
+            Plan.name.label("plan"),
+        )
+        .outerjoin(
+            ActiveSubscription,
+            (ActiveSubscription.client_id == Client.id)
+            & (ActiveSubscription.is_active == True)
+        )
+        .outerjoin(
+            Plan,
+            Plan.id == ActiveSubscription.plan_id
+        )
+        .order_by(Client.created_at.desc())
+        .all()
+    )
+
+    return [
+        {
+            "id": r.id,
+            "company_name": r.company_name,
+            "contact_name": r.contact_name,
+            "email": r.email,
+            "role": r.role,
+            "is_active": r.is_active,
+            "is_root": r.is_root,
+            "plan": r.plan,  # None si admin/root
+        }
+        for r in rows
+    ]
