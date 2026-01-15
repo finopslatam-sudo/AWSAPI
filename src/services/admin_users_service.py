@@ -1,3 +1,5 @@
+from sqlalchemy.orm import aliased
+
 from src.models.client import Client
 from src.models.subscription import ClientSubscription
 from src.models.plan import Plan
@@ -5,9 +7,11 @@ from src.models.database import db
 
 
 # =====================================================
-# (USO OPERACIONAL / BILLING)
+# USO OPERACIONAL / BILLING
 # =====================================================
 def get_all_users_with_plan():
+    ActiveSubscription = aliased(ClientSubscription)
+
     rows = (
         db.session.query(
             Client.id,
@@ -19,12 +23,13 @@ def get_all_users_with_plan():
             Plan.name.label("plan"),
         )
         .outerjoin(
-            ClientSubscription,
-            ClientSubscription.client_id == Client.id
+            ActiveSubscription,
+            (ActiveSubscription.client_id == Client.id)
+            & (ActiveSubscription.is_active.is_(True))
         )
         .outerjoin(
             Plan,
-            Plan.id == ClientSubscription.plan_id
+            Plan.id == ActiveSubscription.plan_id
         )
         .order_by(Client.created_at.desc())
         .all()
@@ -38,7 +43,7 @@ def get_all_users_with_plan():
             "email": r.email,
             "role": r.role,
             "is_active": r.is_active,
-            "plan": r.plan,  # None → “Sin plan” en frontend
+            "plan": r.plan,  # None => "Sin plan"
         }
         for r in rows
     ]
@@ -48,6 +53,8 @@ def get_all_users_with_plan():
 # ADMIN VIEW — TODOS LOS USUARIOS (CON O SIN PLAN)
 # =====================================================
 def get_all_users_admin_view():
+    ActiveSubscription = aliased(ClientSubscription)
+
     rows = (
         db.session.query(
             Client.id,
@@ -57,15 +64,16 @@ def get_all_users_admin_view():
             Client.role,
             Client.is_active,
             Client.is_root,
-            Plan.name.label("plan")
+            Plan.name.label("plan"),
         )
         .outerjoin(
-            ClientSubscription,
-            ClientSubscription.client_id == Client.id
+            ActiveSubscription,
+            (ActiveSubscription.client_id == Client.id)
+            & (ActiveSubscription.is_active.is_(True))
         )
         .outerjoin(
             Plan,
-            Plan.id == ClientSubscription.plan_id
+            Plan.id == ActiveSubscription.plan_id
         )
         .order_by(Client.created_at.desc())
         .all()
@@ -80,7 +88,7 @@ def get_all_users_admin_view():
             "role": r.role,
             "is_active": r.is_active,
             "is_root": r.is_root,
-            "plan": r.plan,  # puede ser None (admin / root)
+            "plan": r.plan,  # None para admin/root
         }
         for r in rows
     ]
