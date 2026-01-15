@@ -22,6 +22,7 @@ from src.models.client import Client
 from src.models.subscription import ClientSubscription
 from src.models.plan import Plan
 from src.routes.admin_users_routes import register_admin_users_routes
+from src.models.database import init_db
 
 
 
@@ -35,6 +36,9 @@ from src.routes.client_reports_routes import register_client_report_routes
 # =====================================================
 
 app = Flask(__name__)
+
+# 🔑 INICIALIZAR DB + MIGRACIONES
+init_db(app)
 
 # =====================================================
 #   DATABASE (SQLALCHEMY)
