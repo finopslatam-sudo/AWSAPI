@@ -13,6 +13,10 @@ def send_email(to: str, subject: str, body: str):
     smtp_user = os.getenv("SMTP_USER")
     smtp_pass = os.getenv("SMTP_PASS")
 
+    # 🔍 DEBUG TEMPORAL — VALIDAR CONTEXTO SYSTEMD
+    if os.getenv("TEST_SMTP") == "1":
+        logger.info("[EMAIL] SMTP activo en contexto systemd")
+
     logger.info(f"[EMAIL] Intentando enviar correo a {to}")
     logger.info(f"[EMAIL] SMTP_HOST={smtp_host} SMTP_PORT={smtp_port} SMTP_USER={smtp_user}")
 
@@ -37,3 +41,4 @@ def send_email(to: str, subject: str, body: str):
 
     except Exception as e:
         logger.exception(f"[EMAIL ERROR] Fallo enviando correo a {to}: {e}")
+
