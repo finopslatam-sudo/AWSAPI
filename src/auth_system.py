@@ -326,6 +326,7 @@ def create_auth_routes(app):
                 "phone": client.phone,
                 "role": client.role,
                 "is_active": client.is_active,
+                "is_root": client.is_root,
                 "force_password_change": client.force_password_change,
             }
         }
