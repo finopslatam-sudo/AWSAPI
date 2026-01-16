@@ -4,7 +4,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from src.reports.admin.admin_users_provider import get_admin_users
 from src.models.client import Client
 from src.models.database import db
-
+from src.services.email_service import send_email
 
 def register_admin_users_routes(app):
 

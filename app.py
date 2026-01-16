@@ -30,9 +30,9 @@ from src.service_discovery import AWSServiceDiscovery
 # =====================================================
 from src.auth_system import (
     init_auth_system,
-    create_auth_routes,
-    send_email
+    create_auth_routes
 )
+from src.services.email_service import send_email
 
 # =====================================================
 #   DATABASE
