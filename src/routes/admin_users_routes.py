@@ -5,6 +5,11 @@ from src.reports.admin.admin_users_provider import get_admin_users
 from src.models.client import Client
 from src.models.database import db
 from src.services.email_service import send_email
+from src.services.user_events_service import (
+    on_user_deactivated,
+    on_user_reactivated
+)
+
 
 def register_admin_users_routes(app):
 
@@ -53,9 +58,21 @@ def register_admin_users_routes(app):
         target.phone = data.get("phone", target.phone)
         target.email = data.get("email", target.email)
         target.role = data.get("role", target.role)
+        # 🔎 Guardar estado anterior
+        previous_state = target.is_active
+
+        # 🔧 Actualizar estado
         target.is_active = data.get("is_active", target.is_active)
 
         db.session.commit()
+
+        # 📧 EVENTOS DE ESTADO
+        if previous_state is True and target.is_active is False:
+            on_user_deactivated(target)
+
+        if previous_state is False and target.is_active is True:
+            on_user_reactivated(target)
+
         return jsonify({"message": "Usuario actualizado"}), 200
 
     # ============================
