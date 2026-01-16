@@ -1,6 +1,27 @@
 from datetime import datetime
 
 # ================================
+# EMAIL RECUPERACION DE PASSWORD
+# ================================
+def build_forgot_password_email(name, email, temp_password):
+    return f"""
+Hola {name},
+
+Se solicitó la recuperación de acceso a tu cuenta FinOpsLatam.
+
+Usuario: {email}
+Contraseña temporal: {temp_password}
+
+Esta contraseña expira en 30 minutos.
+
+Accede aquí:
+https://www.finopslatam.com
+
+Saludos,
+Equipo FinOpsLatam
+"""
+
+# ================================
 # EMAIL HELPERS CUENTA DESACTIVADA
 # ================================
 def build_account_deactivated_email(nombre):

@@ -9,6 +9,8 @@ from src.services.email_templates import (
     build_password_changed_email,
     build_admin_reset_password_email,
     build_forgot_password_email,
+    build_root_login_alert_email,
+
 )
 
 
@@ -75,5 +77,15 @@ def on_root_login(user):
             user.contact_name,
             user.email,
             ip
+        )
+    )
+def on_forgot_password(user, temp_password):
+    send_email(
+        to=user.email,
+        subject="Recuperación de acceso | FinOpsLatam",
+        body=build_forgot_password_email(
+            user.contact_name,
+            user.email,
+            temp_password
         )
     )
