@@ -3,10 +3,12 @@ from src.services.email_service import send_email
 from src.services.email_templates import build_plan_changed_email
 from src.services.email_templates import build_root_login_alert_email
 from src.services.email_templates import (
+    build_plan_changed_email,
     build_account_deactivated_email,
     build_account_reactivated_email,
-    build_admin_reset_password_email,
     build_password_changed_email,
+    build_admin_reset_password_email,
+    build_forgot_password_email,
 )
 
 

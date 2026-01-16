@@ -18,9 +18,9 @@ from src.services.user_events_service import (
     on_user_reactivated,
     on_admin_reset_password,
     on_password_changed,
-    on_plan_changed,
     on_forgot_password,
-    on_root_login
+    on_root_login,
+    on_user_plan_changed 
 )
 
 # ===============================
@@ -128,6 +128,64 @@ def create_auth_routes(app):
             on_user_reactivated(user)
 
         return jsonify({"message": "Usuario actualizado"}), 200
+    
+    # ---------------------------------------------
+    # ADMIN — ACTUALIZAR PLAN DE USUARIO
+    # ---------------------------------------------
+    @app.route('/api/admin/users/<int:user_id>/plan', methods=['PUT'])
+    @jwt_required()
+    def admin_update_user_plan(user_id):
+        admin_id = int(get_jwt_identity())
+        if not require_admin(admin_id):
+            return jsonify({"error": "Acceso denegado"}), 403
+
+        data = request.get_json() or {}
+        plan_id = data.get("plan_id")
+
+        if not plan_id:
+            return jsonify({"error": "plan_id es obligatorio"}), 400
+
+        user = Client.query.get_or_404(user_id)
+
+        # 🔎 Plan nuevo
+        new_plan = Plan.query.get(plan_id)
+        if not new_plan:
+            return jsonify({"error": "Plan no encontrado"}), 404
+
+        # 🔎 Suscripción actual (si existe)
+        subscription = ClientSubscription.query.filter_by(
+            client_id=user.id,
+            is_active=True
+        ).first()
+
+        old_plan = subscription.plan if subscription else None
+
+        if subscription:
+            subscription.plan_id = new_plan.id
+        else:
+            subscription = ClientSubscription(
+                client_id=user.id,
+                plan_id=new_plan.id,
+                is_active=True
+            )
+            db.session.add(subscription)
+
+        db.session.commit()
+
+        # 📧 EVENTO DE DOMINIO (CORRECTO)
+        if old_plan:
+            on_user_plan_changed(user, old_plan, new_plan)
+
+        return jsonify({
+            "message": "Plan actualizado correctamente",
+            "user_id": user.id,
+            "plan": {
+                "id": new_plan.id,
+                "code": new_plan.code,
+                "name": new_plan.name
+            }
+        }), 200
+
 
     # ---------------------------------------------
     # CAMBIO PASSWORD USUARIO (VOLUNTARIO / FORZADO)

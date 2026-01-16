@@ -97,3 +97,23 @@ Fecha: {datetime.utcnow().isoformat()} UTC
 Si no reconoces este acceso,
 contacta inmediatamente a soporte@finopslatam.com
 """
+# ================================
+# EMAIL CAMBIO DE PLAN 
+# ================================
+def build_plan_changed_email(nombre: str, plan_name: str) -> str:
+    return f"""
+Hola {nombre},
+
+Te informamos que tu plan en FinOpsLatam ha sido actualizado.
+
+📦 Nuevo plan:
+{plan_name}
+
+Los cambios se aplican de inmediato.
+
+Accede aquí:
+https://www.finopslatam.com/
+
+Saludos,
+Equipo FinOpsLatam
+"""
