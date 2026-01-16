@@ -477,7 +477,6 @@ def create_auth_routes(app):
             "user_id": user.id
         }), 200
 
-
     # ---------------------------------------------
     # CAMBIO DE PASSWORD OBLIGATORIO
     # (primer login o reactivación de cuenta)
