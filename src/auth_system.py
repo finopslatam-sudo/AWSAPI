@@ -21,6 +21,10 @@ from src.models.client import Client
 from src.models.subscription import ClientSubscription
 from src.models.plan import Plan
 from src.services.email_service import send_email
+from src.services.user_events_service import (
+    on_user_deactivated,
+    on_user_reactivated
+)
 
 import matplotlib.pyplot as plt
 import tempfile
@@ -441,37 +445,17 @@ def create_auth_routes(app):
         if "email" in data:
             user.email = data["email"]
 
-        # ✅ Estado activo / inactivo (DETECCIÓN DE TRANSICIÓN)
+        # ✅ Estado activo / inactivo (EVENTOS DE DOMINIO)
         if "is_active" in data:
             new_state = data["is_active"]
             user.is_active = new_state
 
-            # 🔴 ACTIVO → INACTIVO → correo de desactivación
             if previous_state is True and new_state is False:
-                try:
-                    send_email(
-                        to=user.email,
-                        subject="Tu cuenta ha sido desactivada 🔒 | FinOpsLatam",
-                        body=build_account_deactivated_email(user.contact_name)
-                    )
-                except Exception as e:
-                    app.logger.error(
-                        f"Error enviando correo desactivación usuario {user.id}: {e}"
-                    )
+                on_user_deactivated(user)
 
-            # 🟢 INACTIVO → ACTIVO → forzar cambio + correo
             if previous_state is False and new_state is True:
                 user.force_password_change = True
-                try:
-                    send_email(
-                        to=user.email,
-                        subject="Tu cuenta ha sido reactivada 🔓 | FinOpsLatam",
-                        body=build_account_reactivated_email(user.contact_name)
-                    )
-                except Exception as e:
-                    app.logger.error(
-                        f"Error enviando correo reactivación usuario {user.id}: {e}"
-                    )
+                on_user_reactivated(user)
 
         # 🔐 Evitar que admin se quite su propio rol
         if "role" in data:
@@ -492,6 +476,7 @@ def create_auth_routes(app):
             "message": "Usuario actualizado correctamente",
             "user_id": user.id
         }), 200
+
 
     # ---------------------------------------------
     # CAMBIO DE PASSWORD OBLIGATORIO
