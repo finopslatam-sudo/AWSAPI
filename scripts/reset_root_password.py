@@ -3,11 +3,17 @@ import sys
 import os
 from getpass import getpass
 
+# =========================
+# Bootstrap path correcto
+# =========================
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, BASE_DIR)
 
-from dotenv import load_dotenv
-load_dotenv(os.path.join(BASE_DIR, ".env"))
+# =========================
+# ⚠️ NO cargamos .env
+# Usamos el mismo entorno
+# que systemd / gunicorn
+# =========================
 
 from app import app
 from src.models.database import db
@@ -25,7 +31,10 @@ def main():
     email = os.getenv("ROOT_EMAIL", "contacto@finopslatam.com")
 
     with app.app_context():
-        user = Client.query.filter_by(email=email, is_root=True).first()
+        user = Client.query.filter_by(
+            email=email,
+            is_root=True
+        ).first()
 
         if not user:
             print("❌ Usuario ROOT no encontrado")
@@ -51,7 +60,8 @@ def main():
 
         except Exception as e:
             db.session.rollback()
-            print("❌ Error al actualizar la contraseña:", str(e))
+            print("❌ Error al actualizar la contraseña:")
+            print(e)
             sys.exit(1)
 
 
