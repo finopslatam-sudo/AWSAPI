@@ -87,16 +87,19 @@ def on_user_plan_changed(user, old_plan, new_plan):
         f"new_plan={getattr(new_plan, 'name', None)}"
     )
 
-    if not old_plan or not new_plan:
-        logger.warning("[PLAN_CHANGED] plan inválido, no se envía correo")
+    # ✅ Validación mínima REAL
+    if not new_plan:
+        logger.warning("[PLAN_CHANGED] new_plan inválido, no se envía correo")
         return
+
+    old_plan_name = old_plan.name if old_plan else "Sin plan previo"
 
     send_email(
         to=user.email,
         subject="Tu plan ha sido actualizado 📦 | FinOpsLatam",
         body=build_plan_changed_email(
             user.contact_name,
-            old_plan.name,
+            old_plan_name,
             new_plan.name,
         ),
     )
