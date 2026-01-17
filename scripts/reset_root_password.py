@@ -4,20 +4,20 @@ import os
 from getpass import getpass
 
 # =====================================================
-# Asegurar que la raíz del proyecto esté en PYTHONPATH
+# Asegurar path raíz
 # =====================================================
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, BASE_DIR)
 
 # =====================================================
-# Imports del proyecto
+# Imports reales del proyecto
 # =====================================================
-from app import create_app
+from app import app   # 👈 IMPORTAMOS app, NO create_app
 from src.models.database import db
 from src.models.client import Client
 
 # =====================================================
-# Script seguro de reset ROOT
+# Script reset ROOT
 # =====================================================
 def main():
     print("\n⚠️  RESET DE PASSWORD USUARIO ROOT ⚠️\n")
@@ -26,8 +26,6 @@ def main():
     if confirm.lower() != "yes":
         print("❌ Operación cancelada")
         sys.exit(0)
-
-    app = create_app()
 
     with app.app_context():
         root_user = Client.query.filter_by(
