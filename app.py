@@ -48,13 +48,15 @@ from src.models.plan import Plan
 from src.routes.admin_reports_routes import register_admin_report_routes
 from src.routes.client_reports_routes import register_client_report_routes
 from src.routes.admin_users_routes import register_admin_users_routes
-
+from src.routes.test_smtp import test_smtp_bp
 
 # =====================================================
 #   APP INIT  (IGUAL QUE OLD)
 # =====================================================
 app = Flask(__name__)
 
+
+app.register_blueprint(test_smtp_bp)
 # =====================================================
 #   CORS (AGREGADO – CONTROLADO)
 # =====================================================
