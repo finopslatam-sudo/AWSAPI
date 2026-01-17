@@ -22,7 +22,7 @@ from src.services.user_events_service import (
     on_root_login,
     on_user_plan_changed 
 )
-
+import logging
 # ===============================
 # INIT EXTENSIONS
 # ===============================
@@ -132,6 +132,7 @@ def create_auth_routes(app):
     # ---------------------------------------------
     # ADMIN — ACTUALIZAR PLAN DE USUARIO
     # ---------------------------------------------
+    logger = logging.getLogger("auth")
     @app.route('/api/admin/users/<int:user_id>/plan', methods=['PUT'])
     @jwt_required()
     def admin_update_user_plan(user_id):
@@ -173,8 +174,8 @@ def create_auth_routes(app):
         db.session.commit()
 
         # 📧 EVENTO DE DOMINIO (CORRECTO)
-        if old_plan:
-            on_user_plan_changed(user, old_plan, new_plan)
+
+        on_user_plan_changed(user, old_plan, new_plan)
 
         return jsonify({
             "message": "Plan actualizado correctamente",
