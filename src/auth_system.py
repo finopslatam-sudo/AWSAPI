@@ -159,7 +159,11 @@ def create_auth_routes(app):
             is_active=True
         ).first()
 
-        old_plan = subscription.plan if subscription else None
+        old_plan = None
+
+        if subscription and subscription.plan_id:
+            old_plan = Plan.query.get(subscription.plan_id)
+
 
         if subscription:
             subscription.plan_id = new_plan.id

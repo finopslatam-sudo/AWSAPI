@@ -78,28 +78,19 @@ def on_password_changed(user):
 
 
 def on_user_plan_changed(user, old_plan, new_plan):
-    """
-    Evento: cambio de plan (upgrade o downgrade)
-    """
+    old_name = old_plan.name if old_plan else "Sin plan"
+
     logger.info(
         f"[PLAN_CHANGED] user_id={user.id} email={user.email} "
-        f"old_plan={getattr(old_plan, 'name', None)} "
-        f"new_plan={getattr(new_plan, 'name', None)}"
+        f"old_plan={old_name} new_plan={new_plan.name}"
     )
-
-    # ✅ Validación mínima REAL
-    if not new_plan:
-        logger.warning("[PLAN_CHANGED] new_plan inválido, no se envía correo")
-        return
-
-    old_plan_name = old_plan.name if old_plan else "Sin plan previo"
 
     send_email(
         to=user.email,
         subject="Tu plan ha sido actualizado 📦 | FinOpsLatam",
         body=build_plan_changed_email(
             user.contact_name,
-            old_plan_name,
+            old_name,
             new_plan.name,
         ),
     )
