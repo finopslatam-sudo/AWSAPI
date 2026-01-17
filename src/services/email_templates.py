@@ -42,22 +42,14 @@ Equipo FinOpsLatam
 # ================================
 # EMAIL HELPERS CUENTA ACTIVADA
 # ================================
-def build_account_reactivated_email(name, email, temp_password):
+def build_account_reactivated_email(nombre,):
     return f"""
-Hola {name},
+Hola {nombre},
 
 Tu cuenta en FinOpsLatam ha sido reactivada exitosamente 🎉
 
 Por seguridad, en tu próximo inicio de sesión se te pedirá
 actualizar tu contraseña.
-
-👉 Accede aquí:
-https://www.finopslatam.com/
-
-Usuario: {email}
-Contraseña temporal: {temp_password}
-
-Esta contraseña expira en 30 minutos.
 
 Si tienes dudas, escríbenos a:
 soporte@finopslatam.com
