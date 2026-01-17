@@ -42,9 +42,9 @@ Equipo FinOpsLatam
 # ================================
 # EMAIL HELPERS CUENTA ACTIVADA
 # ================================
-def build_account_reactivated_email(nombre,email, temp_password):
+def build_account_reactivated_email(name, email, temp_password):
     return f"""
-Hola {nombre},
+Hola {name},
 
 Tu cuenta en FinOpsLatam ha sido reactivada exitosamente 🎉
 
