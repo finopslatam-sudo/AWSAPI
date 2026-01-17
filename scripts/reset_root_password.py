@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 import sys
+import os
+
+# 👇 AÑADE EL ROOT DEL PROYECTO AL PYTHONPATH
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, BASE_DIR)
+
 from getpass import getpass
 
-# 👇 MUY IMPORTANTE
 from app import app
 from src.models.database import db
 from src.models.client import Client
-
 
 def main():
     print("\n⚠️  RESET DE PASSWORD USUARIO ROOT ⚠️\n")
