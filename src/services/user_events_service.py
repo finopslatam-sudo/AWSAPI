@@ -96,6 +96,7 @@ def on_user_plan_changed(user, old_plan, new_plan):
         subject="Tu plan ha sido actualizado 📦 | FinOpsLatam",
         body=build_plan_changed_email(
             user.contact_name,
+            old_plan.name,
             new_plan.name,
         ),
     )

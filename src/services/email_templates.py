@@ -118,14 +118,19 @@ contacta inmediatamente a soporte@finopslatam.com
 # ================================
 # EMAIL CAMBIO DE PLAN 
 # ================================
-def build_plan_changed_email(nombre: str, plan_name: str) -> str:
+def build_plan_changed_email(
+    nombre: str,
+    old_plan_name: str,
+    new_plan_name: str
+) -> str:
     return f"""
 Hola {nombre},
 
 Te informamos que tu plan en FinOpsLatam ha sido actualizado.
 
-📦 Nuevo plan:
-{plan_name}
+📦 Cambio de plan:
+Anterior: {old_plan_name}
+Nuevo: {new_plan_name}
 
 Los cambios se aplican de inmediato.
 
