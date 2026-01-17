@@ -74,7 +74,14 @@ def create_auth_routes(app):
 
         # 🚨 EVENTO: LOGIN ROOT
         if client.is_root:
-            on_root_login(client)
+            try:
+                ip = request.headers.get(
+                    "X-Forwarded-For",
+                    request.remote_addr
+                )
+                on_root_login(client, ip)
+            except Exception as e:
+                app.logger.error(f"[ROOT_LOGIN_ERROR] {e}")
 
         token = create_access_token(identity=str(client.id))
 
