@@ -1,13 +1,13 @@
 import os
 import smtplib
+import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import logging
 
 logger = logging.getLogger("email")
 
 
-def send_email(to: str, subject: str, body: str):
+def send_email(to: str, subject: str, body: str) -> None:
     smtp_host = os.getenv("SMTP_HOST")
     smtp_port = int(os.getenv("SMTP_PORT", 587))
     smtp_user = os.getenv("SMTP_USER")
@@ -30,15 +30,16 @@ def send_email(to: str, subject: str, body: str):
         msg["Subject"] = subject
         msg.attach(MIMEText(body, "plain", "utf-8"))
 
+        logger.info("Conectando a SMTP…")
+
         with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
-            logger.info("Conectando a SMTP…")
+            server.ehlo()
             server.starttls()
+            server.ehlo()
             server.login(smtp_user, smtp_pass)
             server.send_message(msg)
 
         logger.info(f"Correo enviado correctamente a {to}")
 
-    except Exception as e:
-        logger.exception(f"Fallo enviando correo: {e}")
-
-
+    except Exception as exc:
+        logger.exception(f"Fallo enviando correo: {exc}")
