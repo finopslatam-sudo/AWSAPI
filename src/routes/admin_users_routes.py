@@ -78,28 +78,22 @@ def register_admin_users_routes(app):
     # ============================
     # ELIMINAR (DESACTIVAR) USUARIO
     # ============================
-    @app.route("/api/admin/users/<int:user_id>", methods=["DELETE"])
-    @jwt_required()
-    def delete_user(user_id):
-        actor = Client.query.get(get_jwt_identity())
+    @app.route("/users/<int:user_id>/deactivate", methods=["POST"])
+    def deactivate_user(user_id):
         target = Client.query.get(user_id)
-
-        if not actor or not actor.is_active:
-            return jsonify({"error": "Unauthorized"}), 403
 
         if not target:
             return jsonify({"error": "Usuario no encontrado"}), 404
 
-        # 🔒 BLOQUEO ROOT
-        if not target.can_be_modified_by(actor):
-            return jsonify({
-                "error": "No puedes desactivar este usuario"
-            }), 403
+        if not target.is_active:
+            return jsonify({"message": "Usuario ya estaba desactivado"}), 200
 
         target.is_active = False
         db.session.commit()
 
-        return jsonify({"message": "Usuario desactivado"}), 200
+        on_user_deactivated(target)
+
+        return jsonify({"status": "ok"}), 200
 
     # ============================
     # RESET PASSWORD
