@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import os
+from getpass import getpass
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, BASE_DIR)
@@ -12,6 +13,7 @@ from app import app
 from src.models.database import db
 from src.models.client import Client
 
+
 def main():
     print("\n⚠️  RESET DE PASSWORD USUARIO ROOT ⚠️\n")
 
@@ -20,7 +22,7 @@ def main():
         print("❌ Operación cancelada")
         sys.exit(0)
 
-    email = "contacto@finopslatam.com"
+    email = os.getenv("ROOT_EMAIL", "contacto@finopslatam.com")
 
     with app.app_context():
         user = Client.query.filter_by(email=email, is_root=True).first()
@@ -36,16 +38,21 @@ def main():
             print("❌ Las contraseñas no coinciden")
             sys.exit(1)
 
-        # 🔐 ESTA ES LA CLAVE
-        user.set_password(new_password)
-        user.force_password_change = True
-        user.password_expires_at = None
-        user.is_active = True
+        try:
+            user.set_password(new_password)
+            user.force_password_change = True
+            user.password_expires_at = None
+            user.is_active = True
 
-        db.session.commit()
+            db.session.commit()
 
-        print("\n✅ Password ROOT actualizado correctamente")
-        print("🔐 El usuario deberá cambiar la contraseña al iniciar sesión\n")
+            print("\n✅ Password ROOT actualizado correctamente")
+            print("🔐 El usuario deberá cambiar la contraseña al iniciar sesión\n")
+
+        except Exception as e:
+            db.session.rollback()
+            print("❌ Error al actualizar la contraseña:", str(e))
+            sys.exit(1)
 
 
 if __name__ == "__main__":
