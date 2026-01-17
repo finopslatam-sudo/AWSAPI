@@ -7,6 +7,7 @@ from src.models.database import db
 from src.services.email_service import send_email
 from src.services.user_events_service import (
     on_user_deactivated,
+    on_admin_reset_password,
     on_user_reactivated
 )
 
@@ -97,7 +98,7 @@ def register_admin_users_routes(app):
 
 
     # ============================
-    # RESET PASSWORD
+    # RESET PASSWORD (ADMIN)
     # ============================
     @app.route("/api/admin/users/<int:user_id>/reset-password", methods=["POST"])
     @jwt_required()
@@ -117,9 +118,19 @@ def register_admin_users_routes(app):
                 "error": "No puedes resetear la contraseña de este usuario"
             }), 403
 
-        data = request.get_json()
-        target.set_password(data["password"])
+        data = request.get_json() or {}
+        new_password = data.get("password")
+
+        if not new_password:
+            return jsonify({"error": "Contraseña requerida"}), 400
+
+        # 🔐 Cambio de password
+        target.set_password(new_password)
         target.force_password_change = True
 
         db.session.commit()
+
+        # 📧 EVENTO (ESTO ES LO QUE FALTABA)
+        on_admin_reset_password(target, new_password)
+
         return jsonify({"message": "Contraseña actualizada"}), 200
