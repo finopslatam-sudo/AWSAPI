@@ -2,6 +2,12 @@
 import sys
 import os
 from getpass import getpass
+from dotenv import load_dotenv
+
+# =====================================================
+# Cargar variables de entorno del sistema
+# =====================================================
+load_dotenv("/etc/finops-api.env")
 
 # =====================================================
 # Asegurar path raíz
