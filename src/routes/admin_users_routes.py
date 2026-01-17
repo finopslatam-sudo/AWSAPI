@@ -78,7 +78,7 @@ def register_admin_users_routes(app):
     # ============================
     # ELIMINAR (DESACTIVAR) USUARIO
     # ============================
-    @app.route("/api/admin/users/<int:user_id>/deactivate", methods=["POST"])
+    @app.route("/api/admin/users/<int:user_id>", methods=["DELETE"])
     def deactivate_user(user_id):
         target = Client.query.get(user_id)
 
@@ -89,12 +89,12 @@ def register_admin_users_routes(app):
             return jsonify({"message": "Usuario ya estaba desactivado"}), 200
 
         target.is_active = False
-        app.logger.info(f"[ADMIN] Usuario desactivado id={target.id} email={target.email}")
         db.session.commit()
 
         on_user_deactivated(target)
 
         return jsonify({"status": "ok"}), 200
+
 
     # ============================
     # RESET PASSWORD
