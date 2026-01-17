@@ -7,16 +7,18 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, BASE_DIR)
 
 from dotenv import load_dotenv
-load_dotenv("/etc/finops-api.env")  # 🔴 CLAVE
+load_dotenv("/etc/finops-api.env")  # ✅ usa el env real del systemd
 
 from app import app
 from src.models.database import db
 from src.models.client import Client
 
+
 def main():
     print("\n⚠️  RESET DE PASSWORD USUARIO ROOT ⚠️\n")
 
     if input("¿Confirmas reset ROOT? (yes): ").lower() != "yes":
+        print("❌ Operación cancelada")
         sys.exit(0)
 
     email = "contacto@finopslatam.com"
@@ -36,12 +38,15 @@ def main():
             sys.exit(1)
 
         user.set_password(pwd1)
-        user.force_password_change = False   # 🔴 IMPORTANTE
+        user.force_password_change = True      # 🔐 seguridad
+        user.password_expires_at = None
         user.is_active = True
 
         db.session.commit()
 
-        print("✅ Password ROOT actualizado correctamente")
+        print("\n✅ Password ROOT actualizado correctamente")
+        print("🔐 El usuario deberá cambiar la contraseña al iniciar sesión\n")
+
 
 if __name__ == "__main__":
     main()
