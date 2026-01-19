@@ -20,6 +20,22 @@ import os
 from sqlalchemy.exc import IntegrityError
 
 # =====================================================
+#   SMTP ENV VALIDATION (AJUSTE 2 - ENTERPRISE SAFE)
+# =====================================================
+required_envs = ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS"]
+missing = [v for v in required_envs if not os.getenv(v)]
+
+if missing:
+    print(f"⚠️ Variables SMTP faltantes: {missing}")
+else:
+    print("✅ Variables SMTP cargadas correctamente")
+
+# =====================================================
+#   ROUTES BLUEPRINTS
+# =====================================================
+from src.routes.contact_routes import contact_bp
+
+# =====================================================
 #   APP SERVICES
 # =====================================================
 from src.finops_auditor import FinOpsAuditor
@@ -32,7 +48,6 @@ from src.auth_system import (
     init_auth_system,
     create_auth_routes
 )
-from src.services.email_service import send_email
 
 # =====================================================
 #   DATABASE
@@ -50,21 +65,27 @@ from src.routes.client_reports_routes import register_client_report_routes
 from src.routes.admin_users_routes import register_admin_users_routes
 
 # =====================================================
-#   APP INIT  (IGUAL QUE OLD)
+#   APP INIT
 # =====================================================
 app = Flask(__name__)
 
+# 👉 Blueprint de contacto
+app.register_blueprint(contact_bp)
+
 # =====================================================
-#   CORS (AGREGADO – CONTROLADO)
+#   CORS (CONTROLADO)
 # =====================================================
 CORS(
     app,
-    origins=["https://www.finopslatam.com"],
+    origins=[
+        "https://www.finopslatam.com",
+        "http://localhost:3000"
+    ],
     supports_credentials=True
 )
 
 # =====================================================
-#   DATABASE CONFIG (IGUAL QUE OLD)
+#   DATABASE CONFIG
 # =====================================================
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("SQLALCHEMY_DATABASE_URI")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -75,7 +96,7 @@ if not app.config["SQLALCHEMY_DATABASE_URI"]:
 init_db(app)
 
 # =====================================================
-#   AUTH SYSTEM INIT (IGUAL QUE OLD)
+#   AUTH SYSTEM INIT
 # =====================================================
 init_auth_system(app)
 
@@ -83,37 +104,9 @@ register_admin_report_routes(app)
 register_client_report_routes(app)
 register_admin_users_routes(app)
 
-# 🔐 Evitar doble registro de rutas
+# Evitar doble registro de rutas
 if not os.getenv("FLASK_SKIP_ROUTES"):
     create_auth_routes(app)
-
-# =====================================================
-#   EMAIL HELPERS (SIN CAMBIOS)
-# =====================================================
-def build_welcome_email(nombre, email, password):
-    return f"""
-Hola {nombre},
-
-¡Bienvenido a FinOpsLatam! 🚀
-
-Tu cuenta ha sido creada correctamente y ya puedes acceder a la plataforma.
-
-🔐 Datos de acceso
-Correo: {email}
-Contraseña temporal: {password}
-
-👉 Acceso a la plataforma:
-https://www.finopslatam.com/
-
-Por seguridad, deberás cambiar tu contraseña en tu primer inicio de sesión.
-
-Si necesitas ayuda o tienes dudas, escríbenos a:
-soporte@finopslatam.com
-
-Saludos,
-Equipo FinOpsLatam
-"""
-
 
 # =====================================================
 #   ADMIN - LISTAR PLANES
@@ -136,9 +129,8 @@ def admin_list_plans():
         ]
     }), 200
 
-
 # =====================================================
-#   FRONTEND ROUTES (IGUAL QUE OLD)
+#   FRONTEND ROUTES
 # =====================================================
 def usuario_autenticado():
     try:
@@ -147,13 +139,11 @@ def usuario_autenticado():
     except Exception:
         return False
 
-
 @app.route('/')
 def pagina_principal():
     if usuario_autenticado():
         return redirect('/dashboard')
     return render_template('landing_public.html')
-
 
 @app.route('/dashboard')
 @jwt_required()
@@ -170,7 +160,6 @@ def dashboard():
         services=stats['services_in_use']
     )
 
-
 # =====================================================
 #   API ENDPOINTS
 # =====================================================
@@ -182,13 +171,11 @@ def health():
         "timestamp": datetime.utcnow().isoformat()
     })
 
-
 @app.route('/api/services/active')
 def active_services():
     discovery = AWSServiceDiscovery()
     stats = discovery.get_filtered_service_statistics()
     return jsonify(stats)
-
 
 # =====================================================
 #   DEBUG
@@ -196,7 +183,6 @@ def active_services():
 @app.route("/debug/db")
 def debug_db():
     return {"db_engine": str(db.engine)}
-
 
 # =====================================================
 #   RUN SERVER
