@@ -1,63 +1,62 @@
 import os
+import sys
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config
+from sqlalchemy import pool
 from alembic import context
 
-# Alembic Config object
+# --------------------------------------------------
+# Path del proyecto (IMPORTANTE)
+# --------------------------------------------------
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, BASE_DIR)
+
+# --------------------------------------------------
+# Config Alembic
+# --------------------------------------------------
 config = context.config
 
-# Logging
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# -------------------------------------------------
-# DATABASE URL (FUENTE ÚNICA)
-# -------------------------------------------------
-DATABASE_URL = os.getenv("SQLALCHEMY_DATABASE_URI")
-
-if not DATABASE_URL:
-    raise RuntimeError(
-        "❌ SQLALCHEMY_DATABASE_URI no está definida en el entorno"
-    )
-
-config.set_main_option(
-    "sqlalchemy.url",
-    DATABASE_URL.replace("%", "%%")
-)
-
-# -------------------------------------------------
-# IMPORTAR MODELOS (MUY IMPORTANTE)
-# -------------------------------------------------
-# ⚠️ Ajusta el import si tu app se llama distinto
-from app import db  # noqa: E402
+# --------------------------------------------------
+# Cargar DB (NO app.py)
+# --------------------------------------------------
+from src.models.database import db  # ✅ CORRECTO
+from src.models.client import Client
+from src.models.plan import Plan
+from src.models.subscription import ClientSubscription
 
 target_metadata = db.metadata
 
+# --------------------------------------------------
+# Obtener URL DB desde ENV
+# --------------------------------------------------
+def get_database_url():
+    url = os.getenv("SQLALCHEMY_DATABASE_URI")
+    if not url:
+        raise RuntimeError("❌ SQLALCHEMY_DATABASE_URI no definida")
+    return url
 
-# -------------------------------------------------
-# MIGRATIONS OFFLINE
-# -------------------------------------------------
+
 def run_migrations_offline():
-    """Run migrations in offline mode."""
     context.configure(
-        url=DATABASE_URL,
+        url=get_database_url(),
         target_metadata=target_metadata,
         literal_binds=True,
-        compare_type=True,
+        dialect_opts={"paramstyle": "named"},
     )
 
     with context.begin_transaction():
         context.run_migrations()
 
 
-# -------------------------------------------------
-# MIGRATIONS ONLINE
-# -------------------------------------------------
 def run_migrations_online():
-    """Run migrations in online mode."""
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section),
+        {
+            "sqlalchemy.url": get_database_url()
+        },
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
@@ -65,17 +64,13 @@ def run_migrations_online():
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
-            target_metadata=target_metadata,
-            compare_type=True,
+            target_metadata=target_metadata
         )
 
         with context.begin_transaction():
             context.run_migrations()
 
 
-# -------------------------------------------------
-# ENTRYPOINT
-# -------------------------------------------------
 if context.is_offline_mode():
     run_migrations_offline()
 else:
