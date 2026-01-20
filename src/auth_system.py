@@ -284,12 +284,16 @@ def create_auth_routes(app):
     @app.route('/api/admin/users', methods=['GET'])
     @jwt_required()
     def admin_list_users():
-        admin_id = int(get_jwt_identity())
-        if not require_admin(admin_id):
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get_or_404(current_user_id)
+
+        # 🔐 SOLO ROOT Y SUPPORT
+        if current_user.global_role not in ("root", "support"):
             return jsonify({"error": "Acceso denegado"}), 403
 
         users = (
-            db.session.query(Client, ClientSubscription, Plan)
+            db.session.query(User, Client, ClientSubscription, Plan)
+            .outerjoin(Client, User.client_id == Client.id)
             .outerjoin(
                 ClientSubscription,
                 (Client.id == ClientSubscription.client_id)
@@ -302,22 +306,26 @@ def create_auth_routes(app):
         return jsonify({
             "users": [
                 {
-                    "id": client.id,
-                    "email": client.email,
-                    "company_name": client.company_name,
-                    "contact_name": client.contact_name,
-                    "phone": client.phone,
-                    "role": client.role,
-                    "is_active": client.is_active,
+                    "id": user.id,
+                    "email": user.email,
+                    "company_name": client.company_name if client else None,
+                    "contact_name": client.contact_name if client else None,
+                    "phone": client.phone if client else None,
+                    "role": user.global_role,          # root | support | None
+                    "global_role": user.global_role,
+                    "client_role": user.client_role,  # owner | finops_admin | viewer
+                    "client_id": user.client_id,
+                    "is_active": user.is_active,
                     "plan": {
                         "id": plan.id,
                         "code": plan.code,
                         "name": plan.name
                     } if plan else None
                 }
-                for client, subscription, plan in users
+                for user, client, subscription, plan in users
             ]
         }), 200
+
 
     # ---------------------------------------------
     # ADMIN — ESTADÍSTICAS
