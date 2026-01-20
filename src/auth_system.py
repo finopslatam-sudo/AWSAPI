@@ -38,11 +38,6 @@ def generate_temp_password(length=10):
     chars = string.ascii_letters + string.digits
     return ''.join(secrets.choice(chars) for _ in range(length))
 
-
-#def require_admin(client_id: int) -> bool:
-#    client = Client.query.get(client_id)
-#    return bool(client and client.role == "admin")
-
 def require_staff(user_id: int) -> User | None:
     user = User.query.get(user_id)
     if not user:
@@ -288,52 +283,6 @@ def create_auth_routes(app):
         on_admin_reset_password(user, password)
 
         return jsonify({"message": "Password restablecida"}), 200
-
-    # ---------------------------------------------
-    # ADMIN — LISTAR USUARIOS (CON PLAN)
-    # ---------------------------------------------
-    @app.route('/api/admin/users', methods=['GET'])
-    @jwt_required()
-    def admin_list_users():
-        current_user_id = int(get_jwt_identity())
-        actor = require_staff(current_user_id)
-
-        if not actor:
-            return jsonify({"error": "Acceso denegado"}), 403
-
-        users = (
-            db.session.query(User, Client, ClientSubscription, Plan)
-            .outerjoin(Client, User.client_id == Client.id)
-            .outerjoin(
-                ClientSubscription,
-                (Client.id == ClientSubscription.client_id)
-                & (ClientSubscription.is_active == True)
-            )
-            .outerjoin(Plan, ClientSubscription.plan_id == Plan.id)
-            .all()
-        )
-
-        return jsonify({
-            "users": [
-                {
-                    "id": user.id,
-                    "email": user.email,
-                    "global_role": user.global_role,
-                    "client_role": user.client_role,
-                    "client_id": user.client_id,
-                    "company_name": client.company_name if client else None,
-                    "contact_name": client.contact_name if client else None,
-                    "phone": client.phone if client else None,
-                    "is_active": user.is_active,
-                    "plan": {
-                        "id": plan.id,
-                        "code": plan.code,
-                        "name": plan.name
-                    } if plan else None
-                }
-                for user, client, subscription, plan in users
-            ]
-        }), 200
 
 
     # ---------------------------------------------
