@@ -1,11 +1,11 @@
 from flask import Response, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
+from src.models.user import User
 from src.reports.admin.admin_stats_provider import get_admin_stats
 from src.reports.admin.admin_pdf_report import build_admin_pdf
 from src.reports.admin.admin_csv_report import build_admin_csv
-from src.reports.admin.admin_xlsx_report import build_admin_xlsx  # 👈 NUEVO
-from src.auth_system import require_admin
+from src.reports.admin.admin_xlsx_report import build_admin_xlsx
 
 
 def register_admin_report_routes(app):
@@ -17,28 +17,25 @@ def register_admin_report_routes(app):
     @jwt_required()
     def admin_pdf_report():
         try:
-            admin_id = int(get_jwt_identity())
-            print("🧪 ADMIN PDF | admin_id =", admin_id)
+            actor_id = int(get_jwt_identity())
+            actor = User.query.get(actor_id)
 
-            if not require_admin(admin_id):
+            if not actor or actor.global_role not in ("root", "support"):
                 return jsonify({"error": "Acceso denegado"}), 403
 
             stats = get_admin_stats()
-            print("🧪 ADMIN PDF | stats =", stats)
-
             pdf_data = build_admin_pdf(stats)
-            print("🧪 ADMIN PDF | pdf size =", len(pdf_data))
 
             return Response(
                 pdf_data,
                 mimetype="application/pdf",
                 headers={
-                    "Content-Disposition": "attachment; filename=finopslatam_admin_report.pdf"
+                    "Content-Disposition":
+                    "attachment; filename=finopslatam_admin_report.pdf"
                 }
             )
 
         except Exception as e:
-            print("❌ ADMIN PDF ERROR:", str(e))
             import traceback
             traceback.print_exc()
 
@@ -54,10 +51,10 @@ def register_admin_report_routes(app):
     @jwt_required()
     def admin_csv_report():
         try:
-            admin_id = int(get_jwt_identity())
-            print("🧪 ADMIN CSV | admin_id =", admin_id)
+            actor_id = int(get_jwt_identity())
+            actor = User.query.get(actor_id)
 
-            if not require_admin(admin_id):
+            if not actor or actor.global_role not in ("root", "support"):
                 return jsonify({"error": "Acceso denegado"}), 403
 
             stats = get_admin_stats()
@@ -67,12 +64,12 @@ def register_admin_report_routes(app):
                 csv_data,
                 mimetype="text/csv",
                 headers={
-                    "Content-Disposition": "attachment; filename=finopslatam_admin_report.csv"
+                    "Content-Disposition":
+                    "attachment; filename=finopslatam_admin_report.csv"
                 }
             )
 
         except Exception as e:
-            print("❌ ADMIN CSV ERROR:", str(e))
             import traceback
             traceback.print_exc()
 
@@ -88,28 +85,25 @@ def register_admin_report_routes(app):
     @jwt_required()
     def admin_xlsx_report():
         try:
-            admin_id = int(get_jwt_identity())
-            print("🧪 ADMIN XLSX | admin_id =", admin_id)
+            actor_id = int(get_jwt_identity())
+            actor = User.query.get(actor_id)
 
-            if not require_admin(admin_id):
+            if not actor or actor.global_role not in ("root", "support"):
                 return jsonify({"error": "Acceso denegado"}), 403
 
             stats = get_admin_stats()
-            print("🧪 ADMIN XLSX | stats =", stats)
-
             xlsx_data = build_admin_xlsx(stats)
-            print("🧪 ADMIN XLSX | xlsx size =", len(xlsx_data))
 
             return Response(
                 xlsx_data,
                 mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 headers={
-                    "Content-Disposition": "attachment; filename=finopslatam_admin_report.xlsx"
+                    "Content-Disposition":
+                    "attachment; filename=finopslatam_admin_report.xlsx"
                 }
             )
 
         except Exception as e:
-            print("❌ ADMIN XLSX ERROR:", str(e))
             import traceback
             traceback.print_exc()
 
