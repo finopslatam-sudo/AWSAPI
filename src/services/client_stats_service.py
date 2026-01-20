@@ -2,7 +2,7 @@ from src.models.database import db
 from src.models.client import Client
 from src.models.aws_account import AWSAccount
 from src.models.subscription import ClientSubscription
-from src.auth_system import Plan
+from src.models.plan import Plan
 
 
 def get_users_by_client(client_id: int):
