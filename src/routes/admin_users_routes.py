@@ -14,22 +14,56 @@ from src.services.user_events_service import (
 
 def register_admin_users_routes(app):
 
-    # ============================
-    # LISTAR USUARIOS
-    # ============================
-    @app.route("/api/admin/users", methods=["GET"])
+    # ---------------------------------------------
+    # ADMIN — LISTAR USUARIOS (ROOT / SUPPORT)
+    # ---------------------------------------------
+    @app.route('/api/admin/users', methods=['GET'])
     @jwt_required()
-    def admin_users():
-        actor = Client.query.get(get_jwt_identity())
+    def admin_list_users():
+        actor_id = int(get_jwt_identity())
 
-        if not actor or not actor.is_active:
-            return jsonify({"error": "Unauthorized"}), 403
+        actor = User.query.get(actor_id)
+        if not actor:
+            return jsonify({"error": "Usuario no encontrado"}), 404
 
-        if not (actor.is_root or actor.role == "admin"):
-            return jsonify({"error": "Forbidden"}), 403
+        # 🔐 Solo staff interno
+        if actor.global_role not in ("root", "support"):
+            return jsonify({"error": "Acceso denegado"}), 403
 
-        users = get_admin_users()
-        return jsonify({"users": users}), 200
+        users = (
+            db.session.query(User, Client, ClientSubscription, Plan)
+            .outerjoin(Client, User.client_id == Client.id)
+            .outerjoin(
+                ClientSubscription,
+                (Client.id == ClientSubscription.client_id)
+                & (ClientSubscription.is_active == True)
+            )
+            .outerjoin(Plan, ClientSubscription.plan_id == Plan.id)
+            .all()
+        )
+
+        return jsonify({
+            "users": [
+                {
+                    "id": user.id,
+                    "email": user.email,
+                    "company_name": client.company_name if client else None,
+                    "contact_name": user.contact_name,
+                    "phone": user.phone,
+                    "global_role": user.global_role,
+                    "client_role": user.client_role,
+                    "client_id": user.client_id,
+                    "is_active": user.is_active,
+                    "plan": {
+                        "id": plan.id,
+                        "code": plan.code,
+                        "name": plan.name
+                    } if plan else None
+                }
+                for user, client, subscription, plan in users
+            ]
+        }), 200
+
 
     # ============================
     # ACTUALIZAR USUARIO
