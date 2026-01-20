@@ -11,6 +11,7 @@ from src.models.database import db
 from src.models.client import Client
 from src.models.subscription import ClientSubscription
 from src.models.plan import Plan
+from src.models.user import User
 
 from src.services.admin_stats_service import get_admin_stats
 from src.services.user_events_service import (
@@ -40,6 +41,15 @@ def require_admin(client_id: int) -> bool:
     client = Client.query.get(client_id)
     return bool(client and client.role == "admin")
 
+def build_login_response(user):
+    return {
+        "id": user.id,
+        "email": user.email,
+        "global_role": user.global_role,
+        "client_role": user.client_role,
+        "client_id": user.client_id,
+        "is_active": user.is_active,
+    }
 
 # ===============================
 # INIT SYSTEM
@@ -63,42 +73,46 @@ def create_auth_routes(app):
         email = data.get("email")
         password = data.get("password")
 
-        client = Client.query.filter_by(email=email, is_active=True).first()
-        if not client or not client.check_password(password):
+        if not email or not password:
+            return jsonify({"error": "Email y password requeridos"}), 400
+
+        # 🔐 Autenticación CONTRA USERS
+        user = User.query.filter_by(email=email).first()
+
+        if not user or not user.is_active:
             return jsonify({"error": "Credenciales inválidas"}), 401
 
-        # 🔐 Expiración de clave temporal
-        if client.force_password_change and client.password_expires_at:
-            if datetime.utcnow() > client.password_expires_at:
-                return jsonify({"error": "Clave temporal expirada"}), 401
+        # 🔑 Reutiliza el hash existente
+        from werkzeug.security import check_password_hash
+        if not check_password_hash(user.password_hash, password):
+            return jsonify({"error": "Credenciales inválidas"}), 401
 
-        # 🚨 EVENTO: LOGIN ROOT
-        if client.is_root:
+        # 🚨 EVENTO: LOGIN ROOT (mantenido)
+        if user.global_role == "root":
             try:
                 ip = request.headers.get(
                     "X-Forwarded-For",
                     request.remote_addr
                 )
-                on_root_login(client, ip)
+                on_root_login(user, ip)
             except Exception as e:
                 app.logger.error(f"[ROOT_LOGIN_ERROR] {e}")
 
-        token = create_access_token(identity=str(client.id))
+        # 🪪 JWT con claims (SIN romper flask_jwt_extended)
+        token = create_access_token(
+            identity=str(user.id),
+            additional_claims={
+                "global_role": user.global_role,
+                "client_role": user.client_role,
+                "client_id": user.client_id
+            }
+        )
 
         return jsonify({
             "access_token": token,
-            "user": {
-                "id": client.id,
-                "email": client.email,
-                "company_name": client.company_name,
-                "contact_name": client.contact_name,
-                "phone": client.phone,
-                "role": client.role,
-                "is_root": client.is_root,
-                "is_active": client.is_active,
-                "force_password_change": client.force_password_change
-            }
+            "user": build_login_response(user)
         }), 200
+
 
     # ---------------------------------------------
     # ADMIN — ACTUALIZAR USUARIO
