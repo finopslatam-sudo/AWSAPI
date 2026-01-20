@@ -23,10 +23,8 @@ if config.config_file_name is not None:
 # --------------------------------------------------
 # Cargar DB (NO app.py)
 # --------------------------------------------------
-from src.models.database import db  # ✅ CORRECTO
-from src.models.client import Client
-from src.models.plan import Plan
-from src.models.subscription import ClientSubscription
+from src.models.database import db
+from src.models import *
 
 target_metadata = db.metadata
 
