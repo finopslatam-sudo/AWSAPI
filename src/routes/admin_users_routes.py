@@ -10,8 +10,9 @@ from src.services.user_events_service import (
     on_admin_reset_password,
     on_user_reactivated
 )
-
-
+from src.models.user import User
+from src.models.subscription import ClientSubscription
+from src.models.plan import Plan
 def register_admin_users_routes(app):
 
     # ---------------------------------------------
