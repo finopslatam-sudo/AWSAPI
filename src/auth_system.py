@@ -12,6 +12,8 @@ from src.models.client import Client
 from src.models.subscription import ClientSubscription
 from src.models.plan import Plan
 from src.models.user import User
+from src.auth.permissions import require_admin
+
 
 from src.services.admin_stats_service import get_admin_stats
 from src.services.user_events_service import (
@@ -37,9 +39,18 @@ def generate_temp_password(length=10):
     return ''.join(secrets.choice(chars) for _ in range(length))
 
 
-def require_admin(client_id: int) -> bool:
-    client = Client.query.get(client_id)
-    return bool(client and client.role == "admin")
+#def require_admin(client_id: int) -> bool:
+#    client = Client.query.get(client_id)
+#    return bool(client and client.role == "admin")
+
+def require_staff(user_id: int) -> User | None:
+    user = User.query.get(user_id)
+    if not user:
+        return None
+    if user.global_role not in ("root", "support"):
+        return None
+    return user
+
 
 def build_login_response(user):
     return {
@@ -285,10 +296,9 @@ def create_auth_routes(app):
     @jwt_required()
     def admin_list_users():
         current_user_id = int(get_jwt_identity())
-        current_user = User.query.get_or_404(current_user_id)
+        actor = require_staff(current_user_id)
 
-        # 🔐 SOLO ROOT Y SUPPORT
-        if current_user.global_role not in ("root", "support"):
+        if not actor:
             return jsonify({"error": "Acceso denegado"}), 403
 
         users = (
@@ -308,13 +318,12 @@ def create_auth_routes(app):
                 {
                     "id": user.id,
                     "email": user.email,
+                    "global_role": user.global_role,
+                    "client_role": user.client_role,
+                    "client_id": user.client_id,
                     "company_name": client.company_name if client else None,
                     "contact_name": client.contact_name if client else None,
                     "phone": client.phone if client else None,
-                    "role": user.global_role,          # root | support | None
-                    "global_role": user.global_role,
-                    "client_role": user.client_role,  # owner | finops_admin | viewer
-                    "client_id": user.client_id,
                     "is_active": user.is_active,
                     "plan": {
                         "id": plan.id,
