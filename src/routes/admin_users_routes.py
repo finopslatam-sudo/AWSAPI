@@ -1,7 +1,12 @@
-from flask import jsonify, request
+from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from src.models.client import Client
+admin_users_bp = Blueprint(
+    "admin_users",
+    __name__,
+    url_prefix="/api/admin"
+)
 from src.models.database import db
 from src.services.user_events_service import (
     on_user_deactivated,
@@ -17,52 +22,50 @@ def register_admin_users_routes(app):
     # ---------------------------------------------
     # ADMIN — LISTAR USUARIOS (ROOT / SUPPORT)
     # ---------------------------------------------
-    @app.route('/api/admin/users', methods=['GET'])
+    @admin_users_bp.route("/users", methods=["GET"])
     @jwt_required()
     def admin_list_users():
-        actor_id = int(get_jwt_identity())
+        user_id = get_jwt_identity()
+        admin = User.query.get(user_id)
 
-        actor = User.query.get(actor_id)
-        if not actor:
-            return jsonify({"error": "Usuario no encontrado"}), 404
+        if not admin or admin.global_role not in ["root", "support"]:
+            return jsonify({"msg": "Unauthorized"}), 403
 
-        # 🔐 Solo staff interno
-        if actor.global_role not in ("root", "support"):
-            return jsonify({"error": "Acceso denegado"}), 403
-
-        users = (
-            db.session.query(User, Client, ClientSubscription, Plan)
+        rows = (
+            User.query
             .outerjoin(Client, User.client_id == Client.id)
-            .outerjoin(
-                ClientSubscription,
-                (Client.id == ClientSubscription.client_id)
-                & (ClientSubscription.is_active == True)
+            .add_columns(
+                User.id,
+                User.email,
+                User.global_role,
+                User.client_role,
+                User.is_active,
+                Client.company_name,
+                Client.contact_name,
+                Client.email.label("client_email"),
+                Client.is_active.label("client_active"),
+                Client.is_root
             )
-            .outerjoin(Plan, ClientSubscription.plan_id == Plan.id)
             .all()
         )
 
-        return jsonify({
-            "users": [
-                {
-                    "id": user.id,
-                    "email": user.email,
-                    "company_name": client.company_name if client else None,
-                    "contact_name": client.contact_name if client else None,
-                    "phone": client.phone if client else None,
-                    "global_role": user.global_role,
-                    "client_role": user.client_role,
-                    "client_id": user.client_id,
-                    "is_active": user.is_active,
-                    "plan": {
-                        "id": plan.id,
-                        "code": plan.code,
-                        "name": plan.name
-                    } if plan else None
-                }
-                for user, client, subscription, plan in users
-            ]
-        }), 200
+        users = []
+        for r in rows:
+            users.append({
+                "id": r.id,
+                "email": r.email,
+                "global_role": r.global_role,
+                "client_role": r.client_role,
+                "is_active": r.is_active,
+                "company_name": r.company_name,
+                "contact_name": r.contact_name,
+                "client_email": r.client_email,
+                "client_active": r.client_active,
+                "is_root": r.is_root
+            })
+
+        return jsonify({"users": users}), 200
+
 
     # ============================
     # ACTUALIZAR USUARIO

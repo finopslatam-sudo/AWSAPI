@@ -14,6 +14,7 @@ def admin_stats():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
 
+    # Solo root / support
     if not user or user.global_role not in ["root", "support"]:
         return jsonify({"msg": "Unauthorized"}), 403
 
@@ -21,6 +22,7 @@ def admin_stats():
         "totals": {
             "users": User.query.count(),
             "clients": Client.query.count(),
+            "active_clients": Client.query.filter_by(is_active=True).count(),
             "subscriptions": ClientSubscription.query.count(),
             "plans": Plan.query.count()
         }
