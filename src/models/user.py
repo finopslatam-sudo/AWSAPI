@@ -6,11 +6,25 @@ class User(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
 
-    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
-    password_hash = db.Column(db.String(255), nullable=False)
+    email = db.Column(
+        db.String(120),
+        unique=True,
+        nullable=False,
+        index=True
+    )
 
-    # Roles
-    global_role = db.Column(db.String(50), nullable=True)
+    password_hash = db.Column(
+        db.String(255),
+        nullable=False
+    )
+
+    # ==========================
+    # ROLES
+    # ==========================
+    global_role = db.Column(
+        db.String(50),
+        nullable=True
+    )
     # root | support | null
 
     client_id = db.Column(
@@ -19,14 +33,39 @@ class User(db.Model):
         nullable=True
     )
 
-    client_role = db.Column(db.String(50), nullable=True)
+    client_role = db.Column(
+        db.String(50),
+        nullable=True
+    )
     # owner | finops_admin | viewer
 
-    is_active = db.Column(db.Boolean, default=True)
+    # ==========================
+    # SECURITY FLAGS
+    # ==========================
+    is_active = db.Column(
+        db.Boolean,
+        default=True,
+        nullable=False
+    )
 
+    force_password_change = db.Column(
+        db.Boolean,
+        default=False,
+        nullable=False
+    )
+
+    password_expires_at = db.Column(
+        db.DateTime,
+        nullable=True
+    )
+
+    # ==========================
+    # AUDIT
+    # ==========================
     created_at = db.Column(
         db.DateTime,
-        default=datetime.utcnow
+        default=datetime.utcnow,
+        nullable=False
     )
 
     def __repr__(self):
