@@ -20,6 +20,8 @@ from src.services.user_events_service import (
     on_admin_reset_password,
     on_user_reactivated
 )
+from src.services.password_service import generate_temp_password
+from src.services.user_events_service import on_forgot_password
 
 # =====================================================
 # BLUEPRINT
@@ -205,3 +207,60 @@ def reset_user_password(user_id):
     on_admin_reset_password(target, new_password)
 
     return jsonify({"message": "Contraseña actualizada"}), 200
+
+# =====================================================
+# ADMIN — CREAR USUARIO
+# =====================================================
+@admin_users_bp.route("/users", methods=["POST"])
+@jwt_required()
+def create_user():
+    actor = User.query.get(int(get_jwt_identity()))
+
+    if not actor or actor.global_role not in ("root", "support"):
+        return jsonify({"error": "Acceso denegado"}), 403
+
+    data = request.get_json() or {}
+
+    email = data.get("email")
+    client_id = data.get("client_id")
+    client_role = data.get("client_role")
+
+    if not email or not client_id or not client_role:
+        return jsonify({
+            "error": "email, client_id y client_role son obligatorios"
+        }), 400
+
+    if client_role not in ("owner", "finops_admin", "viewer"):
+        return jsonify({"error": "client_role inválido"}), 400
+
+    if User.query.filter_by(email=email).first():
+        return jsonify({"error": "Ya existe un usuario con ese email"}), 409
+
+    client = Client.query.get(client_id)
+    if not client or not client.is_active:
+        return jsonify({"error": "Cliente no válido o inactivo"}), 400
+
+    temp_password = generate_temp_password()
+
+    user = User(
+        email=email,
+        client_id=client.id,
+        client_role=client_role,
+        is_active=True,
+        force_password_change=True
+    )
+
+    user.set_password(temp_password)
+
+    db.session.add(user)
+    db.session.commit()
+
+    on_forgot_password(user, temp_password)
+
+    return jsonify({
+        "id": user.id,
+        "email": user.email,
+        "client_id": user.client_id,
+        "client_role": user.client_role,
+        "is_active": user.is_active
+    }), 201

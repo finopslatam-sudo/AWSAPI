@@ -84,6 +84,7 @@ from src.routes.admin_users_routes import register_admin_users_routes
 from src.routes.admin_reports_routes import register_admin_report_routes
 from src.routes.client_reports_routes import register_client_report_routes
 from src.routes.admin_stats_routes import admin_stats_bp
+from src.routes.admin_clients_routes import register_admin_clients_routes
 
 app.register_blueprint(contact_bp)
 app.register_blueprint(admin_stats_bp)
@@ -91,6 +92,8 @@ app.register_blueprint(admin_stats_bp)
 register_admin_users_routes(app)
 register_admin_report_routes(app)
 register_client_report_routes(app)
+register_admin_clients_routes(app)
+
 
 # =====================================================
 #   ADMIN – LISTAR PLANES (CORREGIDO)
