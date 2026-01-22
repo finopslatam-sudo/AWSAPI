@@ -46,11 +46,13 @@ def build_login_response(user):
         "client_role": user.client_role,
         "client_id": user.client_id,
         "is_active": user.is_active,
+        "force_password_change": user.force_password_change,
     }
 
 # ===============================
 # INIT SYSTEM
 # ===============================
+
 def init_auth_system(app):
     app.config["JWT_SECRET_KEY"] = os.getenv(
         "JWT_SECRET_KEY", "finopslatam-prod-secret"
