@@ -1,5 +1,25 @@
+"""
+USER MODEL
+==========
+
+Representa un usuario del sistema FinOpsLatam.
+
+Tipos de usuario:
+- Global (staff):
+    - root
+    - admin
+- Usuario de cliente:
+    - asociado a un client_id
+    - con client_role definido
+
+IMPORTANTE:
+- global_role define permisos a nivel plataforma
+- client_role define permisos dentro de un cliente
+"""
+
 from datetime import datetime
 from .database import db
+
 
 class User(db.Model):
     __tablename__ = "users"
@@ -25,7 +45,10 @@ class User(db.Model):
         db.String(50),
         nullable=True
     )
-    # root | support | null
+    # Valores válidos:
+    # - root
+    # - admin
+    # - None (usuario de cliente)
 
     client_id = db.Column(
         db.Integer,
@@ -37,7 +60,9 @@ class User(db.Model):
         db.String(50),
         nullable=True
     )
-    # owner | finops_admin | viewer
+    # Valores válidos (usuarios de cliente):
+    # - finops_admin
+    # - viewer
 
     # ==========================
     # SECURITY FLAGS

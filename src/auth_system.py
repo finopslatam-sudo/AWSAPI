@@ -2,15 +2,12 @@ from flask import request, jsonify
 from flask_jwt_extended import (
     JWTManager, create_access_token, jwt_required, get_jwt_identity
 )
-import secrets
-import string
 from datetime import datetime, timedelta
 import os
-import logging
 
 from src.models.database import db
 from src.models.user import User
-
+from src.services.password_service import generate_temp_password
 from src.services.user_events_service import (
     on_password_changed,
     on_forgot_password,
@@ -23,22 +20,20 @@ from src.services.user_events_service import (
 jwt = JWTManager()
 
 # ===============================
+# JWT INIT
+# ===============================
+def init_auth_system(app):
+    jwt_secret = os.getenv("JWT_SECRET_KEY")
+    if not jwt_secret:
+        raise RuntimeError("JWT_SECRET_KEY no está configurado")
+
+    app.config["JWT_SECRET_KEY"] = jwt_secret
+    jwt.init_app(app)
+
+# ===============================
 # HELPERS
 # ===============================
-def generate_temp_password(length=10):
-    chars = string.ascii_letters + string.digits
-    return ''.join(secrets.choice(chars) for _ in range(length))
-
-def require_staff(user_id: int) -> User | None:
-    user = User.query.get(user_id)
-    if not user:
-        return None
-    if user.global_role not in ("root", "support"):
-        return None
-    return user
-
-
-def build_login_response(user):
+def build_login_response(user: User) -> dict:
     return {
         "id": user.id,
         "email": user.email,
@@ -50,22 +45,11 @@ def build_login_response(user):
     }
 
 # ===============================
-# INIT SYSTEM
-# ===============================
-
-def init_auth_system(app):
-    app.config["JWT_SECRET_KEY"] = os.getenv(
-        "JWT_SECRET_KEY", "finopslatam-prod-secret"
-    )
-    jwt.init_app(app)
-
-
-# ===============================
 # ROUTES
 # ===============================
 def create_auth_routes(app):
 
-    # -------- LOGIN (CON EVENTOS) --------
+    # -------- LOGIN --------
     @app.route("/api/auth/login", methods=["POST"])
     def login():
         data = request.get_json() or {}
@@ -75,18 +59,15 @@ def create_auth_routes(app):
         if not email or not password:
             return jsonify({"error": "Email y password requeridos"}), 400
 
-        # 🔐 Autenticación CONTRA USERS
         user = User.query.filter_by(email=email).first()
 
         if not user or not user.is_active:
             return jsonify({"error": "Credenciales inválidas"}), 401
 
-        # 🔑 Reutiliza el hash existente
-        from werkzeug.security import check_password_hash
-        if not check_password_hash(user.password_hash, password):
+        if not user.check_password(password):
             return jsonify({"error": "Credenciales inválidas"}), 401
 
-        # 🚨 EVENTO: LOGIN ROOT (mantenido)
+        # Evento especial para root
         if user.global_role == "root":
             try:
                 ip = request.headers.get(
@@ -97,7 +78,6 @@ def create_auth_routes(app):
             except Exception as e:
                 app.logger.error(f"[ROOT_LOGIN_ERROR] {e}")
 
-        # 🪪 JWT con claims (SIN romper flask_jwt_extended)
         token = create_access_token(
             identity=str(user.id),
             additional_claims={
@@ -112,11 +92,7 @@ def create_auth_routes(app):
             "user": build_login_response(user)
         }), 200
 
-
-  
-    # ---------------------------------------------
-    # CAMBIO PASSWORD USUARIO (VOLUNTARIO / FORZADO)
-    # ---------------------------------------------
+    # -------- CHANGE PASSWORD --------
     @app.route('/api/auth/change-password', methods=['POST'])
     @jwt_required()
     def change_password():
@@ -135,9 +111,7 @@ def create_auth_routes(app):
 
         return jsonify({"message": "Contraseña actualizada"}), 200
 
-    # ---------------------------------------------
-    # FORGOT PASSWORD
-    # ---------------------------------------------
+    # -------- FORGOT PASSWORD --------
     @app.route("/api/auth/forgot-password", methods=["POST"])
     def forgot_password():
         email = (request.get_json() or {}).get("email")
@@ -155,5 +129,3 @@ def create_auth_routes(app):
         on_forgot_password(user, temp_password)
 
         return jsonify({"message": "Si existe, recibirás instrucciones"}), 200
-
-    

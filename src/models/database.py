@@ -1,3 +1,10 @@
+"""
+DATABASE MODULE
+===============
+
+Inicializa SQLAlchemy y Flask-Migrate.
+No contiene lógica de negocio.
+"""
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 

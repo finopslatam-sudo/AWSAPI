@@ -1,19 +1,33 @@
 import csv
 import io
 from datetime import datetime
+from collections import Counter
 
 
 def build_admin_csv(stats: dict) -> bytes:
     """
-    Genera un CSV administrativo profesional para FinOpsLatam.
-    Compatible con Excel / Google Sheets.
+    Genera un CSV administrativo para FinOpsLatam.
+
+    Reporte enfocado en CLIENTES y PLANES,
+    no en usuarios individuales.
     """
+
+    clients = stats.get("clients", [])
+
+    total_clients = len(clients)
+    active_clients = len([c for c in clients if c["is_active"]])
+    inactive_clients = total_clients - active_clients
+
+    plans_counter = Counter(
+        c["plan"] or "Sin plan"
+        for c in clients
+    )
 
     output = io.StringIO()
     writer = csv.writer(output)
 
     # =====================================================
-    # HEADER CORPORATIVO
+    # HEADER
     # =====================================================
     writer.writerow(["FinOpsLatam — Reporte Administrativo"])
     writer.writerow([
@@ -23,30 +37,22 @@ def build_admin_csv(stats: dict) -> bytes:
     writer.writerow([])
 
     # =====================================================
-    # RESUMEN GENERAL (KPIs)
+    # RESUMEN GENERAL
     # =====================================================
     writer.writerow(["RESUMEN GENERAL"])
-    writer.writerow(["Usuarios totales", stats.get("total_users", 0)])
-    writer.writerow(["Usuarios activos", stats.get("active_users", 0)])
-    writer.writerow(["Usuarios inactivos", stats.get("inactive_users", 0)])
+    writer.writerow(["Clientes totales", total_clients])
+    writer.writerow(["Clientes activos", active_clients])
+    writer.writerow(["Clientes inactivos", inactive_clients])
     writer.writerow([])
 
     # =====================================================
-    # USUARIOS POR ESTADO (PORCENTAJE)
+    # CLIENTES POR ESTADO (PORCENTAJE)
     # =====================================================
-    total_users = (
-        stats.get("active_users", 0)
-        + stats.get("inactive_users", 0)
-    )
-
-    writer.writerow(["USUARIOS POR ESTADO (PORCENTAJE)"])
+    writer.writerow(["CLIENTES POR ESTADO (PORCENTAJE)"])
     writer.writerow(["Estado", "Porcentaje"])
 
-    if total_users > 0:
-        active_pct = round(
-            (stats.get("active_users", 0) / total_users) * 100,
-            2,
-        )
+    if total_clients > 0:
+        active_pct = round((active_clients / total_clients) * 100, 2)
         inactive_pct = round(100 - active_pct, 2)
     else:
         active_pct = inactive_pct = 0
@@ -56,21 +62,18 @@ def build_admin_csv(stats: dict) -> bytes:
     writer.writerow([])
 
     # =====================================================
-    # USUARIOS POR PLAN
+    # CLIENTES POR PLAN
     # =====================================================
-    writer.writerow(["USUARIOS POR PLAN"])
-    writer.writerow(["Plan", "Cantidad"])
+    writer.writerow(["CLIENTES POR PLAN"])
+    writer.writerow(["Plan", "Cantidad de clientes"])
 
-    for plan in stats.get("users_by_plan", []):
-        writer.writerow([
-            plan.get("plan", ""),
-            plan.get("count", 0),
-        ])
+    for plan, count in plans_counter.items():
+        writer.writerow([plan, count])
 
     writer.writerow([])
 
     # =====================================================
-    # FOOTER LEGAL
+    # FOOTER
     # =====================================================
     writer.writerow([
         "© 2026 FinOpsLatam — Información confidencial. Uso exclusivo interno."

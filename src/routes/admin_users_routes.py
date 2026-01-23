@@ -36,10 +36,9 @@ def require_staff(user_id: int) -> User | None:
     user = User.query.get(user_id)
     if not user:
         return None
-    if user.global_role not in ("root", "support"):
+    if user.global_role not in ("root", "admin"):
         return None
     return user
-
 
 # =====================================================
 # ADMIN — LISTAR USUARIOS
@@ -61,7 +60,6 @@ def list_users():
             User.is_active,
             User.force_password_change,
             Client.company_name,
-            Client.is_root.label("client_is_root"),
         )
         .outerjoin(Client, User.client_id == Client.id)
         .order_by(User.id.asc())
@@ -79,12 +77,10 @@ def list_users():
                 "company_name": r.company_name,
                 "is_active": r.is_active,
                 "force_password_change": r.force_password_change,
-                "is_root": True if r.global_role == "root" else False,
             }
             for r in rows
         ]
     }), 200
-
 
 # =====================================================
 # ADMIN — CREAR USUARIO

@@ -1,8 +1,20 @@
+"""
+CLIENT PDF REPORT
+=================
+
+Genera el reporte PDF visible para un cliente FinOpsLatam.
+
+- No contiene métricas globales
+- No expone datos de otros clientes
+- Consume datos del client_stats_provider
+"""
+
 from reportlab.platypus import Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from datetime import datetime
 
 from src.reports.exporters.pdf_base import build_pdf
+
 
 def build_client_pdf(stats: dict) -> bytes:
     styles = getSampleStyleSheet()
@@ -21,8 +33,10 @@ def build_client_pdf(stats: dict) -> bytes:
     )
     elements.append(Spacer(1, 20))
 
+    plan = stats.get("plan") or "Sin plan activo"
+
     elements.append(
-        Paragraph(f"Plan contratado: {stats['plan']}", styles["Normal"])
+        Paragraph(f"Plan contratado: {plan}", styles["Normal"])
     )
     elements.append(
         Paragraph(f"Usuarios asociados: {stats['user_count']}", styles["Normal"])

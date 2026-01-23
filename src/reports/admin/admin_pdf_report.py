@@ -15,10 +15,28 @@ import tempfile
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
-
+from collections import Counter
 
 
 def build_admin_pdf(stats: dict) -> bytes:
+    """
+    Genera el PDF administrativo para ROOT / ADMIN.
+
+    Reporte enfocado en CLIENTES y PLANES,
+    no en usuarios individuales.
+    """
+
+    clients = stats.get("clients", [])
+
+    total_clients = len(clients)
+    active_clients = len([c for c in clients if c["is_active"]])
+    inactive_clients = total_clients - active_clients
+
+    plans_counter = Counter(
+        c["plan"] or "Sin plan"
+        for c in clients
+    )
+
     buffer = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
 
     doc = SimpleDocTemplate(
@@ -53,7 +71,7 @@ def build_admin_pdf(stats: dict) -> bytes:
     title_style = ParagraphStyle(
         "HeaderTitle",
         parent=styles["Title"],
-        alignment=1,  # CENTER
+        alignment=1,
         fontSize=18,
         spaceAfter=4,
     )
@@ -61,7 +79,7 @@ def build_admin_pdf(stats: dict) -> bytes:
     date_style = ParagraphStyle(
         "HeaderDate",
         parent=styles["Normal"],
-        alignment=2,  # RIGHT
+        alignment=2,
         fontSize=9,
         textColor=colors.grey,
     )
@@ -92,26 +110,16 @@ def build_admin_pdf(stats: dict) -> bytes:
     )
 
     story.append(header_table)
-
-    # Línea separadora
-    story.append(Spacer(1, 8))
-    story.append(
-        Table(
-            [[""]],
-            colWidths=[17 * cm],
-            style=[("LINEBELOW", (0, 0), (-1, -1), 1, colors.lightgrey)],
-        )
-    )
     story.append(Spacer(1, 20))
 
     # =====================================================
-    # KPIs
+    # KPIs CLIENTES
     # =====================================================
     kpi_table = Table(
         [
-            ["Usuarios totales", stats["total_users"]],
-            ["Usuarios activos", stats["active_users"]],
-            ["Usuarios inactivos", stats["inactive_users"]],
+            ["Clientes totales", total_clients],
+            ["Clientes activos", active_clients],
+            ["Clientes inactivos", inactive_clients],
         ],
         colWidths=[10 * cm, 4 * cm],
     )
@@ -119,9 +127,7 @@ def build_admin_pdf(stats: dict) -> bytes:
     kpi_table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                ("FONT", (0, 0), (-1, -1), "Helvetica"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 8),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 8),
                 ("TOPPADDING", (0, 0), (-1, -1), 6),
@@ -134,62 +140,37 @@ def build_admin_pdf(stats: dict) -> bytes:
     story.append(Spacer(1, 30))
 
     # =====================================================
-    # GRÁFICO: USUARIOS ACTIVOS VS INACTIVOS
+    # GRÁFICO: CLIENTES POR PLAN
     # =====================================================
-    def render_pie(labels, values, filename):
-        plt.figure(figsize=(4, 4))
-        plt.pie(values, labels=labels, autopct="%1.1f%%", startangle=90)
-        plt.title("Usuarios activos vs inactivos")
-        plt.axis("equal")
-        plt.savefig(filename, bbox_inches="tight")
-        plt.close()
+    labels = list(plans_counter.keys())
+    values = list(plans_counter.values())
 
     pie_path = tempfile.NamedTemporaryFile(delete=False, suffix=".png").name
-    render_pie(
-        ["Activos", "Inactivos"],
-        [stats["active_users"], stats["inactive_users"]],
-        pie_path,
-    )
+
+    plt.figure(figsize=(5, 5))
+    plt.pie(values, labels=labels, autopct="%1.1f%%", startangle=90)
+    plt.title("Clientes por plan")
+    plt.axis("equal")
+    plt.savefig(pie_path, bbox_inches="tight")
+    plt.close()
 
     story.append(Image(pie_path, width=10 * cm, height=10 * cm))
     story.append(Spacer(1, 30))
 
     # =====================================================
-    # GRÁFICO: USUARIOS POR PLAN
+    # TABLA: CLIENTES POR PLAN
     # =====================================================
-    plans = [p["plan"] for p in stats["users_by_plan"]]
-    counts = [p["count"] for p in stats["users_by_plan"]]
-
-    bar_path = tempfile.NamedTemporaryFile(delete=False, suffix=".png").name
-
-    plt.figure(figsize=(6, 4))
-    plt.bar(plans, counts, color="#6366F1")
-    plt.xticks(rotation=30, ha="right")
-    plt.title("Usuarios por plan")
-    plt.tight_layout()
-    plt.savefig(bar_path)
-    plt.close()
-
-    story.append(Image(bar_path, width=14 * cm, height=8 * cm))
-    story.append(Spacer(1, 25))
-
-    # =====================================================
-    # TABLA: USUARIOS POR PLAN
-    # =====================================================
-    table_data = [["Plan", "Cantidad"]]
-    for p in stats["users_by_plan"]:
-        table_data.append([p["plan"], p["count"]])
+    table_data = [["Plan", "Cantidad de clientes"]]
+    for plan, count in plans_counter.items():
+        table_data.append([plan, count])
 
     plan_table = Table(table_data, colWidths=[10 * cm, 4 * cm])
     plan_table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
                 ("LEFTPADDING", (0, 0), (-1, -1), 8),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
             ]
         )
     )
@@ -198,7 +179,7 @@ def build_admin_pdf(stats: dict) -> bytes:
     story.append(Spacer(1, 40))
 
     # =====================================================
-    # FOOTER LEGAL
+    # FOOTER
     # =====================================================
     footer_style = ParagraphStyle(
         "Footer",
@@ -218,6 +199,4 @@ def build_admin_pdf(stats: dict) -> bytes:
     doc.build(story)
 
     with open(buffer.name, "rb") as f:
-        pdf_bytes = f.read()
-
-    return pdf_bytes
+        return f.read()

@@ -1,9 +1,30 @@
+"""
+EMAIL TEMPLATES
+===============
+
+Plantillas de correos transaccionales del sistema.
+
+IMPORTANTE:
+- Este archivo SOLO construye texto
+- NO envía correos
+- NO contiene lógica de negocio
+- NO accede a base de datos
+"""
+
 from datetime import datetime
 
+BASE_URL = "https://www.finopslatam.com"
+SUPPORT_EMAIL = "soporte@finopslatam.com"
+
+
 # ================================
-# EMAIL RECUPERACION DE PASSWORD
+# RECUPERACIÓN DE PASSWORD
 # ================================
-def build_forgot_password_email(name, email, temp_password):
+def build_forgot_password_email(
+    name: str,
+    email: str,
+    temp_password: str
+) -> str:
     return f"""
 Hola {name},
 
@@ -15,36 +36,38 @@ Contraseña temporal: {temp_password}
 Esta contraseña expira en 30 minutos.
 
 Accede aquí:
-https://www.finopslatam.com
+{BASE_URL}
 
 Saludos,
 Equipo FinOpsLatam
 """
 
+
 # ================================
-# EMAIL HELPERS CUENTA DESACTIVADA
+# CUENTA DESACTIVADA
 # ================================
-def build_account_deactivated_email(nombre):
+def build_account_deactivated_email(name: str) -> str:
     return f"""
-Hola {nombre},
+Hola {name},
 
 Tu cuenta en FinOpsLatam ha sido desactivada temporalmente 🔒
 
 Si crees que esto es un error o necesitas más información,
 puedes contactarnos en:
 
-soporte@finopslatam.com
+{SUPPORT_EMAIL}
 
 Saludos,
 Equipo FinOpsLatam
 """
 
+
 # ================================
-# EMAIL HELPERS CUENTA ACTIVADA
+# CUENTA REACTIVADA
 # ================================
-def build_account_reactivated_email(nombre,):
+def build_account_reactivated_email(name: str) -> str:
     return f"""
-Hola {nombre},
+Hola {name},
 
 Tu cuenta en FinOpsLatam ha sido reactivada exitosamente 🎉
 
@@ -52,38 +75,40 @@ Por seguridad, en tu próximo inicio de sesión se te pedirá
 actualizar tu contraseña.
 
 Si tienes dudas, escríbenos a:
-soporte@finopslatam.com
+{SUPPORT_EMAIL}
 
 Saludos,
 Equipo FinOpsLatam
 """
+
+
 # ================================
-# EMAIL PASSWORD CHANGE
+# PASSWORD CAMBIADO
 # ================================
-def build_password_changed_email(nombre: str) -> str:
+def build_password_changed_email(name: str) -> str:
     return f"""
-Hola {nombre},
+Hola {name},
 
 Te confirmamos que tu contraseña fue cambiada correctamente.
 
 Si no realizaste este cambio, contáctanos de inmediato:
-soporte@finopslatam.com
+{SUPPORT_EMAIL}
 
 Saludos,
 Equipo FinOpsLatam
 """
 
-# ================================
-# EMAIL REESET PASSWORD FOR ADMIN 
-# ================================
 
+# ================================
+# RESET PASSWORD POR ADMIN
+# ================================
 def build_admin_reset_password_email(
-    nombre: str,
+    name: str,
     email: str,
     password: str
 ) -> str:
     return f"""
-Hola {nombre},
+Hola {name},
 
 Un administrador ha restablecido la contraseña de tu cuenta.
 
@@ -93,38 +118,46 @@ Contraseña temporal: {password}
 
 Debes cambiarla al iniciar sesión.
 
-👉 https://www.finopslatam.com/
+👉 {BASE_URL}
 
 Saludos,
 Equipo FinOpsLatam
 """
+
+
 # ================================
-# EMAIL INICIO SESION NO AUTORIZADO 
+# ALERTA LOGIN ROOT
 # ================================
-def build_root_login_alert_email(nombre, email, ip_address):
+def build_root_login_alert_email(
+    name: str,
+    email: str,
+    ip_address: str
+) -> str:
     return f"""
 ⚠️ ALERTA DE SEGURIDAD — FinOpsLatam
 
 Se ha iniciado sesión con la cuenta ROOT.
 
 Usuario: {email}
-Nombre: {nombre}
+Nombre: {name}
 IP: {ip_address}
 Fecha: {datetime.utcnow().isoformat()} UTC
 
 Si no reconoces este acceso,
-contacta inmediatamente a soporte@finopslatam.com
+contacta inmediatamente a {SUPPORT_EMAIL}
 """
+
+
 # ================================
-# EMAIL CAMBIO DE PLAN 
+# CAMBIO DE PLAN
 # ================================
 def build_plan_changed_email(
-    nombre: str,
+    name: str,
     old_plan_name: str,
     new_plan_name: str
 ) -> str:
     return f"""
-Hola {nombre},
+Hola {name},
 
 Te informamos que tu plan en FinOpsLatam ha sido actualizado.
 
@@ -135,7 +168,7 @@ Nuevo: {new_plan_name}
 Los cambios se aplican de inmediato.
 
 Accede aquí:
-https://www.finopslatam.com/
+{BASE_URL}
 
 Saludos,
 Equipo FinOpsLatam

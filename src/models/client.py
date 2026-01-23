@@ -1,3 +1,13 @@
+"""
+CLIENT MODEL
+============
+
+Representa una empresa cliente (tenant) del SaaS FinOpsLatam.
+
+- Un cliente puede tener múltiples usuarios
+- El estado is_active controla el acceso de toda la empresa
+"""
+
 from datetime import datetime
 from src.models.database import db
 
@@ -16,6 +26,7 @@ class Client(db.Model):
     contact_name = db.Column(db.String(100), nullable=True)
     phone = db.Column(db.String(20), nullable=True)
 
+    # Estado del cliente (afecta a todos sus usuarios)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
 
     created_at = db.Column(

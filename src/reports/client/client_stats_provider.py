@@ -1,20 +1,15 @@
-def get_client_stats(client_id: int):
-    """
-    Datos visibles SOLO para el cliente.
-    Nunca incluir métricas globales.
-    """
+"""
+CLIENT STATS PROVIDER
+=====================
 
-    # ⚠️ Ajusta a tus modelos reales
-    user_count = get_users_by_client(client_id)
-    active_services = get_active_services_by_client(client_id)
-    current_plan = get_client_plan(client_id)
+Provee métricas visibles únicamente para un cliente.
 
-    return {
-        "client_id": client_id,
-        "user_count": user_count,
-        "active_services": active_services,
-        "plan": current_plan,
-    }
+IMPORTANTE:
+- Nunca expone métricas globales
+- Nunca incluye datos de otros clientes
+- No maneja autenticación (eso vive en routes)
+"""
+
 from src.services.client_stats_service import (
     get_users_by_client,
     get_active_services_by_client,
@@ -22,7 +17,11 @@ from src.services.client_stats_service import (
 )
 
 
-def get_client_stats(client_id: int):
+def get_client_stats(client_id: int) -> dict:
+    """
+    Retorna estadísticas del cliente autenticado.
+    """
+
     return {
         "client_id": client_id,
         "user_count": get_users_by_client(client_id),

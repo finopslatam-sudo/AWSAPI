@@ -1,6 +1,16 @@
-from src.models.database import db
+"""
+CLIENT SUBSCRIPTION MODEL
+=========================
+
+Representa la suscripción de un cliente a un plan FinOps.
+
+- Un cliente puede tener múltiples suscripciones históricas
+- Solo una debe estar activa (is_active = True)
+"""
+
 from datetime import datetime
-from enum import Enum
+from src.models.database import db
+
 
 class ClientSubscription(db.Model):
     __tablename__ = "client_subscriptions"
@@ -19,7 +29,12 @@ class ClientSubscription(db.Model):
         nullable=False
     )
 
-    is_active = db.Column(db.Boolean, default=True)
+    # Indica la suscripción activa del cliente
+    is_active = db.Column(
+        db.Boolean,
+        default=True,
+        nullable=False
+    )
 
     created_at = db.Column(
         db.DateTime,
