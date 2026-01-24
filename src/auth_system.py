@@ -99,17 +99,39 @@ def create_auth_routes(app):
         user = User.query.get_or_404(int(get_jwt_identity()))
         data = request.get_json() or {}
 
-        if not user.check_password(data.get("current_password")):
-            return jsonify({"error": "Clave incorrecta"}), 400
+        # Aceptamos ambos nombres por compatibilidad
+        current_password = (
+            data.get("current_password")
+            or data.get("currentPassword")
+        )
 
-        user.set_password(data["password"])
+        new_password = (
+            data.get("password")
+            or data.get("new_password")
+            or data.get("newPassword")
+        )
+
+        if not current_password or not new_password:
+            return jsonify({
+                "error": "Datos incompletos"
+            }), 400
+
+        if not user.check_password(current_password):
+            return jsonify({
+                "error": "Clave actual incorrecta"
+            }), 400
+
+        user.set_password(new_password)
         user.force_password_change = False
         user.password_expires_at = None
         db.session.commit()
 
         on_password_changed(user)
 
-        return jsonify({"message": "Contraseña actualizada"}), 200
+        return jsonify({
+            "message": "Contraseña actualizada correctamente"
+        }), 200
+
 
     # -------- FORGOT PASSWORD --------
     @app.route("/api/auth/forgot-password", methods=["POST"])
