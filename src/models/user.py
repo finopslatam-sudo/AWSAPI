@@ -18,12 +18,24 @@ IMPORTANTE:
 """
 
 from datetime import datetime
+from passlib.context import CryptContext
 from .database import db
+
+# ==========================
+# PASSWORD CONTEXT
+# ==========================
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto"
+)
 
 
 class User(db.Model):
     __tablename__ = "users"
 
+    # ==========================
+    # CORE FIELDS
+    # ==========================
     id = db.Column(db.Integer, primary_key=True)
 
     email = db.Column(
@@ -93,5 +105,25 @@ class User(db.Model):
         nullable=False
     )
 
+    # ==========================
+    # PASSWORD METHODS
+    # ==========================
+    def set_password(self, password: str) -> None:
+        """
+        Genera y guarda el hash de la contraseña.
+        """
+        self.password_hash = pwd_context.hash(password)
+
+    def check_password(self, password: str) -> bool:
+        """
+        Verifica la contraseña contra el hash almacenado.
+        """
+        if not self.password_hash or not password:
+            return False
+        return pwd_context.verify(password, self.password_hash)
+
+    # ==========================
+    # REPRESENTATION
+    # ==========================
     def __repr__(self):
         return f"<User {self.email}>"
