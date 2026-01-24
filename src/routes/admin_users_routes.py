@@ -142,8 +142,6 @@ def create_user():
     db.session.add(user)
     db.session.commit()
 
-    on_forgot_password(user, temp_password)
-
     return jsonify({
         "id": user.id,
         "email": user.email,
