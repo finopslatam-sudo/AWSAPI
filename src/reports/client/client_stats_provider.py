@@ -19,7 +19,8 @@ from src.services.client_stats_service import (
 
 def get_client_stats(client_id: int) -> dict:
     """
-    Retorna estadísticas del cliente autenticado.
+    Datos visibles SOLO para el cliente.
+    Nunca incluir métricas globales.
     """
 
     return {
