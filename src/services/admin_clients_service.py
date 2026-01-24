@@ -9,6 +9,7 @@ Los usuarios se gestionan exclusivamente desde:
 - admin_users_routes.py
 - User model
 """
+
 from sqlalchemy.orm import aliased
 from src.models.client import Client
 from src.models.subscription import ClientSubscription
@@ -17,6 +18,16 @@ from src.models.database import db
 
 
 def get_clients_with_active_plan():
+    """
+    Retorna listado de clientes para panel administrativo.
+
+    Incluye:
+    - datos básicos del cliente
+    - nombre del plan activo (si existe)
+
+    NO incluye usuarios.
+    """
+
     ActiveSubscription = aliased(ClientSubscription)
 
     rows = (

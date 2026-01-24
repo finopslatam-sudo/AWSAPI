@@ -1,45 +1,98 @@
+"""
+ADMIN CLIENTS ROUTES
+===================
+
+Endpoints administrativos para gestión de clientes (empresas).
+"""
+
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
+from src.models.database import db
 from src.models.user import User
-from src.services.admin_clients_service import get_clients_with_active_plan
+from src.models.client import Client
 
-# =====================================================
-# BLUEPRINT
-# =====================================================
 admin_clients_bp = Blueprint(
     "admin_clients",
     __name__,
-    url_prefix="/api/admin"
+    url_prefix="/api/admin/clients"
 )
 
 
-def register_admin_clients_routes(app):
-    app.register_blueprint(admin_clients_bp)
-
-
-# =====================================================
-# HELPERS
-# =====================================================
-def require_staff(user_id: int) -> User | None:
-    user = User.query.get(user_id)
-    if not user:
-        return None
-    if user.global_role not in ("root", "admin"):
-        return None
-    return user
-
-
-# =====================================================
-# ADMIN — LISTAR CLIENTES (CON PLAN ACTIVO)
-# =====================================================
-@admin_clients_bp.route("/clients", methods=["GET"])
+@admin_clients_bp.route("", methods=["POST"])
 @jwt_required()
-def list_clients():
-    actor = require_staff(int(get_jwt_identity()))
-    if not actor:
-        return jsonify({"error": "Acceso denegado"}), 403
+def create_client():
+    """
+    Crea un nuevo cliente (empresa).
 
-    clients = get_clients_with_active_plan()
+    Permisos:
+    - Solo ROOT / ADMIN
 
-    return jsonify({"clients": clients}), 200
+    Body esperado:
+    {
+        "company_name": "Empresa ABC",
+        "email": "contacto@empresa.cl",
+        "contact_name": "Juan Pérez",
+        "phone": "+56 9 1234 5678",
+        "is_active": true
+    }
+    """
+
+    # ==========================
+    # AUTH
+    # ==========================
+    user = User.query.get(int(get_jwt_identity()))
+
+    if not user or user.global_role not in ("root", "admin"):
+        return jsonify({"error": "Unauthorized"}), 403
+
+    # ==========================
+    # PAYLOAD
+    # ==========================
+    data = request.get_json() or {}
+
+    company_name = data.get("company_name")
+    email = data.get("email")
+    contact_name = data.get("contact_name")
+    phone = data.get("phone")
+    is_active = data.get("is_active", True)
+
+    # ==========================
+    # VALIDATION
+    # ==========================
+    if not company_name:
+        return jsonify({"error": "company_name es obligatorio"}), 400
+
+    if not email:
+        return jsonify({"error": "email es obligatorio"}), 400
+
+    existing = Client.query.filter_by(email=email).first()
+    if existing:
+        return jsonify({"error": "Ya existe un cliente con ese email"}), 409
+
+    # ==========================
+    # CREATE CLIENT
+    # ==========================
+    client = Client(
+        company_name=company_name,
+        email=email,
+        contact_name=contact_name,
+        phone=phone,
+        is_active=is_active
+    )
+
+    db.session.add(client)
+    db.session.commit()
+
+    # ==========================
+    # RESPONSE
+    # ==========================
+    return jsonify({
+        "id": client.id,
+        "company_name": client.company_name,
+        "email": client.email,
+        "contact_name": client.contact_name,
+        "phone": client.phone,
+        "is_active": client.is_active,
+        "created_at": client.created_at.isoformat() if client.created_at else None
+    }), 201

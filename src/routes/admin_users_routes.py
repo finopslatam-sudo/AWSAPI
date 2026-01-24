@@ -85,58 +85,53 @@ def list_users():
 # =====================================================
 # ADMIN — CREAR USUARIO
 # =====================================================
-@admin_users_bp.route("/users", methods=["POST"])
+@admin_users_bp.route("", methods=["POST"])
 @jwt_required()
 def create_user():
-    actor = require_staff(int(get_jwt_identity()))
-    if not actor:
-        return jsonify({"error": "Acceso denegado"}), 403
+    """
+    Crea un usuario asociado a un cliente.
+    """
+
+    actor = User.query.get(int(get_jwt_identity()))
+
+    if not actor or actor.global_role not in ("root", "admin"):
+        return jsonify({"error": "Unauthorized"}), 403
 
     data = request.get_json() or {}
 
     email = data.get("email")
-    global_role = data.get("global_role")  # root | support | None
     client_id = data.get("client_id")
-    client_role = data.get("client_role")  # owner | finops_admin | viewer
+    client_role = data.get("client_role")
 
+    # ==========================
+    # VALIDATION
+    # ==========================
     if not email:
         return jsonify({"error": "email es obligatorio"}), 400
 
-    if User.query.filter_by(email=email).first():
-        return jsonify({"error": "Ya existe un usuario con ese email"}), 409
+    if not client_id:
+        return jsonify({"error": "client_id es obligatorio"}), 400
 
-    # ----------------------------
-    # VALIDACIÓN DE ROLES
-    # ----------------------------
-    if global_role and global_role not in ("root", "support"):
-        return jsonify({"error": "global_role inválido"}), 400
-
-    if client_role and client_role not in (
-        "owner",
-        "finops_admin",
-        "viewer",
-    ):
+    if client_role not in ("owner", "finops_admin", "viewer"):
         return jsonify({"error": "client_role inválido"}), 400
 
-    # ----------------------------
-    # VALIDAR CLIENTE (si aplica)
-    # ----------------------------
-    if client_id:
-        client = Client.query.get(client_id)
-        if not client:
-            return jsonify({"error": "Cliente no encontrado"}), 404
-    else:
-        client = None
+    existing = User.query.filter_by(email=email).first()
+    if existing:
+        return jsonify({"error": "El usuario ya existe"}), 409
 
-    # ----------------------------
-    # CREAR USUARIO
-    # ----------------------------
+    client = Client.query.get(client_id)
+    if not client:
+        return jsonify({"error": "Cliente no existe"}), 404
+
+    # ==========================
+    # CREATE USER
+    # ==========================
     temp_password = generate_temp_password()
 
     user = User(
         email=email,
-        global_role=global_role,
-        client_id=client.id if client else None,
+        global_role=None,
+        client_id=client_id,
         client_role=client_role,
         is_active=True,
         force_password_change=True,
@@ -147,18 +142,16 @@ def create_user():
     db.session.add(user)
     db.session.commit()
 
-    # 📧 Evento (email + auditoría)
-    on_admin_reset_password(user, temp_password)
+    on_forgot_password(user, temp_password)
 
     return jsonify({
         "id": user.id,
         "email": user.email,
-        "global_role": user.global_role,
-        "client_role": user.client_role,
         "client_id": user.client_id,
+        "client_role": user.client_role,
         "is_active": user.is_active,
+        "created_at": user.created_at.isoformat(),
     }), 201
-
 
 # =====================================================
 # ADMIN — ACTIVAR / DESACTIVAR USUARIO
