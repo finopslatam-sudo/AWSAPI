@@ -21,6 +21,7 @@ admin_clients_bp = Blueprint(
     url_prefix="/api/admin/clients"
 )
 
+
 def register_admin_clients_routes(app):
     """
     Registra las rutas administrativas de clientes.
@@ -31,6 +32,45 @@ def register_admin_clients_routes(app):
 # =====================================================
 # ROUTES
 # =====================================================
+
+@admin_clients_bp.route("", methods=["GET"])
+@jwt_required()
+def list_clients():
+    """
+    Lista todos los clientes del sistema.
+
+    Permisos:
+    - ROOT
+    - ADMIN
+    - SUPPORT
+    """
+
+    user = User.query.get(int(get_jwt_identity()))
+
+    if not user or user.global_role not in ("root", "admin", "support"):
+        return jsonify({"error": "Unauthorized"}), 403
+
+    clients = Client.query.order_by(Client.created_at.desc()).all()
+
+    return jsonify({
+        "clients": [
+            {
+                "id": c.id,
+                "company_name": c.company_name,
+                "email": c.email,
+                "contact_name": c.contact_name,
+                "phone": c.phone,
+                "is_active": c.is_active,
+                "created_at": (
+                    c.created_at.isoformat()
+                    if c.created_at else None
+                )
+            }
+            for c in clients
+        ]
+    }), 200
+
+
 @admin_clients_bp.route("", methods=["POST"])
 @jwt_required()
 def create_client():
