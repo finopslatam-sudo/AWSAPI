@@ -12,13 +12,25 @@ from src.models.database import db
 from src.models.user import User
 from src.models.client import Client
 
+# =====================================================
+# BLUEPRINT
+# =====================================================
 admin_clients_bp = Blueprint(
     "admin_clients",
     __name__,
     url_prefix="/api/admin/clients"
 )
 
+def register_admin_clients_routes(app):
+    """
+    Registra las rutas administrativas de clientes.
+    Se importa desde src.routes.__init__
+    """
+    app.register_blueprint(admin_clients_bp)
 
+# =====================================================
+# ROUTES
+# =====================================================
 @admin_clients_bp.route("", methods=["POST"])
 @jwt_required()
 def create_client():
@@ -94,5 +106,8 @@ def create_client():
         "contact_name": client.contact_name,
         "phone": client.phone,
         "is_active": client.is_active,
-        "created_at": client.created_at.isoformat() if client.created_at else None
+        "created_at": (
+            client.created_at.isoformat()
+            if client.created_at else None
+        )
     }), 201
