@@ -48,7 +48,10 @@ def get_admin_stats() -> dict:
 
     inactive_companies = (
         Client.query
-        .filter(Client.is_active.is_(False))
+        .filter(
+            (Client.is_active.is_(False)) |
+            (Client.is_active.is_(None))
+        )
         .count()
     )
 
@@ -76,7 +79,10 @@ def get_admin_stats() -> dict:
 
     inactive_users = (
         User.query
-        .filter(User.is_active.is_(False))
+        .filter(
+            (User.is_active.is_(False)) |
+            (User.is_active.is_(None))
+        )
         .count()
     )
 
@@ -87,7 +93,9 @@ def get_admin_stats() -> dict:
 
     plans_in_use = (
         db.session.query(distinct(ClientSubscription.plan_id))
-        .filter(ClientSubscription.is_active.is_(True))
+        .filter(
+            (ClientSubscription.is_active.is_(True))
+        )
         .count()
     )
 
