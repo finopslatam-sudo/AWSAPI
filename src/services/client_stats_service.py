@@ -1,46 +1,127 @@
 """
-CLIENT STATS SERVICE
-====================
+ADMIN STATS SERVICE
+===================
 
-Servicio de estadísticas para vistas y reportes del cliente.
+Servicio de estadísticas globales para administración (root / admin).
 
 IMPORTANTE:
-- Todas las métricas están estrictamente filtradas por client_id
-- No maneja usuarios internos del cliente
-- No expone información de otros clientes
+- Las métricas representan ENTIDADES del sistema (clientes, usuarios, planes).
+- El contrato está diseñado para AdminDashboard.
 """
+
+from sqlalchemy import func, distinct
 from src.models.database import db
+from src.models.user import User
 from src.models.client import Client
-from src.models.aws_account import AWSAccount
 from src.models.subscription import ClientSubscription
 from src.models.plan import Plan
 
 
-def get_users_by_client(client_id: int) -> int:
-    return (
-        db.session.query(Client)
-        .filter_by(id=client_id)
+def get_admin_stats() -> dict:
+    """
+    Retorna estadísticas globales del sistema para dashboard admin.
+
+    Contrato:
+    {
+        companies: {
+            total: number,
+            inactive: number
+        },
+        users: {
+            clients: number,
+            admins: number,
+            root: number,
+            inactive: number
+        },
+        plans: {
+            in_use: number,
+            usage: [{ plan: string, count: number }]
+        }
+    }
+    """
+
+    # ==============================
+    # EMPRESAS (clients)
+    # ==============================
+
+    total_companies = Client.query.count()
+
+    inactive_companies = (
+        Client.query
+        .filter(Client.is_active.is_(False))
         .count()
     )
 
+    # ==============================
+    # USUARIOS (users)
+    # ==============================
 
-def get_active_services_by_client(client_id: int) -> int:
-    return (
-        db.session.query(AWSAccount)
-        .filter_by(client_id=client_id, is_active=True)
+    client_users = (
+        User.query
+        .filter(User.client_role.isnot(None))
         .count()
     )
 
+    admin_users = (
+        User.query
+        .filter(User.global_role == "admin")
+        .count()
+    )
 
-def get_client_plan(client_id: int) -> str | None:
-    row = (
-        db.session.query(Plan.name)
-        .join(ClientSubscription, ClientSubscription.plan_id == Plan.id)
-        .filter(
-            ClientSubscription.client_id == client_id,
-            ClientSubscription.is_active == True
+    root_users = (
+        User.query
+        .filter(User.global_role == "root")
+        .count()
+    )
+
+    inactive_users = (
+        User.query
+        .filter(User.is_active.is_(False))
+        .count()
+    )
+
+    # ==============================
+    # PLANES EN USO
+    # (no existe plans.is_active)
+    # ==============================
+
+    plans_in_use = (
+        db.session.query(distinct(ClientSubscription.plan_id))
+        .filter(ClientSubscription.is_active.is_(True))
+        .count()
+    )
+
+    plans_usage = (
+        db.session.query(
+            Plan.code.label("plan"),
+            func.count(ClientSubscription.client_id).label("count")
         )
-        .first()
+        .join(
+            ClientSubscription,
+            ClientSubscription.plan_id == Plan.id
+        )
+        .filter(ClientSubscription.is_active.is_(True))
+        .group_by(Plan.code)
+        .order_by(func.count(ClientSubscription.client_id).desc())
+        .all()
     )
 
-    return row.name if row else None
+    return {
+        "companies": {
+            "total": total_companies,
+            "inactive": inactive_companies,
+        },
+        "users": {
+            "clients": client_users,
+            "admins": admin_users,
+            "root": root_users,
+            "inactive": inactive_users,
+        },
+        "plans": {
+            "in_use": plans_in_use,
+            "usage": [
+                {"plan": plan, "count": count}
+                for plan, count in plans_usage
+            ],
+        },
+    }
