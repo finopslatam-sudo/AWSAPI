@@ -40,6 +40,25 @@ def get_admin_stats() -> dict:
     }
     """
 
+def get_users_by_client(client_id: int) -> int:
+    """
+    Retorna la cantidad de usuarios asociados a un cliente.
+
+    Usado por:
+    - src/reports/client/client_stats_provider.py
+
+    IMPORTANTE:
+    - No filtra por estado para no romper reportes existentes
+    """
+    from src.models.user import User
+
+    return (
+        User.query
+        .filter(User.client_id == client_id)
+        .count()
+    )
+
+
     # ==============================
     # EMPRESAS (clients)
     # ==============================
