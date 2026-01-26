@@ -57,7 +57,23 @@ def get_users_by_client(client_id: int) -> int:
         .filter(User.client_id == client_id)
         .count()
     )
+def get_active_services_by_client(client_id: int) -> int:
+    """
+    Retorna la cantidad de servicios activos de un cliente.
 
+    En el modelo actual, un "servicio activo" corresponde
+    a una suscripción activa (client_subscriptions.is_active = True).
+    """
+    from src.models.subscription import ClientSubscription
+
+    return (
+        ClientSubscription.query
+        .filter(
+            ClientSubscription.client_id == client_id,
+            ClientSubscription.is_active.is_(True)
+        )
+        .count()
+    )
 
     # ==============================
     # EMPRESAS (clients)
