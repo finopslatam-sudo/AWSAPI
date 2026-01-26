@@ -36,9 +36,10 @@ def require_staff(user_id: int) -> User | None:
     user = User.query.get(user_id)
     if not user:
         return None
-    if user.global_role not in ("root", "admin"):
+    if user.global_role not in ("root", "admin", "support"):
         return None
     return user
+
 
 # =====================================================
 # ADMIN — LISTAR USUARIOS
@@ -82,16 +83,13 @@ def list_users():
         ]
     }), 200
 
+
 # =====================================================
 # ADMIN — CREAR USUARIO
 # =====================================================
 @admin_users_bp.route("", methods=["POST"])
 @jwt_required()
 def create_user():
-    """
-    Crea un usuario asociado a un cliente.
-    """
-
     actor = User.query.get(int(get_jwt_identity()))
 
     if not actor or actor.global_role not in ("root", "admin"):
@@ -103,9 +101,6 @@ def create_user():
     client_id = data.get("client_id")
     client_role = data.get("client_role")
 
-    # ==========================
-    # VALIDATION
-    # ==========================
     if not email:
         return jsonify({"error": "email es obligatorio"}), 400
 
@@ -115,17 +110,13 @@ def create_user():
     if client_role not in ("owner", "finops_admin", "viewer"):
         return jsonify({"error": "client_role inválido"}), 400
 
-    existing = User.query.filter_by(email=email).first()
-    if existing:
+    if User.query.filter_by(email=email).first():
         return jsonify({"error": "El usuario ya existe"}), 409
 
     client = Client.query.get(client_id)
     if not client:
         return jsonify({"error": "Cliente no existe"}), 404
 
-    # ==========================
-    # CREATE USER
-    # ==========================
     temp_password = generate_temp_password()
 
     user = User(
@@ -148,11 +139,63 @@ def create_user():
         "client_id": user.client_id,
         "client_role": user.client_role,
         "is_active": user.is_active,
-        "created_at": user.created_at.isoformat(),
     }), 201
 
+
 # =====================================================
-# ADMIN — ACTIVAR / DESACTIVAR USUARIO
+# ADMIN — EDITAR USUARIO (MODAL)
+# =====================================================
+@admin_users_bp.route("/users/<int:user_id>", methods=["PATCH"])
+@jwt_required()
+def patch_user(user_id: int):
+    actor = require_staff(int(get_jwt_identity()))
+    if not actor:
+        return jsonify({"error": "Acceso denegado"}), 403
+
+    target = User.query.get(user_id)
+    if not target:
+        return jsonify({"error": "Usuario no encontrado"}), 404
+
+    # 🚫 Proteger root
+    if target.global_role == "root":
+        return jsonify({"error": "No se puede modificar un usuario root"}), 403
+
+    data = request.get_json(silent=True) or {}
+
+    if "email" in data:
+        target.email = data["email"].strip().lower()
+
+    if "client_role" in data:
+        target.client_role = data["client_role"]
+
+    if "is_active" in data:
+        target.is_active = bool(data["is_active"])
+
+    if "global_role" in data:
+        if data["global_role"] == "root":
+            return jsonify({"error": "No se puede asignar rol root"}), 403
+        target.global_role = data["global_role"]
+
+    # 🚫 Ignorar client_id
+    if "client_id" in data:
+        pass
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "Usuario actualizado correctamente",
+        "user": {
+            "id": target.id,
+            "email": target.email,
+            "client_role": target.client_role,
+            "global_role": target.global_role,
+            "is_active": target.is_active,
+        },
+    }), 200
+
+
+# =====================================================
+# ADMIN — ACTIVAR / DESACTIVAR (LEGACY)
 # =====================================================
 @admin_users_bp.route("/users/<int:user_id>", methods=["PUT"])
 @jwt_required()
@@ -165,11 +208,9 @@ def update_user(user_id: int):
     if not target:
         return jsonify({"error": "Usuario no encontrado"}), 404
 
-    # 🚫 no tocar root desde support
     if actor.global_role == "support" and target.global_role == "root":
         return jsonify({"error": "No puedes modificar un usuario root"}), 403
 
-    # 🚫 no auto-desactivarse
     if actor.id == target.id:
         return jsonify({"error": "No puedes modificarte a ti mismo"}), 403
 
@@ -180,7 +221,6 @@ def update_user(user_id: int):
 
     db.session.commit()
 
-    # 📧 eventos
     if previous_state and not target.is_active:
         on_user_deactivated(target)
 
