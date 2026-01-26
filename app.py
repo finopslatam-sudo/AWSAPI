@@ -53,6 +53,19 @@ if not app.config["SQLALCHEMY_DATABASE_URI"]:
 init_db(app)
 
 # =====================================================
+#   DB SANITY CHECK (CRÍTICO EN PROD)
+# =====================================================
+with app.app_context():
+    engine_url = str(db.engine.url)
+    print(f"🔌 Connected DB: {engine_url}")
+
+    if "finops_prod" not in engine_url:
+        raise RuntimeError(
+            f"❌ API conectada a BD incorrecta: {engine_url}"
+        )
+
+
+# =====================================================
 #   AUTH SYSTEM
 # =====================================================
 from src.auth_system import init_auth_system, create_auth_routes
