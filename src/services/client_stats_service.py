@@ -74,6 +74,34 @@ def get_active_services_by_client(client_id: int) -> int:
         )
         .count()
     )
+def get_client_plan(client_id: int) -> str | None:
+    """
+    Retorna el código del plan activo del cliente.
+
+    - Si el cliente tiene una suscripción activa → retorna plan.code
+    - Si no tiene plan activo → retorna None
+
+    Usado por:
+    - src/reports/client/client_stats_provider.py
+    """
+
+    from src.models.subscription import ClientSubscription
+    from src.models.plan import Plan
+
+    result = (
+        db.session.query(Plan.code)
+        .join(
+            ClientSubscription,
+            ClientSubscription.plan_id == Plan.id
+        )
+        .filter(
+            ClientSubscription.client_id == client_id,
+            ClientSubscription.is_active.is_(True)
+        )
+        .first()
+    )
+
+    return result[0] if result else None
 
     # ==============================
     # EMPRESAS (clients)
