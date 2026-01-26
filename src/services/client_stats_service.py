@@ -107,14 +107,11 @@ def get_client_plan(client_id: int) -> str | None:
     # EMPRESAS (clients)
     # ==============================
 
-    total_companies = Client.query.count()
+    total_companies = db.session.query(Client).count()
 
     inactive_companies = (
-        Client.query
-        .filter(
-            (Client.is_active.is_(False)) |
-            (Client.is_active.is_(None))
-        )
+        db.session.query(Client)
+        .filter(Client.is_active.is_(False))
         .count()
     )
 
@@ -123,29 +120,26 @@ def get_client_plan(client_id: int) -> str | None:
     # ==============================
 
     client_users = (
-        User.query
+        db.session.query(User)
         .filter(User.client_role.isnot(None))
         .count()
     )
 
     admin_users = (
-        User.query
+        db.session.query(User)
         .filter(User.global_role == "admin")
         .count()
     )
 
     root_users = (
-        User.query
+        db.session.query(User)
         .filter(User.global_role == "root")
         .count()
     )
 
     inactive_users = (
-        User.query
-        .filter(
-            (User.is_active.is_(False)) |
-            (User.is_active.is_(None))
-        )
+        db.session.query(User)
+        .filter(User.is_active.is_(False))
         .count()
     )
 
