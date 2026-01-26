@@ -11,6 +11,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from src.models.user import User
 from src.services.admin_stats_service import get_admin_stats
+print("🔥 ADMIN STATS SERVICE LOADED FROM:", get_admin_stats.__module__)
+
 
 # =====================================================
 # BLUEPRINT
