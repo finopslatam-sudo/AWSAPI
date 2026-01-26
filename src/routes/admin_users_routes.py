@@ -18,6 +18,7 @@ from src.services.user_events_service import (
 # =====================================================
 # BLUEPRINT
 # =====================================================
+
 admin_users_bp = Blueprint(
     "admin_users",
     __name__,
@@ -32,6 +33,7 @@ def register_admin_users_routes(app):
 # =====================================================
 # HELPERS
 # =====================================================
+
 def require_staff(user_id: int) -> User | None:
     user = User.query.get(user_id)
     if not user:
@@ -44,6 +46,7 @@ def require_staff(user_id: int) -> User | None:
 # =====================================================
 # ADMIN — LISTAR USUARIOS
 # =====================================================
+
 @admin_users_bp.route("/users", methods=["GET"])
 @jwt_required()
 def list_users():
@@ -67,6 +70,7 @@ def list_users():
         .all()
     )
 
+    # ✅ CONTRATO CORRECTO PARA FRONTEND
     return jsonify({
         "users": [
             {
@@ -74,10 +78,15 @@ def list_users():
                 "email": r.email,
                 "global_role": r.global_role,
                 "client_role": r.client_role,
-                "client_id": r.client_id,
-                "company_name": r.company_name,
                 "is_active": r.is_active,
                 "force_password_change": r.force_password_change,
+                "client": (
+                    {
+                        "id": r.client_id,
+                        "company_name": r.company_name,
+                    }
+                    if r.client_id else None
+                ),
             }
             for r in rows
         ]
@@ -87,6 +96,7 @@ def list_users():
 # =====================================================
 # ADMIN — CREAR USUARIO
 # =====================================================
+
 @admin_users_bp.route("", methods=["POST"])
 @jwt_required()
 def create_user():
@@ -101,6 +111,9 @@ def create_user():
     client_id = data.get("client_id")
     client_role = data.get("client_role")
 
+    # ==========================
+    # VALIDATION
+    # ==========================
     if not email:
         return jsonify({"error": "email es obligatorio"}), 400
 
@@ -117,10 +130,13 @@ def create_user():
     if not client:
         return jsonify({"error": "Cliente no existe"}), 404
 
+    # ==========================
+    # CREATE USER
+    # ==========================
     temp_password = generate_temp_password()
 
     user = User(
-        email=email,
+        email=email.strip().lower(),
         global_role=None,
         client_id=client_id,
         client_role=client_role,
@@ -136,15 +152,19 @@ def create_user():
     return jsonify({
         "id": user.id,
         "email": user.email,
-        "client_id": user.client_id,
         "client_role": user.client_role,
         "is_active": user.is_active,
+        "client": {
+            "id": client.id,
+            "company_name": client.company_name,
+        },
     }), 201
 
 
 # =====================================================
 # ADMIN — EDITAR USUARIO (MODAL)
 # =====================================================
+
 @admin_users_bp.route("/users/<int:user_id>", methods=["PATCH"])
 @jwt_required()
 def patch_user(user_id: int):
@@ -156,7 +176,7 @@ def patch_user(user_id: int):
     if not target:
         return jsonify({"error": "Usuario no encontrado"}), 404
 
-    # 🚫 Proteger root
+    # 🚫 Proteger usuario root
     if target.global_role == "root":
         return jsonify({"error": "No se puede modificar un usuario root"}), 403
 
@@ -176,7 +196,7 @@ def patch_user(user_id: int):
             return jsonify({"error": "No se puede asignar rol root"}), 403
         target.global_role = data["global_role"]
 
-    # 🚫 Ignorar client_id
+    # 🚫 Nunca permitir cambiar client_id
     if "client_id" in data:
         pass
 
@@ -187,9 +207,16 @@ def patch_user(user_id: int):
         "user": {
             "id": target.id,
             "email": target.email,
-            "client_role": target.client_role,
             "global_role": target.global_role,
+            "client_role": target.client_role,
             "is_active": target.is_active,
+            "client": (
+                {
+                    "id": target.client.id,
+                    "company_name": target.client.company_name,
+                }
+                if target.client else None
+            ),
         },
     }), 200
 
@@ -197,6 +224,7 @@ def patch_user(user_id: int):
 # =====================================================
 # ADMIN — ACTIVAR / DESACTIVAR (LEGACY)
 # =====================================================
+
 @admin_users_bp.route("/users/<int:user_id>", methods=["PUT"])
 @jwt_required()
 def update_user(user_id: int):
@@ -233,6 +261,7 @@ def update_user(user_id: int):
 # =====================================================
 # ADMIN — RESET PASSWORD
 # =====================================================
+
 @admin_users_bp.route("/users/<int:user_id>/reset-password", methods=["POST"])
 @jwt_required()
 def reset_user_password(user_id: int):
