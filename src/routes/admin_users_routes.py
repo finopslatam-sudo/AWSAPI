@@ -139,6 +139,7 @@ def create_user():
     if client_role not in ("owner", "finops_admin", "viewer"):
         return jsonify({"error": "client_role inválido"}), 400
 
+
     if User.query.filter_by(email=email).first():
         return jsonify({"error": "El usuario ya existe"}), 409
 
