@@ -3,14 +3,20 @@ ADMIN CLIENTS ROUTES
 ===================
 
 Endpoints administrativos para gestión de clientes (empresas).
+
+Este módulo:
+- NO gestiona usuarios
+- NO contiene lógica de negocio compleja
+- DELEGA construcción de vistas al service layer
 """
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from src.models.database import db
 from src.models.user import User
-from src.models.client import Client
+from src.services.admin_clients_service import (
+    get_clients_with_active_plan
+)
 
 # =====================================================
 # BLUEPRINT
@@ -23,11 +29,18 @@ admin_clients_bp = Blueprint(
 
 
 def register_admin_clients_routes(app):
-    """
-    Registra las rutas administrativas de clientes.
-    Se importa desde src.routes.__init__
-    """
     app.register_blueprint(admin_clients_bp)
+
+# =====================================================
+# HELPERS
+# =====================================================
+def require_staff(user_id: int) -> User | None:
+    user = User.query.get(user_id)
+    if not user:
+        return None
+    if user.global_role not in ("root", "admin", "support"):
+        return None
+    return user
 
 # =====================================================
 # ROUTES
@@ -37,37 +50,31 @@ def register_admin_clients_routes(app):
 @jwt_required()
 def list_clients():
     """
-    Lista todos los clientes del sistema.
+    Lista clientes para panel administrativo.
 
     Permisos:
     - ROOT
     - ADMIN
     - SUPPORT
+
+    Contrato:
+    {
+        data: [...],
+        meta: { total }
+    }
     """
 
-    user = User.query.get(int(get_jwt_identity()))
-
-    if not user or user.global_role not in ("root", "admin", "support"):
+    actor = require_staff(int(get_jwt_identity()))
+    if not actor:
         return jsonify({"error": "Unauthorized"}), 403
 
-    clients = Client.query.order_by(Client.created_at.desc()).all()
+    clients = get_clients_with_active_plan()
 
     return jsonify({
-        "clients": [
-            {
-                "id": c.id,
-                "company_name": c.company_name,
-                "email": c.email,
-                "contact_name": c.contact_name,
-                "phone": c.phone,
-                "is_active": c.is_active,
-                "created_at": (
-                    c.created_at.isoformat()
-                    if c.created_at else None
-                )
-            }
-            for c in clients
-        ]
+        "data": clients,
+        "meta": {
+            "total": len(clients)
+        }
     }), 200
 
 
@@ -78,29 +85,14 @@ def create_client():
     Crea un nuevo cliente (empresa).
 
     Permisos:
-    - Solo ROOT / ADMIN
-
-    Body esperado:
-    {
-        "company_name": "Empresa ABC",
-        "email": "contacto@empresa.cl",
-        "contact_name": "Juan Pérez",
-        "phone": "+56 9 1234 5678",
-        "is_active": true
-    }
+    - ROOT
+    - ADMIN
     """
 
-    # ==========================
-    # AUTH
-    # ==========================
-    user = User.query.get(int(get_jwt_identity()))
-
-    if not user or user.global_role not in ("root", "admin"):
+    actor = User.query.get(int(get_jwt_identity()))
+    if not actor or actor.global_role not in ("root", "admin"):
         return jsonify({"error": "Unauthorized"}), 403
 
-    # ==========================
-    # PAYLOAD
-    # ==========================
     data = request.get_json() or {}
 
     company_name = data.get("company_name")
@@ -109,45 +101,40 @@ def create_client():
     phone = data.get("phone")
     is_active = data.get("is_active", True)
 
-    # ==========================
-    # VALIDATION
-    # ==========================
     if not company_name:
         return jsonify({"error": "company_name es obligatorio"}), 400
 
     if not email:
         return jsonify({"error": "email es obligatorio"}), 400
 
-    existing = Client.query.filter_by(email=email).first()
-    if existing:
+    from src.models.client import Client
+    from src.models.database import db
+
+    if Client.query.filter_by(email=email).first():
         return jsonify({"error": "Ya existe un cliente con ese email"}), 409
 
-    # ==========================
-    # CREATE CLIENT
-    # ==========================
     client = Client(
         company_name=company_name,
         email=email,
         contact_name=contact_name,
         phone=phone,
-        is_active=is_active
+        is_active=is_active,
     )
 
     db.session.add(client)
     db.session.commit()
 
-    # ==========================
-    # RESPONSE
-    # ==========================
     return jsonify({
-        "id": client.id,
-        "company_name": client.company_name,
-        "email": client.email,
-        "contact_name": client.contact_name,
-        "phone": client.phone,
-        "is_active": client.is_active,
-        "created_at": (
-            client.created_at.isoformat()
-            if client.created_at else None
-        )
+        "data": {
+            "id": client.id,
+            "company_name": client.company_name,
+            "email": client.email,
+            "contact_name": client.contact_name,
+            "phone": client.phone,
+            "is_active": client.is_active,
+            "created_at": (
+                client.created_at.isoformat()
+                if client.created_at else None
+            ),
+        }
     }), 201

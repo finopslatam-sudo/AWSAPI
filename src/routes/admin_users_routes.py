@@ -18,7 +18,6 @@ from src.services.user_events_service import (
 # =====================================================
 # BLUEPRINT
 # =====================================================
-
 admin_users_bp = Blueprint(
     "admin_users",
     __name__,
@@ -41,6 +40,40 @@ def require_staff(user_id: int) -> User | None:
     if user.global_role not in ("root", "admin", "support"):
         return None
     return user
+
+
+def build_admin_user_view(row, actor: User) -> dict:
+    """
+    Construye la vista administrativa de un usuario
+    lista para renderizar en frontend.
+    """
+
+    is_global = row.global_role is not None
+    role = row.global_role if is_global else row.client_role
+
+    can_edit = True
+    if row.global_role == "root":
+        can_edit = False
+    if actor.global_role == "support" and row.global_role == "root":
+        can_edit = False
+
+    return {
+        "id": row.id,
+        "email": row.email,
+        "type": "global" if is_global else "client",
+        "role": role,
+        "is_active": row.is_active,
+        "force_password_change": row.force_password_change,
+        "company_name": row.company_name,
+        "client": (
+            {
+                "id": row.client_id,
+                "company_name": row.company_name,
+            }
+            if row.client_id else None
+        ),
+        "can_edit": can_edit,
+    }
 
 
 # =====================================================
@@ -70,38 +103,24 @@ def list_users():
         .all()
     )
 
-    # ✅ CONTRATO CORRECTO PARA FRONTEND
+    data = [build_admin_user_view(r, actor) for r in rows]
+
     return jsonify({
-        "users": [
-            {
-                "id": r.id,
-                "email": r.email,
-                "global_role": r.global_role,
-                "client_role": r.client_role,
-                "is_active": r.is_active,
-                "force_password_change": r.force_password_change,
-                "client": (
-                    {
-                        "id": r.client_id,
-                        "company_name": r.company_name,
-                    }
-                    if r.client_id else None
-                ),
-            }
-            for r in rows
-        ]
+        "data": data,
+        "meta": {
+            "total": len(data)
+        }
     }), 200
 
 
 # =====================================================
-# ADMIN — CREAR USUARIO
+# ADMIN — CREAR USUARIO (CLIENTE)
 # =====================================================
 
 @admin_users_bp.route("", methods=["POST"])
 @jwt_required()
 def create_user():
     actor = User.query.get(int(get_jwt_identity()))
-
     if not actor or actor.global_role not in ("root", "admin"):
         return jsonify({"error": "Unauthorized"}), 403
 
@@ -111,9 +130,6 @@ def create_user():
     client_id = data.get("client_id")
     client_role = data.get("client_role")
 
-    # ==========================
-    # VALIDATION
-    # ==========================
     if not email:
         return jsonify({"error": "email es obligatorio"}), 400
 
@@ -130,9 +146,6 @@ def create_user():
     if not client:
         return jsonify({"error": "Cliente no existe"}), 404
 
-    # ==========================
-    # CREATE USER
-    # ==========================
     temp_password = generate_temp_password()
 
     user = User(
@@ -150,143 +163,12 @@ def create_user():
     db.session.commit()
 
     return jsonify({
-        "id": user.id,
-        "email": user.email,
-        "client_role": user.client_role,
-        "is_active": user.is_active,
-        "client": {
-            "id": client.id,
+        "data": {
+            "id": user.id,
+            "email": user.email,
+            "role": user.client_role,
+            "type": "client",
             "company_name": client.company_name,
-        },
+            "is_active": user.is_active,
+        }
     }), 201
-
-
-# =====================================================
-# ADMIN — EDITAR USUARIO (MODAL)
-# =====================================================
-
-@admin_users_bp.route("/users/<int:user_id>", methods=["PATCH"])
-@jwt_required()
-def patch_user(user_id: int):
-    actor = require_staff(int(get_jwt_identity()))
-    if not actor:
-        return jsonify({"error": "Acceso denegado"}), 403
-
-    target = User.query.get(user_id)
-    if not target:
-        return jsonify({"error": "Usuario no encontrado"}), 404
-
-    # 🚫 Proteger usuario root
-    if target.global_role == "root":
-        return jsonify({"error": "No se puede modificar un usuario root"}), 403
-
-    data = request.get_json(silent=True) or {}
-
-    if "email" in data:
-        target.email = data["email"].strip().lower()
-
-    if "client_role" in data:
-        target.client_role = data["client_role"]
-
-    if "is_active" in data:
-        target.is_active = bool(data["is_active"])
-
-    if "global_role" in data:
-        if data["global_role"] == "root":
-            return jsonify({"error": "No se puede asignar rol root"}), 403
-        target.global_role = data["global_role"]
-
-    # 🚫 Nunca permitir cambiar client_id
-    if "client_id" in data:
-        pass
-
-    db.session.commit()
-
-    return jsonify({
-        "message": "Usuario actualizado correctamente",
-        "user": {
-            "id": target.id,
-            "email": target.email,
-            "global_role": target.global_role,
-            "client_role": target.client_role,
-            "is_active": target.is_active,
-            "client": (
-                {
-                    "id": target.client.id,
-                    "company_name": target.client.company_name,
-                }
-                if target.client else None
-            ),
-        },
-    }), 200
-
-
-# =====================================================
-# ADMIN — ACTIVAR / DESACTIVAR (LEGACY)
-# =====================================================
-
-@admin_users_bp.route("/users/<int:user_id>", methods=["PUT"])
-@jwt_required()
-def update_user(user_id: int):
-    actor = require_staff(int(get_jwt_identity()))
-    if not actor:
-        return jsonify({"error": "Acceso denegado"}), 403
-
-    target = User.query.get(user_id)
-    if not target:
-        return jsonify({"error": "Usuario no encontrado"}), 404
-
-    if actor.global_role == "support" and target.global_role == "root":
-        return jsonify({"error": "No puedes modificar un usuario root"}), 403
-
-    if actor.id == target.id:
-        return jsonify({"error": "No puedes modificarte a ti mismo"}), 403
-
-    data = request.get_json() or {}
-
-    previous_state = target.is_active
-    target.is_active = data.get("is_active", target.is_active)
-
-    db.session.commit()
-
-    if previous_state and not target.is_active:
-        on_user_deactivated(target)
-
-    if not previous_state and target.is_active:
-        on_user_reactivated(target)
-
-    return jsonify({"message": "Usuario actualizado"}), 200
-
-
-# =====================================================
-# ADMIN — RESET PASSWORD
-# =====================================================
-
-@admin_users_bp.route("/users/<int:user_id>/reset-password", methods=["POST"])
-@jwt_required()
-def reset_user_password(user_id: int):
-    actor = require_staff(int(get_jwt_identity()))
-    if not actor:
-        return jsonify({"error": "Acceso denegado"}), 403
-
-    target = User.query.get(user_id)
-    if not target:
-        return jsonify({"error": "Usuario no encontrado"}), 404
-
-    if actor.global_role == "support" and target.global_role == "root":
-        return jsonify({
-            "error": "No puedes resetear la contraseña de un usuario root"
-        }), 403
-
-    temp_password = generate_temp_password()
-
-    target.set_password(temp_password)
-    target.force_password_change = True
-
-    db.session.commit()
-
-    on_admin_reset_password(target, temp_password)
-
-    return jsonify({
-        "message": "Contraseña reseteada correctamente"
-    }), 200
