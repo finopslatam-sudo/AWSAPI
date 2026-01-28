@@ -87,24 +87,54 @@ def update_user(user_id):
     user = User.query.get_or_404(user_id)
     data = request.get_json() or {}
 
+    # ===== EMAIL =====
     if "email" in data:
         user.email = data["email"]
 
+    # ===== ACTIVE =====
     if "is_active" in data:
         user.is_active = data["is_active"]
 
-    if "force_password_change" in data:
-        user.force_password_change = data["force_password_change"]
-
-    if actor.global_role in ("root", "admin"):
-        if "client_role" in data:
-            user.client_role = data["client_role"]
+    # ===== ROLES =====
+    if user.global_role:
+        # Usuario GLOBAL
         if "global_role" in data:
             user.global_role = data["global_role"]
+    else:
+        # Usuario CLIENTE
+        if "client_role" in data:
+            user.client_role = data["client_role"]
 
     db.session.commit()
 
     return jsonify({"ok": True}), 200
+
+# =====================================================
+# ADMIN — RESET PASSWORD
+# =====================================================
+@admin_users_bp.route("/users/<int:user_id>/reset-password", methods=["POST"])
+@jwt_required()
+def reset_user_password(user_id):
+    actor = require_staff(int(get_jwt_identity()))
+    if not actor:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    user = User.query.get_or_404(user_id)
+
+    from src.services.password_service import generate_temp_password
+
+    temp_password = generate_temp_password()
+
+    user.set_password(temp_password)
+    user.force_password_change = True
+    user.password_expires_at = None
+
+    db.session.commit()
+
+    return jsonify({
+        "ok": True,
+        "temp_password": temp_password
+    }), 200
 
 # =====================================================
 # ADMIN — LISTAR USUARIOS
