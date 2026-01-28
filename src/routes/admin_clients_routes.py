@@ -17,6 +17,8 @@ from src.models.user import User
 from src.services.admin_clients_service import (
     get_clients_with_active_plan
 )
+from src.models.client import Client
+from src.models.database import db
 
 # =====================================================
 # BLUEPRINT
@@ -138,3 +140,31 @@ def create_client():
             ),
         }
     }), 201
+
+@admin_clients_bp.route("/<int:client_id>", methods=["PATCH"])
+@jwt_required()
+def update_client(client_id):
+    actor = User.query.get(int(get_jwt_identity()))
+    if not actor or actor.global_role not in ("root", "admin"):
+        return jsonify({"error": "Unauthorized"}), 403
+
+    client = Client.query.get_or_404(client_id)
+    data = request.get_json() or {}
+
+    for field in ("company_name", "email", "contact_name", "phone", "is_active"):
+        if field in data:
+            setattr(client, field, data[field])
+
+    db.session.commit()
+
+    return jsonify({
+        "data": {
+            "id": client.id,
+            "company_name": client.company_name,
+            "email": client.email,
+            "contact_name": client.contact_name,
+            "phone": client.phone,
+            "is_active": client.is_active,
+        }
+    }), 200
+

@@ -74,7 +74,37 @@ def build_admin_user_view(row, actor: User) -> dict:
         ),
         "can_edit": can_edit,
     }
+# =====================================================
+# ADMIN — Editar USUARIOS
+# =====================================================
+@admin_users_bp.route("/users/<int:user_id>", methods=["PATCH"])
+@jwt_required()
+def update_user(user_id):
+    actor = require_staff(int(get_jwt_identity()))
+    if not actor:
+        return jsonify({"error": "Unauthorized"}), 403
 
+    user = User.query.get_or_404(user_id)
+    data = request.get_json() or {}
+
+    if "email" in data:
+        user.email = data["email"]
+
+    if "is_active" in data:
+        user.is_active = data["is_active"]
+
+    if "force_password_change" in data:
+        user.force_password_change = data["force_password_change"]
+
+    if actor.global_role in ("root", "admin"):
+        if "client_role" in data:
+            user.client_role = data["client_role"]
+        if "global_role" in data:
+            user.global_role = data["global_role"]
+
+    db.session.commit()
+
+    return jsonify({"ok": True}), 200
 
 # =====================================================
 # ADMIN — LISTAR USUARIOS
