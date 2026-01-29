@@ -25,10 +25,6 @@ admin_users_bp = Blueprint(
 )
 
 
-def register_admin_users_routes(app):
-    app.register_blueprint(admin_users_bp)
-
-
 # =====================================================
 # HELPERS
 # =====================================================
