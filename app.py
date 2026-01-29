@@ -63,8 +63,6 @@ with app.app_context():
         raise RuntimeError(
             f"❌ API conectada a BD incorrecta: {engine_url}"
         )
-
-
 # =====================================================
 #   AUTH SYSTEM
 # =====================================================
@@ -77,7 +75,6 @@ create_auth_routes(app)
 #   ROUTES / BLUEPRINTS
 # =====================================================
 from src.routes.contact_routes import contact_bp
-from src.routes.admin_users_routes import register_admin_users_routes
 from src.routes.admin_clients_routes import register_admin_clients_routes
 from src.routes.admin_reports_routes import register_admin_report_routes
 from src.routes.admin_plans_routes import register_admin_plans_routes
@@ -89,7 +86,6 @@ app.register_blueprint(contact_bp)
 app.register_blueprint(admin_stats_bp)
 app.register_blueprint(admin_users_bp)
 
-register_admin_users_routes(app)
 register_admin_clients_routes(app)
 register_admin_report_routes(app)
 register_admin_plans_routes(app)
