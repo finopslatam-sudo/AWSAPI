@@ -110,7 +110,36 @@ def update_user(user_id):
     return jsonify({"ok": True}), 200
 
 # =====================================================
-# ADMIN — RESET PASSWORD
+# ADMIN/SUPPORT — RESET PASSWORD MANUAL
+# =====================================================
+@admin_users_bp.route("/users/<int:user_id>/set-password", methods=["POST"])
+@jwt_required()
+def admin_set_password(user_id):
+    actor = require_staff(int(get_jwt_identity()))
+    if not actor or actor.global_role not in ("root", "support"):
+        return jsonify({"error": "Unauthorized"}), 403
+
+    user = User.query.get_or_404(user_id)
+    data = request.get_json() or {}
+
+    password = data.get("password")
+    if not password or len(password) < 8:
+        return jsonify({"error": "Password inválida"}), 400
+
+    user.set_password(password)
+    user.force_password_change = True
+    user.password_expires_at = None
+
+    db.session.commit()
+
+    # enviar correo con password asignada
+    # send_admin_set_password_email(user.email, password)
+
+    return jsonify({"ok": True}), 200
+
+
+# =====================================================
+# USER - RECUPERA SU PASSWORD AL INICIAR SESION
 # =====================================================
 @admin_users_bp.route("/users/<int:user_id>/reset-password", methods=["POST"])
 @jwt_required()
@@ -121,8 +150,6 @@ def reset_user_password(user_id):
 
     user = User.query.get_or_404(user_id)
 
-    from src.services.password_service import generate_temp_password
-
     temp_password = generate_temp_password()
 
     user.set_password(temp_password)
@@ -131,9 +158,10 @@ def reset_user_password(user_id):
 
     db.session.commit()
 
+    # send_recovery_email(user.email, temp_password)
+
     return jsonify({
-        "ok": True,
-        "temp_password": temp_password
+        "ok": True
     }), 200
 
 # =====================================================
