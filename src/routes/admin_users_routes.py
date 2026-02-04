@@ -89,7 +89,7 @@ def update_user(user_id):
 
     # ===== ACTIVE =====
     if "is_active" in data:
-        user.is_active = data["is_active"]
+        user.is_active = bool(data["is_active"])
 
     # ===== ROLES =====
     if user.global_role:
