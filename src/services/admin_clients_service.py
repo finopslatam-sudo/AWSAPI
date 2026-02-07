@@ -36,7 +36,9 @@ def get_clients_with_active_plan():
             Client.company_name,
             Client.contact_name,
             Client.email,
+            Client.phone,
             Client.is_active,
+            Client.created_at,
             Plan.name.label("plan"),
         )
         .outerjoin(
@@ -58,8 +60,13 @@ def get_clients_with_active_plan():
             "company_name": r.company_name,
             "contact_name": r.contact_name,
             "email": r.email,
+            "phone": r.phone,
             "is_active": r.is_active,
-            "plan": r.plan,  # None si no tiene suscripción activa
+            "plan": r.plan,
+            "created_at": (
+            r.created_at.isoformat()
+            if r.created_at else None
+            ),
         }
         for r in rows
     ]
