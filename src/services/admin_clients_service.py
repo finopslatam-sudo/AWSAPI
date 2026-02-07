@@ -54,6 +54,7 @@ def get_clients_with_active_plan():
 
     # -------------------------------------------------
     # Query principal de clientes + plan activo
+    # (1 fila por cliente)
     # -------------------------------------------------
     rows = (
         db.session.query(
@@ -74,6 +75,16 @@ def get_clients_with_active_plan():
         .outerjoin(
             Plan,
             Plan.id == ActiveSubscription.plan_id
+        )
+        .group_by(
+            Client.id,
+            Client.company_name,
+            Client.contact_name,
+            Client.email,
+            Client.phone,
+            Client.is_active,
+            Client.created_at,
+            Plan.name,
         )
         .order_by(Client.created_at.desc())
         .all()
