@@ -2,7 +2,7 @@
 # ADMIN USERS ROUTES
 # =====================================================
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from src.models.database import db
@@ -309,6 +309,7 @@ def create_user_with_password():
         client_role=client_role,
         is_active=True,
         force_password_change=force_change,
+        contact_name=email.split("@")[0],
     )
 
     user.set_password(password)
@@ -323,7 +324,13 @@ def create_user_with_password():
         on_user_created_with_password
     )
 
-    on_user_created_with_password(user, password)
+    try:
+        on_user_created_with_password(user, password)
+    except Exception as e:
+        current_app.logger.exception(
+            "[USER_WELCOME_EMAIL_FAILED] user_id=%s",
+            user.id,
+    )
 
     return jsonify({
         "data": {

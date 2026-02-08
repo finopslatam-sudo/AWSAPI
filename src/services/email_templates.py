@@ -26,7 +26,7 @@ def build_forgot_password_email(
     temp_password: str
 ) -> str:
     return f"""
-Hola {name},
+Hola {name or "Usuario"} ,
 
 Se solicitó la recuperación de acceso a tu cuenta FinOpsLatam.
 
@@ -48,7 +48,7 @@ Equipo FinOpsLatam
 # ================================
 def build_account_deactivated_email(name: str) -> str:
     return f"""
-Hola {name},
+Hola {name or "Usuario"},
 
 Tu cuenta en FinOpsLatam ha sido desactivada temporalmente 🔒
 
@@ -67,7 +67,7 @@ Equipo FinOpsLatam
 # ================================
 def build_account_reactivated_email(name: str) -> str:
     return f"""
-Hola {name},
+Hola {name or "Usuario"},
 
 Tu cuenta en FinOpsLatam ha sido reactivada exitosamente 🎉
 
@@ -87,7 +87,7 @@ Equipo FinOpsLatam
 # ================================
 def build_password_changed_email(name: str) -> str:
     return f"""
-Hola {name},
+Hola {name or "Usuario"},
 
 Te confirmamos que tu contraseña fue cambiada correctamente.
 
@@ -108,7 +108,7 @@ def build_admin_reset_password_email(
     password: str
 ) -> str:
     return f"""
-Hola {name},
+Hola {name or "Usuario"},
 
 Un administrador ha restablecido la contraseña de tu cuenta.
 
@@ -139,7 +139,7 @@ def build_root_login_alert_email(
 Se ha iniciado sesión con la cuenta ROOT.
 
 Usuario: {email}
-Nombre: {name}
+Nombre: {name or "ROOT"}
 IP: {ip_address}
 Fecha: {datetime.utcnow().isoformat()} UTC
 
@@ -157,7 +157,7 @@ def build_plan_changed_email(
     new_plan_name: str
 ) -> str:
     return f"""
-Hola {name},
+Hola {name or "Usuario"},
 
 Te informamos que tu plan en FinOpsLatam ha sido actualizado.
 
@@ -166,6 +166,32 @@ Anterior: {old_plan_name}
 Nuevo: {new_plan_name}
 
 Los cambios se aplican de inmediato.
+
+Accede aquí:
+{BASE_URL}
+
+Saludos,
+Equipo FinOpsLatam
+"""
+# ================================
+# BIENVENIDA USUARIO CREADO POR ADMIN
+# ================================
+def build_user_welcome_email(
+    name: str,
+    email: str,
+    password: str
+) -> str:
+    return f"""
+Hola {name or "Usuario"},
+
+Tu cuenta en FinOpsLatam ha sido creada exitosamente 🎉
+
+🔐 Datos de acceso:
+Usuario: {email}
+Contraseña: {password}
+
+Por seguridad, deberás cambiar tu contraseña
+en el primer inicio de sesión.
 
 Accede aquí:
 {BASE_URL}
