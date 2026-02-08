@@ -257,3 +257,82 @@ def create_user():
             "is_active": user.is_active,
         }
     }), 201
+
+# =====================================================
+# ADMIN — CREAR USUARIO CLIENTE CON PASSWORD EXPLÍCITA
+# =====================================================
+@admin_users_bp.route("/users/with-password", methods=["POST"])
+@jwt_required()
+def create_user_with_password():
+    actor = User.query.get(int(get_jwt_identity()))
+    if not actor or actor.global_role not in ("root", "admin"):
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.get_json() or {}
+
+    email = data.get("email")
+    client_id = data.get("client_id")
+    client_role = data.get("client_role")
+    password = data.get("password")
+    password_confirm = data.get("password_confirm")
+    force_change = bool(data.get("force_password_change", True))
+
+    # ----------------------
+    # VALIDACIONES
+    # ----------------------
+    if not email or not client_id or not client_role:
+        return jsonify({"error": "Datos incompletos"}), 400
+
+    if client_role not in ("owner", "finops_admin", "viewer"):
+        return jsonify({"error": "client_role inválido"}), 400
+
+    if not password or len(password) < 8:
+        return jsonify({"error": "Password inválida"}), 400
+
+    if password != password_confirm:
+        return jsonify({"error": "Las contraseñas no coinciden"}), 400
+
+    if User.query.filter_by(email=email).first():
+        return jsonify({"error": "El usuario ya existe"}), 409
+
+    client = Client.query.get(client_id)
+    if not client:
+        return jsonify({"error": "Cliente no existe"}), 404
+
+    # ----------------------
+    # CREACIÓN DE USUARIO
+    # ----------------------
+    user = User(
+        email=email.strip().lower(),
+        global_role=None,
+        client_id=client_id,
+        client_role=client_role,
+        is_active=True,
+        force_password_change=force_change,
+    )
+
+    user.set_password(password)
+
+    db.session.add(user)
+    db.session.commit()
+
+    # ----------------------
+    # EVENTO + EMAIL
+    # ----------------------
+    from src.services.user_events_service import (
+        on_user_created_with_password
+    )
+
+    on_user_created_with_password(user, password)
+
+    return jsonify({
+        "data": {
+            "id": user.id,
+            "email": user.email,
+            "client_id": client.id,
+            "client_role": user.client_role,
+            "is_active": user.is_active,
+            "force_password_change": user.force_password_change,
+        }
+    }), 201
+
