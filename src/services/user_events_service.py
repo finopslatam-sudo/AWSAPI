@@ -30,6 +30,28 @@ logger = logging.getLogger("user_events")
 # -------------------------------------------------
 # Eventos de usuario
 # -------------------------------------------------
+def on_user_created_with_password(user, raw_password):
+    """
+    Evento: usuario cliente creado con password explícita.
+    Envía correo de bienvenida con credenciales.
+    """
+
+    logger.info(
+        "[USER_CREATED_WITH_PASSWORD] user_id=%s email=%s",
+        user.id,
+        user.email,
+    )
+
+    send_email(
+        to=user.email,
+        subject="Bienvenido a FinOpsLatam 🚀",
+        body=build_admin_reset_password_email(
+            user.contact_name,
+            user.email,
+            raw_password,
+        ),
+    )
+
 def on_user_deactivated(user):
     logger.info(
         "[USER_DEACTIVATED] user_id=%s email=%s",
