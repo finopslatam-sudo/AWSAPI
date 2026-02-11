@@ -10,7 +10,7 @@ Este módulo:
 - DELEGA construcción de vistas al service layer
 """
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from src.models.user import User
@@ -81,18 +81,11 @@ def list_clients():
     }), 200
 
 # =====================================================
-# ROUTES - CREAR CLIENTE
+# ROUTES - CREAR CLIENTE (OWNER OBLIGATORIO)
 # =====================================================
 @admin_clients_bp.route("", methods=["POST"])
 @jwt_required()
 def create_client():
-    """
-    Crea un nuevo cliente (empresa) con plan inicial.
-
-    Permisos:
-    - ROOT
-    - ADMIN
-    """
 
     actor = User.query.get(int(get_jwt_identity()))
     if not actor or actor.global_role not in ("root", "admin"):
@@ -107,9 +100,11 @@ def create_client():
     is_active = data.get("is_active", True)
     plan_id = data.get("plan_id")
 
-    # ----------------------
-    # Validaciones básicas
-    # ----------------------
+    owner_data = data.get("owner")
+
+    # =====================================================
+    # VALIDACIONES CLIENTE
+    # =====================================================
     if not company_name:
         return jsonify({"error": "company_name es obligatorio"}), 400
 
@@ -119,54 +114,118 @@ def create_client():
     if not plan_id:
         return jsonify({"error": "plan_id es obligatorio"}), 400
 
+    if not owner_data:
+        return jsonify({"error": "Owner obligatorio"}), 400
+
     plan = Plan.query.get(plan_id)
     if not plan:
         return jsonify({"error": "Plan no válido"}), 400
 
-    if Client.query.filter_by(email=email).first():
+    if Client.query.filter_by(email=email.strip().lower()).first():
         return jsonify({"error": "Ya existe un cliente con ese email"}), 409
 
-    # ----------------------
-    # Crear cliente
-    # ----------------------
-    client = Client(
-        company_name=company_name,
-        email=email,
-        contact_name=contact_name,
-        phone=phone,
-        is_active=is_active,
-    )
+    # =====================================================
+    # VALIDACIONES OWNER
+    # =====================================================
+    owner_email = owner_data.get("email")
+    owner_contact_name = owner_data.get("contact_name")
+    password = owner_data.get("password")
+    password_confirm = owner_data.get("password_confirm")
 
-    db.session.add(client)
-    db.session.flush()  # necesitamos client.id
+    if not owner_email or not owner_contact_name:
+        return jsonify({"error": "Datos de owner incompletos"}), 400
 
-    # ----------------------
-    # Crear suscripción inicial
-    # ----------------------
-    subscription = ClientSubscription(
-        client_id=client.id,
-        plan_id=plan.id,
-        is_active=True,
-    )
+    if not password or len(password) < 8:
+        return jsonify({"error": "Password inválida"}), 400
 
-    db.session.add(subscription)
-    db.session.commit()
+    if password != password_confirm:
+        return jsonify({"error": "Las contraseñas no coinciden"}), 400
 
-    return jsonify({
-        "data": {
-            "id": client.id,
-            "company_name": client.company_name,
-            "email": client.email,
-            "contact_name": client.contact_name,
-            "phone": client.phone,
-            "is_active": client.is_active,
-            "plan": plan.name,
-            "created_at": (
-                client.created_at.isoformat()
-                if client.created_at else None
-            ),
-        }
-    }), 201
+    if User.query.filter_by(email=owner_email.strip().lower()).first():
+        return jsonify({"error": "El usuario owner ya existe"}), 409
+
+    # =====================================================
+    # TRANSACCIÓN ATÓMICA
+    # =====================================================
+    try:
+
+        # ----------------------
+        # Crear cliente
+        # ----------------------
+        client = Client(
+            company_name=company_name.strip(),
+            email=email.strip().lower(),
+            contact_name=contact_name.strip() if contact_name else None,
+            phone=phone.strip() if phone else None,
+            is_active=is_active,
+        )
+
+        db.session.add(client)
+        db.session.flush()
+
+        # ----------------------
+        # Crear suscripción
+        # ----------------------
+        subscription = ClientSubscription(
+            client_id=client.id,
+            plan_id=plan.id,
+            is_active=True,
+        )
+
+        db.session.add(subscription)
+
+        # ----------------------
+        # Crear usuario OWNER
+        # ----------------------
+        owner = User(
+            email=owner_email.strip().lower(),
+            contact_name=owner_contact_name.strip(),
+            global_role=None,
+            client_id=client.id,
+            client_role="owner",
+            is_active=True,
+            force_password_change=True,
+        )
+
+        owner.set_password(password)
+
+        db.session.add(owner)
+
+        # ----------------------
+        # COMMIT FINAL
+        # ----------------------
+        db.session.commit()
+
+        # ----------------------
+        # Evento email
+        # ----------------------
+        from src.services.user_events_service import (
+            on_user_created_with_password
+        )
+
+        try:
+            on_user_created_with_password(owner, password)
+        except Exception:
+            current_app.logger.exception(
+                "[OWNER_WELCOME_EMAIL_FAILED] user_id=%s",
+                owner.id,
+            )
+
+        return jsonify({
+            "data": {
+                "client_id": client.id,
+                "company_name": client.company_name,
+                "owner_id": owner.id,
+                "owner_email": owner.email,
+                "plan": plan.name,
+            }
+        }), 201
+
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("[CREATE_CLIENT_FAILED]")
+        return jsonify({"error": "Error interno"}), 500
+
 
 # =====================================================
 # ROUTES - ACTUALIZAR CLIENTE (SIN PLAN)
