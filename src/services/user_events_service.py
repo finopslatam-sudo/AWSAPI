@@ -112,7 +112,7 @@ def on_root_login(user, ip):
         to=user.email,
         subject="⚠️ Inicio de sesión ROOT detectado | FinOpsLatam",
         body=build_root_login_alert_email(
-            "Usuario",
+            user.contact_name or "ROOT",
             user.email,
             ip,
         ),
