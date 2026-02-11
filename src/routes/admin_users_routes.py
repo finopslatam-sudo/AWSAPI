@@ -259,7 +259,7 @@ def create_user():
     }), 201
 
 # =====================================================
-# ADMIN — CREAR USUARIO CLIENTE CON PASSWORD EXPLÍCITA
+# ADMIN — CREAR USUARIO (GLOBAL O CLIENTE)
 # =====================================================
 @admin_users_bp.route("/users/with-password", methods=["POST"])
 @jwt_required()
@@ -270,23 +270,18 @@ def create_user_with_password():
 
     data = request.get_json() or {}
 
+    user_type = data.get("type")  # "global" | "client"
     email = data.get("email")
-    client_id = data.get("client_id")
-    client_role = data.get("client_role")
+    contact_name = data.get("contact_name")
     password = data.get("password")
     password_confirm = data.get("password_confirm")
     force_change = bool(data.get("force_password_change", True))
-    contact_name = data.get("contact_name")
 
+    if not user_type or user_type not in ("global", "client"):
+        return jsonify({"error": "type inválido"}), 400
 
-    # ----------------------
-    # VALIDACIONES
-    # ----------------------
-    if not email or not client_id or not client_role:
-        return jsonify({"error": "Datos incompletos"}), 400
-
-    if client_role not in ("owner", "finops_admin", "viewer"):
-        return jsonify({"error": "client_role inválido"}), 400
+    if not email or not contact_name:
+        return jsonify({"error": "Email y contact_name son obligatorios"}), 400
 
     if not password or len(password) < 8:
         return jsonify({"error": "Password inválida"}), 400
@@ -294,58 +289,90 @@ def create_user_with_password():
     if password != password_confirm:
         return jsonify({"error": "Las contraseñas no coinciden"}), 400
 
-    if User.query.filter_by(email=email).first():
+    if User.query.filter_by(email=email.strip().lower()).first():
         return jsonify({"error": "El usuario ya existe"}), 409
 
-    client = Client.query.get(client_id)
-    if not client:
-        return jsonify({"error": "Cliente no existe"}), 404
-    
-    if not contact_name:
-        return jsonify({"error": "contact_name es obligatorio"}), 400
+    # =====================================================
+    # CASO 1 — USUARIO GLOBAL
+    # =====================================================
+    if user_type == "global":
 
+        global_role = data.get("global_role")
 
-    # ----------------------
-    # CREACIÓN DE USUARIO
-    # ----------------------
-    user = User(
-        email=email.strip().lower(),
-        contact_name=contact_name.strip(),
-        global_role=None,
-        client_id=client_id,
-        client_role=client_role,
-        is_active=True,
-        force_password_change=force_change,       
-    )
+        if global_role not in ("admin", "support"):
+            return jsonify({"error": "global_role inválido"}), 400
 
+        user = User(
+            email=email.strip().lower(),
+            contact_name=contact_name.strip(),
+            global_role=global_role,
+            client_id=None,
+            client_role=None,
+            is_active=True,
+            force_password_change=force_change,
+        )
+
+    # =====================================================
+    # CASO 2 — USUARIO CLIENTE
+    # =====================================================
+    else:
+        client_id = data.get("client_id")
+        client_role = data.get("client_role")
+
+        if not client_id or not client_role:
+            return jsonify({"error": "Datos incompletos"}), 400
+
+        if client_role not in ("owner", "finops_admin", "viewer"):
+            return jsonify({"error": "client_role inválido"}), 400
+
+        client = Client.query.get(client_id)
+        if not client:
+            return jsonify({"error": "Cliente no existe"}), 404
+
+        user = User(
+            email=email.strip().lower(),
+            contact_name=contact_name.strip(),
+            global_role=None,
+            client_id=client_id,
+            client_role=client_role,
+            is_active=True,
+            force_password_change=force_change,
+        )
+
+    # =====================================================
+    # GUARDAR
+    # =====================================================
     user.set_password(password)
 
     db.session.add(user)
     db.session.commit()
 
-    # ----------------------
-    # EVENTO + EMAIL
-    # ----------------------
+    # =====================================================
+    # EVENTO EMAIL
+    # =====================================================
     from src.services.user_events_service import (
         on_user_created_with_password
     )
 
     try:
         on_user_created_with_password(user, password)
-    except Exception as e:
+    except Exception:
         current_app.logger.exception(
             "[USER_WELCOME_EMAIL_FAILED] user_id=%s",
             user.id,
-    )
+        )
 
     return jsonify({
         "data": {
             "id": user.id,
             "email": user.email,
-            "client_id": client.id,
+            "type": user_type,
+            "global_role": user.global_role,
+            "client_id": user.client_id,
             "client_role": user.client_role,
             "is_active": user.is_active,
             "force_password_change": user.force_password_change,
         }
     }), 201
+
 
