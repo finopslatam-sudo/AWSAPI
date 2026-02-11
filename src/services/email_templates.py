@@ -143,7 +143,8 @@ Se ha iniciado sesión con la cuenta ROOT.
 Usuario: {email}
 Nombre: {name or "ROOT"}
 IP: {ip_address}
-Fecha: {now_cl.strftime("%d-%m-%Y %H:%M:%S")}
+Fecha: {now_cl.strftime("%d-%m-%Y")}
+Hora: {now_cl.strftime("%H:%M:%S")}
 
 
 Si no reconoces este acceso,
