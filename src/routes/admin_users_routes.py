@@ -315,8 +315,7 @@ def create_user_with_password():
         client_id=client_id,
         client_role=client_role,
         is_active=True,
-        force_password_change=force_change,
-        contact_name=email.split("@")[0],
+        force_password_change=force_change,       
     )
 
     user.set_password(password)
