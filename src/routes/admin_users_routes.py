@@ -276,6 +276,8 @@ def create_user_with_password():
     password = data.get("password")
     password_confirm = data.get("password_confirm")
     force_change = bool(data.get("force_password_change", True))
+    contact_name = data.get("contact_name")
+
 
     # ----------------------
     # VALIDACIONES
@@ -298,12 +300,17 @@ def create_user_with_password():
     client = Client.query.get(client_id)
     if not client:
         return jsonify({"error": "Cliente no existe"}), 404
+    
+    if not contact_name:
+        return jsonify({"error": "contact_name es obligatorio"}), 400
+
 
     # ----------------------
     # CREACIÓN DE USUARIO
     # ----------------------
     user = User(
         email=email.strip().lower(),
+        contact_name=contact_name.strip(),
         global_role=None,
         client_id=client_id,
         client_role=client_role,
