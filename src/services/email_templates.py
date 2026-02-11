@@ -143,8 +143,8 @@ Se ha iniciado sesión con la cuenta ROOT.
 Usuario: {email}
 Nombre: {name or "ROOT"}
 IP: {ip_address}
-now_cl = datetime.now(ZoneInfo("America/Santiago"))
-Fecha: {now_cl.strftime("%Y-%m-%d %H:%M:%S %Z")}
+#Fecha: {now_cl.strftime("%Y-%m-%d %H:%M:%S %Z")}
+Fecha: {now_cl.strftime("%d%-%m-Y %H:%M:%S")}
 
 
 Si no reconoces este acceso,
