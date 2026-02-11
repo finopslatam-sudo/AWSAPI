@@ -12,6 +12,7 @@ IMPORTANTE:
 """
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 BASE_URL = "https://www.finopslatam.com"
 SUPPORT_EMAIL = "soporte@finopslatam.com"
@@ -133,6 +134,7 @@ def build_root_login_alert_email(
     email: str,
     ip_address: str
 ) -> str:
+    now_cl = datetime.now(ZoneInfo("America/Santiago"))
     return f"""
 ⚠️ ALERTA DE SEGURIDAD — FinOpsLatam
 
@@ -141,7 +143,9 @@ Se ha iniciado sesión con la cuenta ROOT.
 Usuario: {email}
 Nombre: {name or "ROOT"}
 IP: {ip_address}
-Fecha: {datetime.utcnow().isoformat()} UTC
+now_cl = datetime.now(ZoneInfo("America/Santiago"))
+Fecha: {now_cl.strftime("%Y-%m-%d %H:%M:%S %Z")}
+
 
 Si no reconoces este acceso,
 contacta inmediatamente a {SUPPORT_EMAIL}
