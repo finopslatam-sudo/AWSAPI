@@ -220,6 +220,8 @@ def admin_set_password(user_id):
 
     db.session.commit()
 
+    current_app.logger.info("[DEBUG] Ejecutando on_admin_reset_password para user_id=%s", user.id)
+
     try:
         on_admin_reset_password(user, password)
     except Exception:
