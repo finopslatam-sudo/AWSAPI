@@ -8,7 +8,10 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from src.models.database import db
 from src.models.user import User
 from src.models.client import Client
-from src.services.password_service import generate_temp_password
+from src.services.password_service import (
+    generate_temp_password,
+    get_temp_password_expiration
+)
 from src.services.user_events_service import (
     on_user_deactivated,
     on_user_reactivated,
@@ -81,7 +84,30 @@ def update_user(user_id):
         return jsonify({"error": "Unauthorized"}), 403
 
     user = User.query.get_or_404(user_id)
+
+    if not can_edit_user(actor, user):
+        return jsonify({"error": "No tienes permiso para editar este usuario"}), 403
+
     data = request.get_json() or {}
+
+    # =====================================================
+    # SUPPORT — Solo datos básicos
+    # =====================================================
+    if actor.global_role == "support":
+
+        if "email" in data:
+            user.email = data["email"]
+
+        if "is_active" in data:
+            user.is_active = bool(data["is_active"])
+
+        # Support NO puede cambiar roles
+        db.session.commit()
+        return jsonify({"ok": True}), 200
+
+    # =====================================================
+    # ADMIN Y ROOT
+    # =====================================================
 
     # ===== EMAIL =====
     if "email" in data:
@@ -92,30 +118,40 @@ def update_user(user_id):
         user.is_active = bool(data["is_active"])
 
     # ===== ROLES =====
-    if user.global_role:
-        # Usuario GLOBAL
-        if "global_role" in data:
-            user.global_role = data["global_role"]
-    else:
-        # Usuario CLIENTE
-        if "client_role" in data:
-            user.client_role = data["client_role"]
+    if actor.global_role in ("root", "admin"):
+
+        if user.global_role:
+            # Usuario GLOBAL
+            if "global_role" in data:
+                # Admin no puede modificar root
+                if actor.global_role == "admin" and user.global_role == "root":
+                    return jsonify({"error": "No permitido"}), 403
+                user.global_role = data["global_role"]
+
+        else:
+            # Usuario CLIENTE
+            if "client_role" in data:
+                user.client_role = data["client_role"]
 
     db.session.commit()
 
     return jsonify({"ok": True}), 200
 
 # =====================================================
-# ADMIN/SUPPORT — RESET PASSWORD MANUAL
+# ADMIN — RESET PASSWORD MANUAL
 # =====================================================
 @admin_users_bp.route("/users/<int:user_id>/set-password", methods=["POST"])
 @jwt_required()
 def admin_set_password(user_id):
     actor = require_staff(int(get_jwt_identity()))
-    if not actor or actor.global_role not in ("root", "support"):
+    if not actor:
         return jsonify({"error": "Unauthorized"}), 403
 
     user = User.query.get_or_404(user_id)
+
+    if not can_reset_password(actor, user):
+        return jsonify({"error": "No tienes permiso para esta acción"}), 403
+
     data = request.get_json() or {}
 
     password = data.get("password")
@@ -124,15 +160,19 @@ def admin_set_password(user_id):
 
     user.set_password(password)
     user.force_password_change = True
-    user.password_expires_at = None
+    user.password_expires_at = get_temp_password_expiration()
 
     db.session.commit()
 
-    # enviar correo con password asignada
-    # send_admin_set_password_email(user.email, password)
+    try:
+        on_admin_reset_password(user, password)
+    except Exception:
+        current_app.logger.exception(
+            "[ADMIN_SET_PASSWORD_EMAIL_FAILED] user_id=%s",
+            user.id,
+        )
 
     return jsonify({"ok": True}), 200
-
 
 # =====================================================
 # USER - RECUPERA SU PASSWORD AL INICIAR SESION
@@ -146,19 +186,26 @@ def reset_user_password(user_id):
 
     user = User.query.get_or_404(user_id)
 
+    if not can_reset_password(actor, user):
+        return jsonify({"error": "No tienes permiso para esta acción"}), 403
+
     temp_password = generate_temp_password()
 
     user.set_password(temp_password)
     user.force_password_change = True
-    user.password_expires_at = None
+    user.password_expires_at = get_temp_password_expiration()
 
     db.session.commit()
 
-    # send_recovery_email(user.email, temp_password)
+    try:
+        on_admin_reset_password(user, temp_password)
+    except Exception:
+        current_app.logger.exception(
+            "[ADMIN_RESET_PASSWORD_EMAIL_FAILED] user_id=%s",
+            user.id,
+        )
 
-    return jsonify({
-        "ok": True
-    }), 200
+    return jsonify({"ok": True}), 200
 
 # =====================================================
 # ADMIN — LISTAR USUARIOS
@@ -196,6 +243,33 @@ def list_users():
         }
     }), 200
 
+# =====================================================
+# MATRIZ DE PERMISOS
+# =====================================================
+def can_edit_user(actor: User, target: User) -> bool:
+    """
+    Matriz final de permisos de edición.
+    """
+
+    # ROOT puede editar cualquiera excepto sí mismo si fuera eliminación
+    if actor.global_role == "root":
+        return True
+
+    # ADMIN
+    if actor.global_role == "admin":
+        # No puede editar root
+        if target.global_role == "root":
+            return False
+        return True
+
+    # SUPPORT
+    if actor.global_role == "support":
+        # Solo puede editar usuarios cliente
+        if target.global_role is None:
+            return True
+        return False
+
+    return False
 
 # =====================================================
 # ADMIN — CREAR USUARIO (CLIENTE)

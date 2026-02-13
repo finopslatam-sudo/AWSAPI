@@ -2,17 +2,21 @@ from flask import request, jsonify
 from flask_jwt_extended import (
     JWTManager, create_access_token, jwt_required, get_jwt_identity
 )
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
 
 from src.models.database import db
 from src.models.user import User
-from src.services.password_service import generate_temp_password
+from src.services.password_service import (
+    generate_temp_password,
+    get_temp_password_expiration
+)
 from src.services.user_events_service import (
     on_password_changed,
     on_forgot_password,
     on_root_login,
 )
+from zoneinfo import ZoneInfo
 
 # ===============================
 # INIT EXTENSIONS
@@ -66,6 +70,13 @@ def create_auth_routes(app):
 
         if not user.check_password(password):
             return jsonify({"error": "Credenciales inválidas"}), 401
+        
+        now = datetime.now(ZoneInfo("America/Santiago")).replace(tzinfo=None)
+
+        if user.password_expires_at and user.password_expires_at < now:
+            return jsonify({
+                "error": "Password temporal expirado. Solicita un nuevo restablecimiento."
+            }), 401
 
         # Evento especial para root
         if user.global_role == "root":
@@ -145,7 +156,8 @@ def create_auth_routes(app):
         temp_password = generate_temp_password()
         user.set_password(temp_password)
         user.force_password_change = True
-        user.password_expires_at = datetime.utcnow() + timedelta(minutes=30)
+        user.password_expires_at = get_temp_password_expiration()
+
         db.session.commit()
 
         on_forgot_password(user, temp_password)

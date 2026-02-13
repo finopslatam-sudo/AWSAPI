@@ -17,22 +17,17 @@ Notas:
 
 import secrets
 import string
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
-DEFAULT_TEMP_PASSWORD_LENGTH = 10
+TEMP_PASSWORD_EXPIRATION_MINUTES = 30
 
 
-def generate_temp_password(length: int = DEFAULT_TEMP_PASSWORD_LENGTH) -> str:
+def get_temp_password_expiration():
     """
-    Genera una contraseña temporal segura.
-
-    Args:
-        length (int): longitud del password (mínimo recomendado: 10)
-
-    Returns:
-        str: contraseña temporal
+    Retorna timestamp de expiración para password temporal
+    en zona horaria America/Santiago.
     """
-    if length < 8:
-        raise ValueError("La longitud mínima del password temporal es 8")
+    now = datetime.now(ZoneInfo("America/Santiago"))
+    return now + timedelta(minutes=TEMP_PASSWORD_EXPIRATION_MINUTES)
 
-    chars = string.ascii_letters + string.digits
-    return "".join(secrets.choice(chars) for _ in range(length))
