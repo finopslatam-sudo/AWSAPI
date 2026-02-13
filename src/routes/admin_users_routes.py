@@ -27,7 +27,6 @@ admin_users_bp = Blueprint(
     url_prefix="/api/admin"
 )
 
-
 # =====================================================
 # HELPERS
 # =====================================================
@@ -41,6 +40,63 @@ def require_staff(user_id: int) -> User | None:
     return user
 
 
+# =====================================================
+# NUEVA MATRIZ RESET PASSWORD
+# =====================================================
+def can_reset_password(actor: User, target: User) -> bool:
+    """
+    Matriz final de permisos:
+
+    root → puede todo
+    admin → puede todo excepto root
+    support → puede:
+        - resetear usuarios cliente
+        - resetear su propia cuenta
+    """
+
+    if actor.global_role == "root":
+        return True
+
+    if actor.global_role == "admin":
+        return target.global_role != "root"
+
+    if actor.global_role == "support":
+        if actor.id == target.id:
+            return True
+        if target.global_role is None:
+            return True
+        return False
+
+    return False
+
+
+# =====================================================
+# NUEVA MATRIZ EDIT USER
+# =====================================================
+def can_edit_user(actor: User, target: User) -> bool:
+    """
+    Matriz final de permisos de edición.
+    """
+
+    if actor.global_role == "root":
+        return True
+
+    if actor.global_role == "admin":
+        if target.global_role == "root":
+            return False
+        return True
+
+    if actor.global_role == "support":
+        if target.global_role is None:
+            return True
+        return False
+
+    return False
+
+
+# =====================================================
+# BUILD VIEW (SIN CAMBIOS EN LÓGICA)
+# =====================================================
 def build_admin_user_view(row, actor: User) -> dict:
     """
     Construye la vista administrativa de un usuario
@@ -243,33 +299,6 @@ def list_users():
         }
     }), 200
 
-# =====================================================
-# MATRIZ DE PERMISOS
-# =====================================================
-def can_edit_user(actor: User, target: User) -> bool:
-    """
-    Matriz final de permisos de edición.
-    """
-
-    # ROOT puede editar cualquiera excepto sí mismo si fuera eliminación
-    if actor.global_role == "root":
-        return True
-
-    # ADMIN
-    if actor.global_role == "admin":
-        # No puede editar root
-        if target.global_role == "root":
-            return False
-        return True
-
-    # SUPPORT
-    if actor.global_role == "support":
-        # Solo puede editar usuarios cliente
-        if target.global_role is None:
-            return True
-        return False
-
-    return False
 
 # =====================================================
 # ADMIN — CREAR USUARIO (CLIENTE)
@@ -417,7 +446,7 @@ def create_user_with_password():
     # GUARDAR
     # =====================================================
     user.set_password(password)
-
+    
     db.session.add(user)
     db.session.commit()
 
