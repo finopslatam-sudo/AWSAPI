@@ -33,12 +33,17 @@ admin_users_bp = Blueprint(
 
 def require_staff(user_id: int) -> User | None:
     user = User.query.get(user_id)
+
     if not user:
         return None
+
+    if not user.is_active:
+        return None
+
     if user.global_role not in ("root", "admin", "support"):
         return None
-    return user
 
+    return user
 
 # =====================================================
 # NUEVA MATRIZ RESET PASSWORD
@@ -106,11 +111,9 @@ def build_admin_user_view(row, actor: User) -> dict:
     is_global = row.global_role is not None
     role = row.global_role if is_global else row.client_role
 
-    can_edit = True
-    if row.global_role == "root":
-        can_edit = False
-    if actor.global_role == "support" and row.global_role == "root":
-        can_edit = False
+    # 🔒 Nuevo: usar matriz real de permisos
+    target = User.query.get(row.id)
+    can_edit = can_edit_user(actor, target)
 
     return {
         "id": row.id,
@@ -376,7 +379,10 @@ def list_users():
 @jwt_required()
 def create_user():
     actor = User.query.get(int(get_jwt_identity()))
-    if not actor or actor.global_role not in ("root", "admin"):
+    if not actor or not actor.is_active:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    if actor.global_role not in ("root", "admin"):
         return jsonify({"error": "Unauthorized"}), 403
 
     data = request.get_json() or {}

@@ -40,10 +40,17 @@ def register_admin_clients_routes(app):
 # =====================================================
 def require_staff(user_id: int) -> User | None:
     user = User.query.get(user_id)
+
     if not user:
         return None
+
+    # 🔒 NUEVO: validar estado activo
+    if not user.is_active:
+        return None
+
     if user.global_role not in ("root", "admin", "support"):
         return None
+
     return user
 
 # =====================================================

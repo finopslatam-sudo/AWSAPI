@@ -12,14 +12,37 @@ def require_client_user(user_id: int) -> User | None:
     user = User.query.get(user_id)
     if not user:
         return None
-    if user.global_role != "client":
+
+    # No debe ser staff
+    if user.global_role is not None:
         return None
+
+    # Debe tener cliente asociado
     if not user.client_id:
         return None
+
+    if not user.is_active:
+        return None
+
     return user
 
 
 def register_client_report_routes(app):
+
+    # ===============================
+    # CLIENT — STATS
+    # ===============================
+    @app.route("/api/v1/reports/client/stats", methods=["GET"])
+    @jwt_required()
+    def client_stats():
+        user = require_client_user(int(get_jwt_identity()))
+        if not user:
+            return jsonify({"error": "Acceso denegado"}), 403
+
+        stats = get_client_stats(user.client_id)
+
+        return jsonify(stats), 200
+
 
     # ===============================
     # CLIENT — PDF
