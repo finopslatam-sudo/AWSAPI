@@ -140,8 +140,24 @@ def update_user(user_id):
         return jsonify({"error": "Unauthorized"}), 403
 
     user = User.query.get_or_404(user_id)
-
     data = request.get_json() or {}
+
+    # =====================================================
+    # 🔒 BLOQUEOS GLOBALES (APLICA A TODOS)
+    # =====================================================
+
+    # ❌ Nadie puede desactivarse a sí mismo
+    if actor.id == user.id:
+        if "is_active" in data and data["is_active"] is False:
+            return jsonify({
+                "error": "No puedes desactivar tu propia cuenta"
+            }), 403
+
+        # ❌ Nadie puede cambiar su propio rol
+        if "global_role" in data or "client_role" in data:
+            return jsonify({
+                "error": "No puedes modificar tu propio rol"
+            }), 403
 
     # =====================================================
     # 🟥 ROOT
@@ -167,7 +183,6 @@ def update_user(user_id):
         db.session.commit()
         return jsonify({"ok": True}), 200
 
-
     # =====================================================
     # 🟦 ADMIN
     # =====================================================
@@ -175,7 +190,9 @@ def update_user(user_id):
 
         # ❌ No puede editar root
         if user.global_role == "root":
-            return jsonify({"error": "No permitido editar root"}), 403
+            return jsonify({
+                "error": "No permitido editar root"
+            }), 403
 
         # ===== EMAIL =====
         if "email" in data:
@@ -190,9 +207,11 @@ def update_user(user_id):
 
             new_role = data["global_role"]
 
-            # ❌ No puede hacer upgrade a root
+            # ❌ No puede asignar root
             if new_role == "root":
-                return jsonify({"error": "No permitido asignar rol root"}), 403
+                return jsonify({
+                    "error": "No permitido asignar rol root"
+                }), 403
 
             user.global_role = new_role
 
@@ -203,27 +222,16 @@ def update_user(user_id):
         db.session.commit()
         return jsonify({"ok": True}), 200
 
-
     # =====================================================
     # 🟩 SUPPORT
     # =====================================================
     if actor.global_role == "support":
 
-        # ✔ Puede editarse a sí mismo
-        if actor.id == user.id:
-
-            if "email" in data:
-                user.email = data["email"]
-
-            if "is_active" in data:
-                user.is_active = bool(data["is_active"])
-
-            db.session.commit()
-            return jsonify({"ok": True}), 200
-
-        # ❌ No puede tocar cuentas globales
+        # ❌ No puede editar cuentas globales
         if user.global_role is not None:
-            return jsonify({"error": "No permitido editar cuentas globales"}), 403
+            return jsonify({
+                "error": "No permitido editar cuentas globales"
+            }), 403
 
         # ===== EMAIL =====
         if "email" in data:
@@ -240,7 +248,9 @@ def update_user(user_id):
 
             # ❌ Support no puede asignar owner
             if new_role == "owner":
-                return jsonify({"error": "No permitido asignar rol owner"}), 403
+                return jsonify({
+                    "error": "No permitido asignar rol owner"
+                }), 403
 
             user.client_role = new_role
 
@@ -426,32 +436,41 @@ def create_user():
 @jwt_required()
 def create_user_with_password():
     actor = User.query.get(int(get_jwt_identity()))
-    if not actor or actor.global_role not in ("root", "admin"):
+    if not actor or not actor.is_active:
         return jsonify({"error": "Unauthorized"}), 403
 
     data = request.get_json() or {}
 
     user_type = data.get("type")  # "global" | "client"
-    email = data.get("email")
-    contact_name = data.get("contact_name")
+    email = (data.get("email") or "").strip().lower()
+    contact_name = (data.get("contact_name") or "").strip()
     password = data.get("password")
     password_confirm = data.get("password_confirm")
     force_change = bool(data.get("force_password_change", True))
 
-    if not user_type or user_type not in ("global", "client"):
+    # =====================================================
+    # VALIDACIONES BASE
+    # =====================================================
+    if user_type not in ("global", "client"):
         return jsonify({"error": "type inválido"}), 400
 
     if not email or not contact_name:
-        return jsonify({"error": "Email y contact_name son obligatorios"}), 400
+        return jsonify({
+            "error": "Email y contact_name son obligatorios"
+        }), 400
 
     if not password or len(password) < 8:
         return jsonify({"error": "Password inválida"}), 400
 
     if password != password_confirm:
-        return jsonify({"error": "Las contraseñas no coinciden"}), 400
+        return jsonify({
+            "error": "Las contraseñas no coinciden"
+        }), 400
 
-    if User.query.filter_by(email=email.strip().lower()).first():
-        return jsonify({"error": "El usuario ya existe"}), 409
+    if User.query.filter_by(email=email).first():
+        return jsonify({
+            "error": "El usuario ya existe"
+        }), 409
 
     # =====================================================
     # CASO 1 — USUARIO GLOBAL
@@ -460,12 +479,34 @@ def create_user_with_password():
 
         global_role = data.get("global_role")
 
-        if global_role not in ("admin", "support"):
-            return jsonify({"error": "global_role inválido"}), 400
+        if not global_role:
+            return jsonify({
+                "error": "global_role es obligatorio"
+            }), 400
+
+        # 🔴 ROOT puede crear cualquiera
+        if actor.global_role == "root":
+            if global_role not in ("root", "admin", "support"):
+                return jsonify({
+                    "error": "global_role inválido"
+                }), 400
+
+        # 🔵 ADMIN puede crear admin y support
+        elif actor.global_role == "admin":
+            if global_role not in ("admin", "support"):
+                return jsonify({
+                    "error": "Admin solo puede crear admin o support"
+                }), 403
+
+        # 🟢 SUPPORT no puede crear globales
+        else:
+            return jsonify({
+                "error": "No tienes permiso para crear usuarios globales"
+            }), 403
 
         user = User(
-            email=email.strip().lower(),
-            contact_name=contact_name.strip(),
+            email=email,
+            contact_name=contact_name,
             global_role=global_role,
             client_id=None,
             client_role=None,
@@ -477,22 +518,35 @@ def create_user_with_password():
     # CASO 2 — USUARIO CLIENTE
     # =====================================================
     else:
+
+        # Solo staff puede crear cliente
+        if actor.global_role not in ("root", "admin", "support"):
+            return jsonify({
+                "error": "No tienes permiso para crear usuarios cliente"
+            }), 403
+
         client_id = data.get("client_id")
         client_role = data.get("client_role")
 
         if not client_id or not client_role:
-            return jsonify({"error": "Datos incompletos"}), 400
+            return jsonify({
+                "error": "Datos incompletos"
+            }), 400
 
         if client_role not in ("owner", "finops_admin", "viewer"):
-            return jsonify({"error": "client_role inválido"}), 400
+            return jsonify({
+                "error": "client_role inválido"
+            }), 400
 
         client = Client.query.get(client_id)
         if not client:
-            return jsonify({"error": "Cliente no existe"}), 404
+            return jsonify({
+                "error": "Cliente no existe"
+            }), 404
 
         user = User(
-            email=email.strip().lower(),
-            contact_name=contact_name.strip(),
+            email=email,
+            contact_name=contact_name,
             global_role=None,
             client_id=client_id,
             client_role=client_role,
@@ -501,15 +555,20 @@ def create_user_with_password():
         )
 
     # =====================================================
-    # GUARDAR
+    # PERSISTENCIA SEGURA
     # =====================================================
-    user.set_password(password)
-    
-    db.session.add(user)
-    db.session.commit()
+    try:
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return jsonify({
+            "error": "Error al crear usuario"
+        }), 500
 
     # =====================================================
-    # EVENTO EMAIL
+    # EVENTO EMAIL (NO BLOQUEANTE)
     # =====================================================
     from src.services.user_events_service import (
         on_user_created_with_password
@@ -535,5 +594,6 @@ def create_user_with_password():
             "force_password_change": user.force_password_change,
         }
     }), 201
+
 
 
