@@ -20,8 +20,16 @@ import string
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+
+DEFAULT_TEMP_PASSWORD_LENGTH = 10
 TEMP_PASSWORD_EXPIRATION_MINUTES = 30
 
+def generate_temp_password(length: int = DEFAULT_TEMP_PASSWORD_LENGTH) -> str:
+    if length < 8:
+        raise ValueError("La longitud mínima del password temporal es 8")
+
+    chars = string.ascii_letters + string.digits
+    return "".join(secrets.choice(chars) for _ in range(length))
 
 def get_temp_password_expiration():
     """
