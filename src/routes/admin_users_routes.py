@@ -141,57 +141,113 @@ def update_user(user_id):
 
     user = User.query.get_or_404(user_id)
 
-    if not can_edit_user(actor, user):
-        return jsonify({"error": "No tienes permiso para editar este usuario"}), 403
-
     data = request.get_json() or {}
 
     # =====================================================
-    # SUPPORT — Solo datos básicos
+    # 🟥 ROOT
     # =====================================================
-    if actor.global_role == "support":
+    if actor.global_role == "root":
 
+        # ===== EMAIL =====
         if "email" in data:
             user.email = data["email"]
 
+        # ===== ACTIVE =====
         if "is_active" in data:
             user.is_active = bool(data["is_active"])
 
-        # Support NO puede cambiar roles
+        # ===== GLOBAL ROLE =====
+        if user.global_role and "global_role" in data:
+            user.global_role = data["global_role"]
+
+        # ===== CLIENT ROLE =====
+        if not user.global_role and "client_role" in data:
+            user.client_role = data["client_role"]
+
         db.session.commit()
         return jsonify({"ok": True}), 200
 
+
     # =====================================================
-    # ADMIN Y ROOT
+    # 🟦 ADMIN
     # =====================================================
+    if actor.global_role == "admin":
 
-    # ===== EMAIL =====
-    if "email" in data:
-        user.email = data["email"]
+        # ❌ No puede editar root
+        if user.global_role == "root":
+            return jsonify({"error": "No permitido editar root"}), 403
 
-    # ===== ACTIVE =====
-    if "is_active" in data:
-        user.is_active = bool(data["is_active"])
+        # ===== EMAIL =====
+        if "email" in data:
+            user.email = data["email"]
 
-    # ===== ROLES =====
-    if actor.global_role in ("root", "admin"):
+        # ===== ACTIVE =====
+        if "is_active" in data:
+            user.is_active = bool(data["is_active"])
 
-        if user.global_role:
-            # Usuario GLOBAL
-            if "global_role" in data:
-                # Admin no puede modificar root
-                if actor.global_role == "admin" and user.global_role == "root":
-                    return jsonify({"error": "No permitido"}), 403
-                user.global_role = data["global_role"]
+        # ===== GLOBAL ROLE =====
+        if user.global_role and "global_role" in data:
 
-        else:
-            # Usuario CLIENTE
-            if "client_role" in data:
-                user.client_role = data["client_role"]
+            new_role = data["global_role"]
 
-    db.session.commit()
+            # ❌ No puede hacer upgrade a root
+            if new_role == "root":
+                return jsonify({"error": "No permitido asignar rol root"}), 403
 
-    return jsonify({"ok": True}), 200
+            user.global_role = new_role
+
+        # ===== CLIENT ROLE =====
+        if not user.global_role and "client_role" in data:
+            user.client_role = data["client_role"]
+
+        db.session.commit()
+        return jsonify({"ok": True}), 200
+
+
+    # =====================================================
+    # 🟩 SUPPORT
+    # =====================================================
+    if actor.global_role == "support":
+
+        # ✔ Puede editarse a sí mismo
+        if actor.id == user.id:
+
+            if "email" in data:
+                user.email = data["email"]
+
+            if "is_active" in data:
+                user.is_active = bool(data["is_active"])
+
+            db.session.commit()
+            return jsonify({"ok": True}), 200
+
+        # ❌ No puede tocar cuentas globales
+        if user.global_role is not None:
+            return jsonify({"error": "No permitido editar cuentas globales"}), 403
+
+        # ===== EMAIL =====
+        if "email" in data:
+            user.email = data["email"]
+
+        # ===== ACTIVE =====
+        if "is_active" in data:
+            user.is_active = bool(data["is_active"])
+
+        # ===== CLIENT ROLE =====
+        if "client_role" in data:
+
+            new_role = data["client_role"]
+
+            # ❌ Support no puede asignar owner
+            if new_role == "owner":
+                return jsonify({"error": "No permitido asignar rol owner"}), 403
+
+            user.client_role = new_role
+
+        db.session.commit()
+        return jsonify({"ok": True}), 200
+
+    return jsonify({"error": "Rol no autorizado"}), 403
 
 # =====================================================
 # ADMIN — RESET PASSWORD MANUAL
