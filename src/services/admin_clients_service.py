@@ -34,27 +34,33 @@ SYSTEM_ROLES = ("root", "admin", "support")
 # =====================================================
 # SERVICE
 # =====================================================
-
 def get_clients_with_active_plan():
     """
-    Retorna listado de clientes para panel administrativo.
-
-    Incluye:
-    - datos básicos del cliente
-    - nombre del plan activo (si existe)
-    - flag calculado `is_system`
-
-    NOTAS:
-    - NO expone usuarios
-    - NO persiste `is_system`
-    - `is_system` se deriva desde User.global_role
+    Retorna listado único de clientes con su plan activo.
+    Versión optimizada y libre de duplicados.
     """
 
-    ActiveSubscription = aliased(ClientSubscription)
+    # -------------------------------------------------
+    # Subquery: suscripción activa única por cliente
+    # -------------------------------------------------
+    active_sub = (
+        db.session.query(ClientSubscription)
+        .filter(ClientSubscription.is_active.is_(True))
+        .subquery()
+    )
 
     # -------------------------------------------------
-    # Query principal de clientes + plan activo
-    # (1 fila por cliente)
+    # Subquery: clientes que tienen usuarios del sistema
+    # -------------------------------------------------
+    system_clients = (
+        db.session.query(User.client_id)
+        .filter(User.global_role.in_(SYSTEM_ROLES))
+        .distinct()
+        .subquery()
+    )
+
+    # -------------------------------------------------
+    # Query principal
     # -------------------------------------------------
     rows = (
         db.session.query(
@@ -66,47 +72,21 @@ def get_clients_with_active_plan():
             Client.is_active,
             Client.created_at,
             Plan.name.label("plan"),
+            system_clients.c.client_id.label("is_system_client"),
         )
-        .outerjoin(
-            ActiveSubscription,
-            (ActiveSubscription.client_id == Client.id)
-            & (ActiveSubscription.is_active.is_(True))
-        )
-        .outerjoin(
-            Plan,
-            Plan.id == ActiveSubscription.plan_id
-        )
-        .group_by(
-            Client.id,
-            Client.company_name,
-            Client.contact_name,
-            Client.email,
-            Client.phone,
-            Client.is_active,
-            Client.created_at,
-            Plan.name,
-        )
+        .outerjoin(active_sub, active_sub.c.client_id == Client.id)
+        .outerjoin(Plan, Plan.id == active_sub.c.plan_id)
+        .outerjoin(system_clients, system_clients.c.client_id == Client.id)
         .order_by(Client.created_at.desc())
         .all()
     )
 
     # -------------------------------------------------
-    # Construcción del response
+    # Construcción response
     # -------------------------------------------------
     response = []
 
     for r in rows:
-        # Determinar si el cliente es del sistema
-        is_system = (
-            db.session.query(User.id)
-            .filter(
-                User.client_id == r.id,
-                User.global_role.in_(SYSTEM_ROLES)
-            )
-            .first()
-            is not None
-        )
-
         response.append({
             "id": r.id,
             "company_name": r.company_name,
@@ -119,7 +99,7 @@ def get_clients_with_active_plan():
                 r.created_at.isoformat()
                 if r.created_at else None
             ),
-            "is_system": is_system,
+            "is_system": r.is_system_client is not None,
         })
 
     return response
