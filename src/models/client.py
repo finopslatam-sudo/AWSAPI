@@ -30,7 +30,9 @@ class Client(db.Model):
     # ==========================
     company_name = db.Column(
         db.String(100),
-        nullable=False
+        nullable=False,
+        unique=True,
+        index=True
     )
 
     email = db.Column(

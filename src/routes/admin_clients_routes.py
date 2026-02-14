@@ -130,6 +130,10 @@ def create_client():
 
     if Client.query.filter_by(email=email.strip().lower()).first():
         return jsonify({"error": "Ya existe un cliente con ese email"}), 409
+    
+    if Client.query.filter_by(company_name=company_name.strip()).first():
+        return jsonify({
+            "error": "Ya existe un cliente con ese nombre"}), 409
 
     # =====================================================
     # VALIDACIONES OWNER
