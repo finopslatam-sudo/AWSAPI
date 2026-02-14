@@ -111,8 +111,13 @@ def build_admin_user_view(row, actor: User) -> dict:
     is_global = row.global_role is not None
     role = row.global_role if is_global else row.client_role
 
-    # 🔒 Nuevo: usar matriz real de permisos
-    target = User.query.get(row.id)
+    # Crear objeto temporal mínimo para permisos
+    class TempUser:
+        def __init__(self, row):
+            self.id = row.id
+            self.global_role = row.global_role
+
+    target = TempUser(row)
     can_edit = can_edit_user(actor, target)
 
     return {
@@ -174,7 +179,8 @@ def update_user(user_id):
 
         # ===== CONTACT NAME =====
         if "contact_name" in data:
-            user.contact_name = data["contact_name"]
+            user.contact_name = (data["contact_name"] or "").strip() or None
+
 
         # ===== ACTIVE =====
         if "is_active" in data:
@@ -208,7 +214,8 @@ def update_user(user_id):
 
         # ===== CONTACT NAME =====
         if "contact_name" in data:
-            user.contact_name = data["contact_name"]            
+            user.contact_name = (data["contact_name"] or "").strip() or None
+          
 
         # ===== ACTIVE =====
         if "is_active" in data:
@@ -251,7 +258,7 @@ def update_user(user_id):
 
         # ===== CONTACT NAME =====
         if "contact_name" in data:
-            user.contact_name = data["contact_name"]
+            user.contact_name = (data["contact_name"] or "").strip() or None
             
         # ===== ACTIVE =====
         if "is_active" in data:
@@ -392,6 +399,8 @@ def list_users():
 @admin_users_bp.route("", methods=["POST"])
 @jwt_required()
 def create_user():
+    contact_name = (data.get("contact_name") or "").strip()
+
     actor = User.query.get(int(get_jwt_identity()))
     if not actor or not actor.is_active:
         return jsonify({"error": "Unauthorized"}), 403
@@ -426,6 +435,7 @@ def create_user():
 
     user = User(
         email=email.strip().lower(),
+        contact_name=contact_name or None,
         global_role=None,
         client_id=client_id,
         client_role=client_role,
