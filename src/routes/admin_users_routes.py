@@ -123,6 +123,7 @@ def build_admin_user_view(row, actor: User) -> dict:
         "is_active": row.is_active,
         "force_password_change": row.force_password_change,
         "company_name": row.company_name,
+        "contact_name": row.contact_name,
         "client": (
             {
                 "id": row.client_id,
@@ -171,6 +172,10 @@ def update_user(user_id):
         if "email" in data:
             user.email = data["email"]
 
+        # ===== CONTACT NAME =====
+        if "contact_name" in data:
+            user.contact_name = data["contact_name"]
+
         # ===== ACTIVE =====
         if "is_active" in data:
             user.is_active = bool(data["is_active"])
@@ -200,6 +205,10 @@ def update_user(user_id):
         # ===== EMAIL =====
         if "email" in data:
             user.email = data["email"]
+
+        # ===== CONTACT NAME =====
+        if "contact_name" in data:
+            user.contact_name = data["contact_name"]            
 
         # ===== ACTIVE =====
         if "is_active" in data:
@@ -240,6 +249,10 @@ def update_user(user_id):
         if "email" in data:
             user.email = data["email"]
 
+        # ===== CONTACT NAME =====
+        if "contact_name" in data:
+            user.contact_name = data["contact_name"]
+            
         # ===== ACTIVE =====
         if "is_active" in data:
             user.is_active = bool(data["is_active"])
@@ -354,6 +367,7 @@ def list_users():
             User.client_id,
             User.is_active,
             User.force_password_change,
+            User.contact_name,
             Client.company_name,
         )
         .outerjoin(Client, User.client_id == Client.id)
