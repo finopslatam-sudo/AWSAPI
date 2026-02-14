@@ -357,7 +357,6 @@ def reset_user_password(user_id):
 # =====================================================
 # ADMIN — LISTAR USUARIOS
 # =====================================================
-
 @admin_users_bp.route("/users", methods=["GET"])
 @jwt_required()
 def list_users():
@@ -365,37 +364,92 @@ def list_users():
     if not actor:
         return jsonify({"error": "Acceso denegado"}), 403
 
-    rows = (
-        db.session.query(
-            User.id,
-            User.email,
-            User.global_role,
-            User.client_role,
-            User.client_id,
-            User.is_active,
-            User.force_password_change,
-            User.contact_name,
-            Client.company_name,
-        )
-        .outerjoin(Client, User.client_id == Client.id)
-        .order_by(User.id.asc())
-        .all()
-    )
+    grouped = request.args.get("grouped") == "1"
 
-    data = [build_admin_user_view(r, actor) for r in rows]
+    # =====================================================
+    # MODO 1 — LISTADO PLANO (ACTUAL, NO SE ROMPE)
+    # =====================================================
+    if not grouped:
+        rows = (
+            db.session.query(
+                User.id,
+                User.email,
+                User.global_role,
+                User.client_role,
+                User.client_id,
+                User.is_active,
+                User.force_password_change,
+                User.contact_name,
+                Client.company_name,
+            )
+            .outerjoin(Client, User.client_id == Client.id)
+            .order_by(User.id.asc())
+            .all()
+        )
+
+        data = [build_admin_user_view(r, actor) for r in rows]
+
+        return jsonify({
+            "data": data,
+            "meta": {
+                "total_users": len(data)
+            }
+        }), 200
+
+    # =====================================================
+    # MODO 2 — AGRUPADO POR CLIENTE (ENTERPRISE)
+    # =====================================================
+    clients = Client.query.order_by(Client.id.asc()).all()
+
+    result = []
+    total_users = 0
+
+    for client in clients:
+        users = (
+            db.session.query(User)
+            .filter(User.client_id == client.id)
+            .order_by(User.id.asc())
+            .all()
+        )
+
+        users_data = [
+            build_admin_user_view(
+                type("Row", (), {
+                    "id": u.id,
+                    "email": u.email,
+                    "global_role": u.global_role,
+                    "client_role": u.client_role,
+                    "client_id": u.client_id,
+                    "is_active": u.is_active,
+                    "force_password_change": u.force_password_change,
+                    "contact_name": u.contact_name,
+                    "company_name": client.company_name,
+                })(),
+                actor
+            )
+            for u in users
+        ]
+
+        total_users += len(users_data)
+
+        result.append({
+            "client_id": client.id,
+            "company_name": client.company_name,
+            "plan": getattr(client, "plan_name", None),
+            "users": users_data
+        })
 
     return jsonify({
-        "data": data,
+        "data": result,
         "meta": {
-            "total": len(data)
+            "total_clients": len(result),
+            "total_users": total_users
         }
     }), 200
-
 
 # =====================================================
 # ADMIN — CREAR USUARIO (CLIENTE)
 # =====================================================
-
 @admin_users_bp.route("", methods=["POST"])
 @jwt_required()
 def create_user():
