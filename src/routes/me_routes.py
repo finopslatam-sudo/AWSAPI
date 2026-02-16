@@ -16,18 +16,15 @@ me_bp = Blueprint("me", __name__, url_prefix="/api/me")
 def get_me():
     user = User.query.get_or_404(get_jwt_identity())
 
-    # Rol unificado
-    role = user.global_role or user.client_role
-
     return jsonify({
         "id": user.id,
         "email": user.email,
-        "role": role,
+        "global_role": user.global_role,
+        "client_role": user.client_role,
         "contact_name": user.contact_name,
         "is_active": user.is_active,
         "force_password_change": user.force_password_change,
     }), 200
-
 
 # =====================================================
 # PUT /api/me
