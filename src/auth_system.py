@@ -46,6 +46,7 @@ def build_login_response(user: User) -> dict:
         "client_id": user.client_id,
         "is_active": user.is_active,
         "force_password_change": user.force_password_change,
+        "contact_name": user.contact_name,
     }
 
 # ===============================
