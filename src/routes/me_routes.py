@@ -21,12 +21,11 @@ def get_me():
         "email": user.email,
         "global_role": user.global_role,
         "client_role": user.client_role,
-        "contact_name": user.contact_name,
+        "client_id": user.client_id,
         "is_active": user.is_active,
         "force_password_change": user.force_password_change,
+        "contact_name": user.contact_name 
     }), 200
-
-
 # =====================================================
 # PUT /api/me
 # ACTUALIZA DATOS EDITABLES DEL PERFIL
