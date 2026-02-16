@@ -87,24 +87,17 @@ def update_me():
 # =====================================================
 # USER - CAMBIA SU PASSWORD VOLUNTARIAMENTE
 # =====================================================
-@me_bp.route("/change-password", methods=["POST"])
+@me_bp.route("", methods=["GET"])
 @jwt_required()
-def change_my_password():
+def get_me():
     user = User.query.get_or_404(get_jwt_identity())
-    data = request.get_json() or {}
 
-    if not user.check_password(data.get("current_password")):
-        return jsonify({"error": "Password actual incorrecta"}), 400
+    return jsonify({
+        "id": user.id,
+        "email": user.email,
+        "global_role": user.global_role,
+        "contact_name": user.contact_name,
+        "is_active": user.is_active,
+        "force_password_change": user.force_password_change,
+    }), 200
 
-    new_password = data.get("new_password")
-
-    if not new_password or len(new_password) < 8:
-        return jsonify({"error": "Password inválida"}), 400
-
-    user.set_password(new_password)
-    user.force_password_change = False
-    user.password_expires_at = None
-
-    db.session.commit()
-
-    return jsonify({"ok": True}), 200
