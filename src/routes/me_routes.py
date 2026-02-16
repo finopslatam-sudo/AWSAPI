@@ -9,7 +9,7 @@ me_bp = Blueprint("me", __name__, url_prefix="/api/me")
 
 # =====================================================
 # GET /api/me
-# DEVUELVE PERFIL SIMPLE DEL USUARIO (SOLO USERS)
+# DEVUELVE PERFIL DEL USUARIO (COMPATIBLE CON FRONTEND ACTUAL)
 # =====================================================
 @me_bp.route("", methods=["GET"])
 @jwt_required()
@@ -25,6 +25,7 @@ def get_me():
         "is_active": user.is_active,
         "force_password_change": user.force_password_change,
     }), 200
+
 
 # =====================================================
 # PUT /api/me
