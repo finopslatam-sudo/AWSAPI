@@ -2,54 +2,30 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from src.models.user import User
-from src.models.client import Client
-from src.models.plan import Plan
-from src.models.subscription import ClientSubscription
 from src.models.database import db
-
-from src.services.password_service import validate_password_policy
 
 me_bp = Blueprint("me", __name__, url_prefix="/api/me")
 
+
 # =====================================================
 # GET /api/me
-# DEVUELVE PERFIL COMPLETO DEL USUARIO
+# DEVUELVE PERFIL SIMPLE DEL USUARIO (SOLO USERS)
 # =====================================================
 @me_bp.route("", methods=["GET"])
 @jwt_required()
 def get_me():
     user = User.query.get_or_404(get_jwt_identity())
 
-    client = None
-    plan = None
-
-    if user.client_id:
-        client = Client.query.get(user.client_id)
-
-        subscription = (
-            ClientSubscription.query
-            .filter_by(client_id=user.client_id, is_active=True)
-            .first()
-        )
-
-        if subscription:
-            plan = Plan.query.get(subscription.plan_id)
+    # Rol unificado
+    role = user.global_role or user.client_role
 
     return jsonify({
         "id": user.id,
         "email": user.email,
-        "global_role": user.global_role,
-        "client_role": user.client_role,
-        "client_id": user.client_id,
+        "role": role,
+        "contact_name": user.contact_name,
         "is_active": user.is_active,
         "force_password_change": user.force_password_change,
-        "contact_name": user.contact_name,
-        "company_name": client.company_name if client else None,
-        "plan": {
-            "id": plan.id,
-            "code": plan.code,
-            "name": plan.name
-        } if plan else None
     }), 200
 
 
@@ -81,23 +57,34 @@ def update_me():
 
     db.session.commit()
 
-    return jsonify({"ok": True}), 200
-
-
-# =====================================================
-# USER - CAMBIA SU PASSWORD VOLUNTARIAMENTE
-# =====================================================
-@me_bp.route("", methods=["GET"])
-@jwt_required()
-def get_me():
-    user = User.query.get_or_404(get_jwt_identity())
-
     return jsonify({
-        "id": user.id,
         "email": user.email,
-        "global_role": user.global_role,
         "contact_name": user.contact_name,
-        "is_active": user.is_active,
-        "force_password_change": user.force_password_change,
     }), 200
 
+
+# =====================================================
+# POST /api/me/change-password
+# CAMBIO DE PASSWORD
+# =====================================================
+@me_bp.route("/change-password", methods=["POST"])
+@jwt_required()
+def change_my_password():
+    user = User.query.get_or_404(get_jwt_identity())
+    data = request.get_json() or {}
+
+    if not user.check_password(data.get("current_password")):
+        return jsonify({"error": "Password actual incorrecta"}), 400
+
+    new_password = data.get("new_password")
+
+    if not new_password or len(new_password) < 8:
+        return jsonify({"error": "Password inválida"}), 400
+
+    user.set_password(new_password)
+    user.force_password_change = False
+    user.password_expires_at = None
+
+    db.session.commit()
+
+    return jsonify({"ok": True}), 200
