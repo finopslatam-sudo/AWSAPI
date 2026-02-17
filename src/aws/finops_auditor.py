@@ -27,9 +27,9 @@ class FinOpsAuditor:
 
         # 2️⃣ Crear sesión temporal
         session = boto3.Session(
-            aws_access_key_id=creds["access_key"],
-            aws_secret_access_key=creds["secret_key"],
-            aws_session_token=creds["session_token"],
+            aws_access_key_id=creds["AccessKeyId"],
+            aws_secret_access_key=creds["SecretAccessKey"],
+            aws_session_token=creds["SessionToken"],
             region_name="us-east-1"
         )
 
