@@ -2,7 +2,14 @@
 #   ENV (SAFE – NO ROMPE PROD)
 # =====================================================
 from dotenv import load_dotenv
-load_dotenv()
+import os
+
+# Prioridad 1: archivo systemd (prod)
+if os.path.exists("/etc/finops-api.env"):
+    load_dotenv("/etc/finops-api.env")
+else:
+    # Fallback local dev
+    load_dotenv()
 
 # =====================================================
 #   CORE IMPORTS
@@ -11,16 +18,12 @@ from flask import Flask, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from flask_cors import CORS
-import os
 
 # =====================================================
 #   APP INIT
 # =====================================================
 app = Flask(__name__)
 
-# =====================================================
-#   CORS (CONTROLADO)
-# =====================================================
 # =====================================================
 #   CORS (CONTROLADO)
 # =====================================================
