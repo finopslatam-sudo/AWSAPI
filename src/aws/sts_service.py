@@ -24,9 +24,4 @@ class STSService:
         )
 
         credentials = response["Credentials"]
-
-        return {
-            "access_key": credentials["AccessKeyId"],
-            "secret_key": credentials["SecretAccessKey"],
-            "session_token": credentials["SessionToken"]
-        }
+        return credentials
