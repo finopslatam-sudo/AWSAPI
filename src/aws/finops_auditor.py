@@ -1,89 +1,57 @@
-from decimal import Decimal
-from datetime import datetime
-from src.models.aws_finding import AWSFinding
-from src.models.database import db
-from src.aws.sts_service import STSService
 import boto3
+from botocore.exceptions import ClientError
+from src.aws.sts_service import STSService
+from src.aws.audits.ec2_audit import EC2Audit
+from src.aws.audits.ebs_audit import EBSAudit
 
 
 class FinOpsAuditor:
 
     def run_comprehensive_audit(self, client_id, aws_account):
-        """
-        Ejecuta auditoría completa y guarda findings en DB
-        """
 
-        # 1️⃣ Assume Role
         sts_service = STSService()
+
+        # 1️⃣ Asumir role en cuenta cliente
         creds = sts_service.assume_role(
             role_arn=aws_account.role_arn,
-            external_id=aws_account.external_id
+            external_id=aws_account.external_id,
+            session_name="finops-audit"
         )
 
-        # 2️⃣ Crear cliente EC2 con credenciales temporales
-        ec2 = boto3.client(
-            "ec2",
-            aws_access_key_id=creds["AccessKeyId"],
-            aws_secret_access_key=creds["SecretAccessKey"],
-            aws_session_token=creds["SessionToken"],
+        if not creds:
+            return {
+                "status": "error",
+                "message": "Unable to assume role",
+                "findings_created": 0
+            }
+
+        # 2️⃣ Crear sesión temporal
+        session = boto3.Session(
+            aws_access_key_id=creds["access_key"],
+            aws_secret_access_key=creds["secret_key"],
+            aws_session_token=creds["session_token"],
             region_name="us-east-1"
         )
 
-        findings_created = 0
+        # 3️⃣ Registrar auditorías activas
+        audits = [
+            EC2Audit(session, client_id, aws_account),
+            EBSAudit(session, client_id, aws_account)
+        ]
 
-        # =====================================================
-        # REGLA 1 — EBS HUÉRFANOS
-        # =====================================================
+        total_findings = 0
 
-        volumes = ec2.describe_volumes()
-
-        for v in volumes["Volumes"]:
-            if v["State"] == "available":
-
-                finding = AWSFinding(
-                    client_id=client_id,
-                    aws_account_id=aws_account.id,
-                    resource_id=v["VolumeId"],
-                    resource_type="EBS",
-                    finding_type="UNATTACHED_VOLUME",
-                    severity="HIGH",
-                    message=f"Volumen {v['VolumeId']} no está adjunto y genera costo innecesario",
-                    estimated_monthly_savings=Decimal("5.00"),  # estimado simple
-                    detected_at=datetime.utcnow()
-                )
-
-                db.session.add(finding)
-                findings_created += 1
-
-        # =====================================================
-        # REGLA 2 — EC2 STOPPED
-        # =====================================================
-
-        instances = ec2.describe_instances()
-
-        for reservation in instances["Reservations"]:
-            for instance in reservation["Instances"]:
-
-                if instance["State"]["Name"] == "stopped":
-
-                    finding = AWSFinding(
-                        client_id=client_id,
-                        aws_account_id=aws_account.id,
-                        resource_id=instance["InstanceId"],
-                        resource_type="EC2",
-                        finding_type="STOPPED_INSTANCE",
-                        severity="MEDIUM",
-                        message=f"Instancia {instance['InstanceId']} detenida",
-                        estimated_monthly_savings=Decimal("10.00"),
-                        detected_at=datetime.utcnow()
-                    )
-
-                    db.session.add(finding)
-                    findings_created += 1
-
-        db.session.commit()
+        # 4️⃣ Ejecutar auditorías con protección de errores
+        for audit in audits:
+            try:
+                created = audit.run()
+                total_findings += created
+            except ClientError as e:
+                print(f"[AWS ERROR] {audit.__class__.__name__}: {str(e)}")
+            except Exception as e:
+                print(f"[INTERNAL ERROR] {audit.__class__.__name__}: {str(e)}")
 
         return {
             "status": "ok",
-            "findings_created": findings_created
+            "findings_created": total_findings
         }
