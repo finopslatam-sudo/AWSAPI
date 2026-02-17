@@ -74,3 +74,36 @@ def get_client_findings_stats():
         "status": "ok",
         "data": stats
     })
+@client_findings_bp.route("/findings/<int:finding_id>/resolve", methods=["PATCH"])
+@jwt_required()
+def resolve_finding(finding_id):
+
+    identity = get_jwt_identity()
+    user = User.query.get(identity)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    # Solo owner y finops_admin pueden resolver
+    if user.client_role not in ["owner", "finops_admin"]:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    finding = ClientFindingsService.resolve_finding(
+        client_id=user.client_id,
+        finding_id=finding_id,
+        user_id=user.id
+    )
+
+    if not finding:
+        return jsonify({"error": "Finding not found"}), 404
+
+    return jsonify({
+        "status": "ok",
+        "data": {
+            "id": finding.id,
+            "resolved": finding.resolved,
+            "resolved_at": finding.resolved_at.isoformat() if finding.resolved_at else None,
+            "resolved_by": finding.resolved_by
+        }
+    })
+

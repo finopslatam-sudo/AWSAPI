@@ -1,7 +1,7 @@
 from sqlalchemy import func, or_
 from src.models.aws_finding import AWSFinding
 from src.models.database import db
-
+from datetime import datetime
 
 class ClientFindingsService:
 
@@ -123,3 +123,26 @@ class ClientFindingsService:
             "low": low,
             "estimated_monthly_savings": float(savings)
         }
+
+    @staticmethod
+    def resolve_finding(client_id, finding_id, user_id):
+
+        finding = AWSFinding.query.filter_by(
+            id=finding_id,
+            client_id=client_id
+        ).first()
+
+        if not finding:
+            return None
+
+        if finding.resolved:
+            return finding
+
+        finding.resolved = True
+        finding.resolved_at = datetime.utcnow()
+        finding.resolved_by = user_id
+
+        db.session.commit()
+
+        return finding
+
