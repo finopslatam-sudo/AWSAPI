@@ -84,10 +84,12 @@ from src.routes.admin_plans_routes import register_admin_plans_routes
 from src.routes.client_reports_routes import register_client_report_routes
 from src.routes.admin_stats_routes import admin_stats_bp
 from src.routes.admin_users_routes import admin_users_bp
+from src.routes.aws_test_routes import aws_test_bp
 
 app.register_blueprint(contact_bp)
 app.register_blueprint(admin_stats_bp)
 app.register_blueprint(admin_users_bp)
+app.register_blueprint(aws_test_bp)
 
 register_admin_clients_routes(app)
 register_admin_report_routes(app)
