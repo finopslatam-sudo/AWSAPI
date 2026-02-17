@@ -21,7 +21,7 @@ Este script está diseñado para:
 - análisis técnico interno
 """
 
-from src.finops_auditor import FinOpsAuditor
+from AWSAPI.src.aws.finops_auditor import FinOpsAuditor
 from src.reports.exporters.pdf_base import PDFBaseExporter
 
 def main():
