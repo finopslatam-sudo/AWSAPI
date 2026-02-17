@@ -3,7 +3,7 @@ from botocore.exceptions import ClientError
 from src.aws.sts_service import STSService
 from src.aws.audits.ec2_audit import EC2Audit
 from src.aws.audits.ebs_audit import EBSAudit
-
+from src.aws.audits.tag_audit import TagAudit
 
 class FinOpsAuditor:
 
@@ -36,7 +36,8 @@ class FinOpsAuditor:
         # 3️⃣ Registrar auditorías activas
         audits = [
             EC2Audit(session, client_id, aws_account),
-            EBSAudit(session, client_id, aws_account)
+            EBSAudit(session, client_id, aws_account),
+            TagAudit(session, client_id, aws_account)
         ]
 
         total_findings = 0
