@@ -90,7 +90,9 @@ from src.routes.client_reports_routes import register_client_report_routes
 from src.routes.admin_stats_routes import admin_stats_bp
 from src.routes.admin_users_routes import admin_users_bp
 from src.routes.aws_test_routes import aws_test_bp
+from src.routes.client_findings_routes import client_findings_bp
 
+app.register_blueprint(client_findings_bp)
 app.register_blueprint(contact_bp)
 app.register_blueprint(admin_stats_bp)
 app.register_blueprint(admin_users_bp)
