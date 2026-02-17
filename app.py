@@ -4,13 +4,11 @@
 from dotenv import load_dotenv
 import os
 
-# Prioridad 1: archivo systemd (prod)
+# Forzar override
 if os.path.exists("/etc/finops-api.env"):
-    load_dotenv("/etc/finops-api.env")
+    load_dotenv("/etc/finops-api.env", override=True)
 else:
-    # Fallback local dev
-    load_dotenv()
-
+    load_dotenv(override=True)
 # =====================================================
 #   CORE IMPORTS
 # =====================================================
