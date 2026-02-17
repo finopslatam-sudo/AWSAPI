@@ -1,11 +1,13 @@
 from src.models.database import db
 from datetime import datetime
 
+
 class AWSFinding(db.Model):
     __tablename__ = "aws_findings"
 
     id = db.Column(db.Integer, primary_key=True)
 
+    # ---------------- TENANT RELATION ----------------
     client_id = db.Column(
         db.Integer,
         db.ForeignKey("clients.id"),
@@ -18,9 +20,11 @@ class AWSFinding(db.Model):
         nullable=False
     )
 
+    # ---------------- RESOURCE INFO ----------------
     resource_id = db.Column(db.String(100), nullable=False)
     resource_type = db.Column(db.String(50), nullable=False)
 
+    # ---------------- FINDING METADATA ----------------
     finding_type = db.Column(db.String(100), nullable=False)
     severity = db.Column(db.String(20), nullable=False)
 
@@ -31,9 +35,24 @@ class AWSFinding(db.Model):
         default=0
     )
 
-    resolved = db.Column(db.Boolean, default=False)
-    resolved_at = db.Column(db.DateTime)
+    # ---------------- LIFECYCLE MANAGEMENT ----------------
+    resolved = db.Column(
+        db.Boolean,
+        default=False
+    )
 
+    resolved_at = db.Column(
+        db.DateTime,
+        nullable=True
+    )
+
+    resolved_by = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id"),
+        nullable=True
+    )
+
+    # ---------------- TIMESTAMPS ----------------
     detected_at = db.Column(
         db.DateTime,
         default=datetime.utcnow
@@ -42,4 +61,11 @@ class AWSFinding(db.Model):
     created_at = db.Column(
         db.DateTime,
         default=datetime.utcnow
+    )
+
+    # ---------------- OPTIONAL RELATIONSHIP (auditoría futura) ----------------
+    resolver = db.relationship(
+        "User",
+        foreign_keys=[resolved_by],
+        lazy="joined"
     )
