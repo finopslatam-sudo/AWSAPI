@@ -3,6 +3,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from src.models.user import User
 from src.services.client_findings_service import ClientFindingsService
+from src.services.client_dashboard_service import ClientDashboardService
+
 
 
 client_findings_bp = Blueprint(
@@ -11,6 +13,25 @@ client_findings_bp = Blueprint(
     url_prefix="/api/client"
 )
 
+@client_findings_bp.route("/dashboard/summary", methods=["GET"])
+@jwt_required()
+def get_dashboard_summary():
+
+    identity = get_jwt_identity()
+    user = User.query.get(identity)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    if user.client_role not in ["owner", "finops_admin", "viewer"]:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    summary = ClientDashboardService.get_summary(user.client_id)
+
+    return jsonify({
+        "status": "ok",
+        "data": summary
+    })
 
 @client_findings_bp.route("/findings", methods=["GET"])
 @jwt_required()
