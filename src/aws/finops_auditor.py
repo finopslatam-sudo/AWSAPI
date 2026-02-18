@@ -1,9 +1,18 @@
 import boto3
 from botocore.exceptions import ClientError
 from src.aws.sts_service import STSService
+
+# Audits existentes
 from src.aws.audits.ec2_audit import EC2Audit
 from src.aws.audits.ebs_audit import EBSAudit
 from src.aws.audits.tag_audit import TagAudit
+
+# 🔥 Nuevos audits agregados
+from src.aws.audits.s3_audit import S3Audit
+from src.aws.audits.snapshot_audit import SnapshotAudit
+from src.aws.audits.eip_audit import EIPAudit
+from src.aws.audits.elb_audit import ELBAudit
+
 
 class FinOpsAuditor:
 
@@ -37,7 +46,13 @@ class FinOpsAuditor:
         audits = [
             EC2Audit(session, client_id, aws_account),
             EBSAudit(session, client_id, aws_account),
-            TagAudit(session, client_id, aws_account)
+            TagAudit(session, client_id, aws_account),
+
+            # 🔥 Nuevos audits
+            S3Audit(session, client_id, aws_account),
+            SnapshotAudit(session, client_id, aws_account),
+            EIPAudit(session, client_id, aws_account),
+            ELBAudit(session, client_id, aws_account),
         ]
 
         total_findings = 0
