@@ -1,4 +1,4 @@
-from app import app
+from src.app import app
 from src.models.aws_account import AWSAccount
 from src.aws.finops_auditor import FinOpsAuditor
 from src.aws.sts_service import STSService
@@ -6,7 +6,6 @@ import boto3
 import os
 from datetime import date
 from dateutil.relativedelta import relativedelta
-
 
 print("FINOPS_AWS_ACCESS_KEY_ID:", os.getenv("FINOPS_AWS_ACCESS_KEY_ID"))
 print("FINOPS_AWS_SECRET_ACCESS_KEY:", os.getenv("FINOPS_AWS_SECRET_ACCESS_KEY"))
