@@ -2,7 +2,7 @@ from sqlalchemy import func
 from src.models.aws_finding import AWSFinding
 from src.models.aws_account import AWSAccount
 from src.models.database import db
-
+from src.aws.cost_explorer_service import CostExplorerService
 
 class ClientDashboardService:
 
@@ -62,4 +62,24 @@ class ClientDashboardService:
             "accounts": accounts_count,
             "last_sync": last_sync.isoformat() if last_sync else None,
             "resources_affected": resources_affected
+        }
+    @staticmethod
+    def get_cost_data(client_id: int):
+
+        aws_account = AWSAccount.query.filter_by(
+            client_id=client_id,
+            is_active=True
+        ).first()
+
+        if not aws_account:
+            return {
+                "monthly_cost": [],
+                "service_breakdown": []
+            }
+
+        ce = CostExplorerService(aws_account)
+
+        return {
+            "monthly_cost": ce.get_last_6_months_cost(),
+            "service_breakdown": ce.get_service_breakdown_current_month()
         }

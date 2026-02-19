@@ -127,4 +127,25 @@ def resolve_finding(finding_id):
             "resolved_by": finding.resolved_by
         }
     })
+@client_findings_bp.route("/dashboard/costs", methods=["GET"])
+@jwt_required()
+def get_dashboard_costs():
+
+    identity = get_jwt_identity()
+    user = User.query.get(identity)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    if user.client_role not in ["owner", "finops_admin", "viewer"]:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    from src.services.client_dashboard_service import ClientDashboardService
+
+    data = ClientDashboardService.get_cost_data(user.client_id)
+
+    return jsonify({
+        "status": "ok",
+        "data": data
+    })
 
