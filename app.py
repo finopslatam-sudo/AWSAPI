@@ -39,8 +39,7 @@ CORS(
                 "Authorization"
             ],
         }
-    },
-    supports_credentials=True
+    }
 )
 
 # =====================================================
