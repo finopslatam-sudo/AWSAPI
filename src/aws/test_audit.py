@@ -1,4 +1,4 @@
-from src.app import app
+from app import app
 from src.models.aws_account import AWSAccount
 from src.aws.finops_auditor import FinOpsAuditor
 from src.aws.sts_service import STSService
