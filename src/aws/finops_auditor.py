@@ -12,7 +12,7 @@ from src.aws.audits.s3_audit import S3Audit
 from src.aws.audits.snapshot_audit import SnapshotAudit
 from src.aws.audits.eip_audit import EIPAudit
 from src.aws.audits.elb_audit import ELBAudit
-
+from src.aws.inventory_scanner import InventoryScanner
 
 class FinOpsAuditor:
 
@@ -66,6 +66,15 @@ class FinOpsAuditor:
                 print(f"[AWS ERROR] {audit.__class__.__name__}: {str(e)}")
             except Exception as e:
                 print(f"[INTERNAL ERROR] {audit.__class__.__name__}: {str(e)}")
+                
+            # ================================
+            # INVENTORY SCAN
+            # ================================
+            try:
+                scanner = InventoryScanner(session, client_id, aws_account)
+                scanner.run()
+            except Exception as e:
+                print(f"[INVENTORY ERROR]: {str(e)}")
 
         return {
             "status": "ok",
