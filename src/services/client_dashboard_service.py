@@ -122,3 +122,26 @@ class ClientDashboardService:
             "potential_savings": float(savings),
             "savings_percentage": round(savings_percentage, 2)
         }
+    
+        @staticmethod
+        def get_inventory_summary(client_id: int):
+
+            findings = db.session.query(
+                AWSFinding.resource_type,
+                func.count(AWSFinding.id)
+            ).filter_by(
+                client_id=client_id,
+                resolved=False
+            ).group_by(
+                AWSFinding.resource_type
+            ).all()
+
+            services = [
+                {
+                    "service": resource_type,
+                    "active_findings": count
+                }
+                for resource_type, count in findings
+            ]
+
+            return services

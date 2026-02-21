@@ -27,10 +27,14 @@ def get_dashboard_summary():
         return jsonify({"error": "Unauthorized"}), 403
 
     summary = ClientDashboardService.get_summary(user.client_id)
+    inventory = ClientDashboardService.get_inventory_summary(user.client_id)
 
     return jsonify({
         "status": "ok",
-        "data": summary
+        "data": {
+            **summary,
+            "inventory": inventory
+        }
     })
 
 @client_findings_bp.route("/findings", methods=["GET"])
