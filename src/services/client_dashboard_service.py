@@ -82,7 +82,19 @@ class ClientDashboardService:
 
         ce = CostExplorerService(aws_account)
 
-        monthly_cost = ce.get_last_6_months_cost()
+        monthly_cost_raw = ce.get_last_6_months_cost()
+
+        # Normalización defensiva extra
+        monthly_cost = []
+        for item in monthly_cost_raw:
+            amount = float(item["amount"])
+            if abs(amount) < 0.01:
+                amount = 0.0
+
+            monthly_cost.append({
+                "month": item["month"],
+                "amount": amount
+            })
         service_breakdown = ce.get_service_breakdown_current_month()
 
         raw_current_month_cost = monthly_cost[-1]["amount"] if monthly_cost else 0
