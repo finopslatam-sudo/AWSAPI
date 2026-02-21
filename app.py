@@ -91,7 +91,9 @@ from src.routes.admin_users_routes import admin_users_bp
 from src.routes.aws_test_routes import aws_test_bp
 from src.routes.client_findings_routes import client_findings_bp
 from src.routes.me_routes import me_bp
+from src.routes.client_audit_routes import client_audit_bp
 
+app.register_blueprint(client_audit_bp)
 app.register_blueprint(me_bp)
 app.register_blueprint(client_findings_bp)
 app.register_blueprint(contact_bp)
