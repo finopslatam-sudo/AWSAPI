@@ -66,9 +66,16 @@ class CostExplorerService:
 
         if response["ResultsByTime"]:
             for group in response["ResultsByTime"][0]["Groups"]:
+
+                amount = float(group["Metrics"]["UnblendedCost"]["Amount"])
+
+                # Normalización AWS floating noise
+                if abs(amount) < 0.01:
+                    amount = 0.0
+
                 breakdown.append({
                     "service": group["Keys"][0],
-                    "amount": float(group["Metrics"]["UnblendedCost"]["Amount"])
+                    "amount": amount
                 })
 
         return breakdown

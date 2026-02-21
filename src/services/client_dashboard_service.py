@@ -85,7 +85,10 @@ class ClientDashboardService:
         monthly_cost = ce.get_last_6_months_cost()
         service_breakdown = ce.get_service_breakdown_current_month()
 
-        current_month_cost = monthly_cost[-1]["amount"] if monthly_cost else 0
+        raw_current_month_cost = monthly_cost[-1]["amount"] if monthly_cost else 0
+
+        # Normalización financiera (evita residuos flotantes AWS)
+        current_month_cost = 0 if abs(raw_current_month_cost) < 0.01 else float(raw_current_month_cost)
 
         # Obtener ahorro potencial desde findings
         savings = db.session.query(
@@ -95,10 +98,10 @@ class ClientDashboardService:
             resolved=False
         ).scalar() or 0
 
-        savings_percentage = (
-            (float(savings) / current_month_cost) * 100
-            if current_month_cost > 0 else 0
-        )
+        if current_month_cost <= 0:
+            savings_percentage = 0
+        else:
+            savings_percentage = round((float(savings) / current_month_cost) * 100, 2)
 
         return {
             "monthly_cost": monthly_cost,
