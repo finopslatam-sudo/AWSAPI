@@ -140,12 +140,9 @@ def get_dashboard_costs():
     if user.client_role not in ["owner", "finops_admin", "viewer"]:
         return jsonify({"error": "Unauthorized"}), 403
 
-    from src.services.client_dashboard_service import ClientDashboardService
-
     data = ClientDashboardService.get_cost_data(user.client_id)
 
     return jsonify({
         "status": "ok",
         "data": data
     })
-

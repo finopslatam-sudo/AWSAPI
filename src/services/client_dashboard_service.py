@@ -74,12 +74,36 @@ class ClientDashboardService:
         if not aws_account:
             return {
                 "monthly_cost": [],
-                "service_breakdown": []
+                "service_breakdown": [],
+                "current_month_cost": 0,
+                "potential_savings": 0,
+                "savings_percentage": 0
             }
 
         ce = CostExplorerService(aws_account)
 
+        monthly_cost = ce.get_last_6_months_cost()
+        service_breakdown = ce.get_service_breakdown_current_month()
+
+        current_month_cost = monthly_cost[-1]["amount"] if monthly_cost else 0
+
+        # Obtener ahorro potencial desde findings
+        savings = db.session.query(
+            func.sum(AWSFinding.estimated_monthly_savings)
+        ).filter_by(
+            client_id=client_id,
+            resolved=False
+        ).scalar() or 0
+
+        savings_percentage = (
+            (float(savings) / current_month_cost) * 100
+            if current_month_cost > 0 else 0
+        )
+
         return {
-            "monthly_cost": ce.get_last_6_months_cost(),
-            "service_breakdown": ce.get_service_breakdown_current_month()
+            "monthly_cost": monthly_cost,
+            "service_breakdown": service_breakdown,
+            "current_month_cost": float(current_month_cost),
+            "potential_savings": float(savings),
+            "savings_percentage": round(savings_percentage, 2)
         }
