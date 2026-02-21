@@ -26,7 +26,7 @@ class AWSResourceInventory(db.Model):
     state = db.Column(db.String(50))
 
     tags = db.Column(db.JSON)
-    metadata = db.Column(db.JSON)
+    resource_metadata = db.Column(db.JSON)
 
     detected_at = db.Column(db.DateTime)
     last_seen_at = db.Column(db.DateTime)
