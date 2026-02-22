@@ -20,6 +20,7 @@ class TagRules:
         ).all()
 
         findings_created = 0
+        findings_resolved = 0
 
         for resource in resources:
 
@@ -27,16 +28,19 @@ class TagRules:
 
             for required_tag in TagRules.REQUIRED_TAGS:
 
+                finding_type = f"MISSING_TAG_{required_tag.upper()}"
+
+                existing = AWSFinding.query.filter_by(
+                    client_id=client_id,
+                    resource_id=resource.resource_id,
+                    finding_type=finding_type,
+                    resolved=False
+                ).first()
+
+                # ================================
+                # CASO 1: TAG FALTA → CREAR FINDING
+                # ================================
                 if required_tag not in tags:
-
-                    finding_type = f"MISSING_TAG_{required_tag.upper()}"
-
-                    existing = AWSFinding.query.filter_by(
-                        client_id=client_id,
-                        resource_id=resource.resource_id,
-                        finding_type=finding_type,
-                        resolved=False
-                    ).first()
 
                     if existing:
                         continue
@@ -57,6 +61,16 @@ class TagRules:
 
                     db.session.add(finding)
                     findings_created += 1
+
+                # ================================
+                # CASO 2: TAG EXISTE → RESOLVER FINDING
+                # ================================
+                else:
+
+                    if existing:
+                        existing.resolved = True
+                        existing.resolved_at = datetime.utcnow()
+                        findings_resolved += 1
 
         db.session.commit()
 
