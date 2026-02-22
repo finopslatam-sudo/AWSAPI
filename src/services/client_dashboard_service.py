@@ -54,7 +54,7 @@ class ClientDashboardService:
             resolved=False
         ).scalar() or 0
 
-        # ---------------- GOVERNANCE ----------------
+        # ---------------- GOVERNANCE & RISK ----------------
         governance = ClientDashboardService.get_governance_score(client_id)
         risk = ClientDashboardService.get_risk_score(client_id)
 
@@ -66,13 +66,13 @@ class ClientDashboardService:
                 "high": high,
                 "medium": medium,
                 "low": low,
-                "estimated_monthly_savings": float(savings),
-                "risk": risk
+                "estimated_monthly_savings": float(savings)
             },
             "accounts": accounts_count,
             "last_sync": last_sync.isoformat() if last_sync else None,
             "resources_affected": resources_affected,
-            "governance": governance
+            "governance": governance,
+            "risk": risk
         }
 
     # =====================================================
@@ -203,7 +203,7 @@ class ClientDashboardService:
             "compliant_resources": compliant_resources,
             "compliance_percentage": compliance_percentage
         }
-    
+
     # =====================================================
     # RISK SCORE GLOBAL
     # =====================================================
@@ -248,10 +248,7 @@ class ClientDashboardService:
 
         max_risk = total_resources * 5
 
-        if max_risk == 0:
-            risk_score = 100.0
-        else:
-            risk_score = 100 - ((risk_points / max_risk) * 100)
+        risk_score = 100 - ((risk_points / max_risk) * 100) if max_risk else 100
 
         return {
             "risk_score": round(risk_score, 2),
