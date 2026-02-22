@@ -58,6 +58,7 @@ class ClientDashboardService:
         governance = ClientDashboardService.get_governance_score(client_id)
         risk = ClientDashboardService.get_risk_score(client_id)
         risk_by_service = ClientDashboardService.get_risk_breakdown_by_service(client_id)
+        priority_services = ClientDashboardService.get_priority_services(client_id)
 
         return {
             "findings": {
@@ -74,7 +75,8 @@ class ClientDashboardService:
             "resources_affected": resources_affected,
             "governance": governance,
             "risk": risk,
-            "risk_by_service": risk_by_service
+            "risk_by_service": risk_by_service,
+            "priority_services": priority_services
         }
 
     # =====================================================
@@ -345,3 +347,37 @@ class ClientDashboardService:
             }
 
         return breakdown
+    
+    # =====================================================
+    # SERVICE PRIORITIZATION ENGINE
+    # =====================================================
+    @staticmethod
+    def get_priority_services(client_id: int):
+
+        breakdown = ClientDashboardService.get_risk_breakdown_by_service(client_id)
+
+        services_list = []
+
+        for service, data in breakdown.items():
+            services_list.append({
+                "service": service,
+                "risk_score": data["risk_score"],
+                "risk_level": data["risk_level"],
+                "high": data["high"],
+                "medium": data["medium"],
+                "low": data["low"]
+            })
+
+        # Ordenamiento inteligente:
+        # 1️⃣ menor risk_score primero
+        # 2️⃣ más HIGH findings
+        # 3️⃣ más MEDIUM findings
+        services_list.sort(
+            key=lambda x: (
+                x["risk_score"],
+                -x["high"],
+                -x["medium"]
+            )
+        )
+
+        return services_list
