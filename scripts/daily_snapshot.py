@@ -1,23 +1,30 @@
 from app import app
+from src.models.client import Client
 from src.models.aws_account import AWSAccount
+from src.aws.finops_auditor import FinOpsAuditor
 from src.services.risk_snapshot_service import RiskSnapshotService
-from src.models.database import db
 
-def run():
+with app.app_context():
 
-    with app.app_context():
+    clients = Client.query.filter_by(is_active=True).all()
 
-        # Obtener clientes únicos con cuentas activas
-        clients = db.session.query(
-            AWSAccount.client_id
-        ).filter_by(
+    for client in clients:
+
+        print(f"\n=== Processing client {client.id} ===")
+
+        accounts = AWSAccount.query.filter_by(
+            client_id=client.id,
             is_active=True
-        ).distinct().all()
+        ).all()
 
-        for (client_id,) in clients:
-            print(f"Creating snapshot for client {client_id}")
-            RiskSnapshotService.create_snapshot(client_id)
+        auditor = FinOpsAuditor()
 
-if __name__ == "__main__":
-    run()
-    
+        # 1️⃣ Ejecutar auditoría por cada cuenta AWS
+        for account in accounts:
+            print(f"Running audit for AWS account {account.id}")
+            auditor.run_comprehensive_audit(client.id, account)
+
+        # 2️⃣ Crear snapshot agregado del cliente
+        RiskSnapshotService.create_snapshot(client.id)
+
+        print(f"Snapshot created for client {client.id}")

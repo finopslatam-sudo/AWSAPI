@@ -61,6 +61,7 @@ class ClientDashboardService:
         priority_services = ClientDashboardService.get_priority_services(client_id)
         executive_summary = ClientDashboardService.get_executive_summary(client_id)
         roi_projection = ClientDashboardService.get_roi_projection(client_id)
+        trend = ClientDashboardService.get_risk_trend(client_id, 30)
 
         return {
             "findings": {
@@ -81,6 +82,7 @@ class ClientDashboardService:
             "priority_services": priority_services,
             "executive_summary": executive_summary,
             "roi_projection": roi_projection,
+            "trend": trend,
         }
 
     # =====================================================
@@ -539,3 +541,34 @@ class ClientDashboardService:
             "projected_governance": projected_governance,
             "high_savings_opportunity": round(high_savings, 2)
         }
+    # =====================================================
+    # HISTORICAL TREND
+    # =====================================================
+    @staticmethod
+    def get_risk_trend(client_id: int, days: int = 30):
+
+        from src.models.risk_snapshot import RiskSnapshot
+        from datetime import datetime, timedelta
+
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
+
+        snapshots = RiskSnapshot.query.filter(
+            RiskSnapshot.client_id == client_id,
+            RiskSnapshot.created_at >= cutoff_date
+        ).order_by(
+            RiskSnapshot.created_at.asc()
+        ).all()
+
+        trend = []
+
+        for snap in snapshots:
+            trend.append({
+                "date": snap.created_at.date().isoformat(),
+                "risk_score": snap.risk_score,
+                "risk_level": snap.risk_level,
+                "governance_percentage": snap.governance_percentage,
+                "financial_exposure": float(snap.financial_exposure),
+                "total_findings": snap.total_findings
+            })
+
+        return trend
