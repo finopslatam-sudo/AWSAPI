@@ -93,7 +93,9 @@ from src.routes.aws_test_routes import aws_test_bp
 from src.routes.client_findings_routes import client_findings_bp
 from src.routes.me_routes import me_bp
 from src.routes.client_audit_routes import client_audit_bp
+from src.routes.client_inventory_routes import client_inventory_bp
 
+app.register_blueprint(client_inventory_bp)
 app.register_blueprint(client_audit_bp)
 app.register_blueprint(me_bp)
 app.register_blueprint(client_findings_bp)
