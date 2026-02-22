@@ -566,9 +566,9 @@ class ClientDashboardService:
         for snap in snapshots:
             trend.append({
                 "date": snap.created_at.date().isoformat(),
-                "risk_score": snap.risk_score,
+                "risk_score": float(snap.risk_score),
                 "risk_level": snap.risk_level,
-                "governance_percentage": snap.governance_percentage,
+                "governance_percentage": float(snap.governance_percentage),
                 "financial_exposure": float(snap.financial_exposure),
                 "total_findings": snap.total_findings
             })
