@@ -11,7 +11,7 @@ from src.aws.audits.eip_audit import EIPAudit
 from src.aws.audits.elb_audit import ELBAudit
 
 from src.aws.inventory_scanner import InventoryScanner
-
+from src.aws.finding_engine.finding_engine import FindingEngine
 
 class FinOpsAuditor:
 
@@ -51,28 +51,41 @@ class FinOpsAuditor:
         # ================================
         # 2️⃣ AUDITS
         # ================================
-        audits = [
-            EC2Audit(session, client_id, aws_account),
-            EBSAudit(session, client_id, aws_account),
-            TagAudit(session, client_id, aws_account),
-            S3Audit(session, client_id, aws_account),
-            SnapshotAudit(session, client_id, aws_account),
-            EIPAudit(session, client_id, aws_account),
-            ELBAudit(session, client_id, aws_account),
-        ]
-
-        total_findings = 0
-
-        for audit in audits:
-            try:
-                created = audit.run()
-                total_findings += created
-            except ClientError as e:
-                print(f"[AWS ERROR] {audit.__class__.__name__}: {str(e)}")
-            except Exception as e:
-                print(f"[INTERNAL ERROR] {audit.__class__.__name__}: {str(e)}")
+#        audits = [
+#            EC2Audit(session, client_id, aws_account),
+#            EBSAudit(session, client_id, aws_account),
+#            TagAudit(session, client_id, aws_account),
+#            S3Audit(session, client_id, aws_account),
+#            SnapshotAudit(session, client_id, aws_account),
+#            EIPAudit(session, client_id, aws_account),
+#            ELBAudit(session, client_id, aws_account),
+#        ]
+#
+#        total_findings = 0
+#
+#        for audit in audits:
+#            try:
+#                created = audit.run()
+#                total_findings += created
+#            except ClientError as e:
+#                print(f"[AWS ERROR] {audit.__class__.__name__}: {str(e)}")
+#            except Exception as e:
+#                print(f"[INTERNAL ERROR] {audit.__class__.__name__}: {str(e)}")
+#
+#        return {
+#            "status": "ok",
+#            "findings_created": total_findings
+#        }
+        # ================================
+        # 2️⃣ FINDING ENGINE (DESACOPLADO)
+        # ================================
+        try:
+            findings_created = FindingEngine.run(client_id)
+        except Exception as e:
+            print(f"[FINDING ENGINE ERROR]: {str(e)}")
+            findings_created = 0
 
         return {
             "status": "ok",
-            "findings_created": total_findings
+            "findings_created": findings_created
         }
