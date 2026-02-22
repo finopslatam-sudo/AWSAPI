@@ -56,6 +56,7 @@ class ClientDashboardService:
 
         # ---------------- GOVERNANCE ----------------
         governance = ClientDashboardService.get_governance_score(client_id)
+        risk = ClientDashboardService.get_risk_score(client_id)
 
         return {
             "findings": {
@@ -65,7 +66,8 @@ class ClientDashboardService:
                 "high": high,
                 "medium": medium,
                 "low": low,
-                "estimated_monthly_savings": float(savings)
+                "estimated_monthly_savings": float(savings),
+                "risk": risk
             },
             "accounts": accounts_count,
             "last_sync": last_sync.isoformat() if last_sync else None,
@@ -200,4 +202,61 @@ class ClientDashboardService:
             "non_compliant_resources": non_compliant_resources,
             "compliant_resources": compliant_resources,
             "compliance_percentage": compliance_percentage
+        }
+    
+    # =====================================================
+    # RISK SCORE GLOBAL
+    # =====================================================
+    @staticmethod
+    def get_risk_score(client_id: int):
+
+        total_resources = db.session.query(
+            AWSResourceInventory.id
+        ).filter_by(
+            client_id=client_id,
+            is_active=True
+        ).count()
+
+        if total_resources == 0:
+            return {
+                "risk_score": 100.0,
+                "risk_points": 0,
+                "high": 0,
+                "medium": 0,
+                "low": 0
+            }
+
+        high = AWSFinding.query.filter_by(
+            client_id=client_id,
+            severity="HIGH",
+            resolved=False
+        ).count()
+
+        medium = AWSFinding.query.filter_by(
+            client_id=client_id,
+            severity="MEDIUM",
+            resolved=False
+        ).count()
+
+        low = AWSFinding.query.filter_by(
+            client_id=client_id,
+            severity="LOW",
+            resolved=False
+        ).count()
+
+        risk_points = (high * 5) + (medium * 3) + (low * 1)
+
+        max_risk = total_resources * 5
+
+        if max_risk == 0:
+            risk_score = 100.0
+        else:
+            risk_score = 100 - ((risk_points / max_risk) * 100)
+
+        return {
+            "risk_score": round(risk_score, 2),
+            "risk_points": risk_points,
+            "high": high,
+            "medium": medium,
+            "low": low
         }
