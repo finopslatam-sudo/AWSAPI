@@ -1,4 +1,5 @@
 from src.aws.finding_engine.ec2_rules import EC2Rules
+from src.aws.finding_engine.ebs_rules import EBSRules
 
 
 class FindingEngine:
@@ -8,7 +9,7 @@ class FindingEngine:
 
         total_findings = 0
 
-        # Ejecutar reglas
         total_findings += EC2Rules.stopped_instances_rule(client_id)
+        total_findings += EBSRules.unattached_volumes_rule(client_id)
 
         return total_findings
