@@ -32,8 +32,10 @@ class InventoryScanner:
         resource_type,
         state=None,
         tags=None,
-        metadata=None
+        resource_metadata=None
     ):
+
+        now = datetime.utcnow()
 
         stmt = insert(AWSResourceInventory).values(
             client_id=self.client_id,
@@ -43,9 +45,9 @@ class InventoryScanner:
             region=self.region,
             state=state,
             tags=tags or {},
-            metadata=metadata or {},
-            detected_at=datetime.utcnow(),
-            last_seen_at=datetime.utcnow(),
+            resource_metadata=resource_metadata or {},
+            detected_at=now,
+            last_seen_at=now,
             is_active=True
         )
 
@@ -54,10 +56,10 @@ class InventoryScanner:
             set_={
                 "state": state,
                 "tags": tags or {},
-                "metadata": metadata or {},
-                "last_seen_at": datetime.utcnow(),
+                "resource_metadata": resource_metadata or {},
+                "last_seen_at": now,
                 "is_active": True,
-                "updated_at": datetime.utcnow()
+                "updated_at": now
             }
         )
 
@@ -84,7 +86,7 @@ class InventoryScanner:
                     resource_type="EC2",
                     state=instance["State"]["Name"],
                     tags=tags,
-                    metadata={
+                    resource_metadata={
                         "instance_type": instance["InstanceType"],
                         "launch_time": str(instance["LaunchTime"])
                     }
@@ -110,7 +112,7 @@ class InventoryScanner:
                 resource_type="EBS",
                 state=volume["State"],
                 tags=tags,
-                metadata={
+                resource_metadata={
                     "size": volume["Size"],
                     "volume_type": volume["VolumeType"]
                 }
@@ -131,7 +133,7 @@ class InventoryScanner:
                 resource_type="S3",
                 state="active",
                 tags={},
-                metadata={
+                resource_metadata={
                     "creation_date": str(bucket["CreationDate"])
                 }
             )
