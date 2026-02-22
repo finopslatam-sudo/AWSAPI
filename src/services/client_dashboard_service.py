@@ -62,6 +62,7 @@ class ClientDashboardService:
         executive_summary = ClientDashboardService.get_executive_summary(client_id)
         roi_projection = ClientDashboardService.get_roi_projection(client_id)
         trend = ClientDashboardService.get_risk_trend(client_id, 30)
+        remediation = ClientDashboardService.get_remediation_metrics(client_id, 30)
 
         return {
             "findings": {
@@ -83,6 +84,7 @@ class ClientDashboardService:
             "executive_summary": executive_summary,
             "roi_projection": roi_projection,
             "trend": trend,
+            "remediation": remediation,
         }
 
     # =====================================================
@@ -572,3 +574,44 @@ class ClientDashboardService:
             })
 
         return trend
+    
+    # =====================================================
+    # REMEDIATION TRACKING
+    # =====================================================
+    @staticmethod
+    def get_remediation_metrics(client_id: int, days: int = 30):
+
+        from datetime import datetime, timedelta
+
+        cutoff = datetime.utcnow() - timedelta(days=days)
+
+        # Findings resueltos en el período
+        resolved_findings = AWSFinding.query.filter(
+            AWSFinding.client_id == client_id,
+            AWSFinding.resolved == True,
+            AWSFinding.resolved_at >= cutoff
+        ).all()
+
+        total_resolved = len(resolved_findings)
+
+        # Ahorro materializado
+        realized_savings = sum(
+            float(f.estimated_monthly_savings or 0)
+            for f in resolved_findings
+        )
+
+        # Resueltos por severidad
+        high = len([f for f in resolved_findings if f.severity == "HIGH"])
+        medium = len([f for f in resolved_findings if f.severity == "MEDIUM"])
+        low = len([f for f in resolved_findings if f.severity == "LOW"])
+
+        return {
+            "period_days": days,
+            "total_resolved": total_resolved,
+            "realized_savings": round(realized_savings, 2),
+            "by_severity": {
+                "high": high,
+                "medium": medium,
+                "low": low
+            }
+        }
