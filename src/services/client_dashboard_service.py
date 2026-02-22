@@ -1,11 +1,16 @@
 from sqlalchemy import func
 from src.models.aws_finding import AWSFinding
 from src.models.aws_account import AWSAccount
+from src.models.aws_resource_inventory import AWSResourceInventory
 from src.models.database import db
 from src.aws.cost_explorer_service import CostExplorerService
 
+
 class ClientDashboardService:
 
+    # =====================================================
+    # SUMMARY GENERAL
+    # =====================================================
     @staticmethod
     def get_summary(client_id: int):
 
@@ -49,6 +54,9 @@ class ClientDashboardService:
             resolved=False
         ).scalar() or 0
 
+        # ---------------- GOVERNANCE ----------------
+        governance = ClientDashboardService.get_governance_score(client_id)
+
         return {
             "findings": {
                 "total": total,
@@ -61,8 +69,13 @@ class ClientDashboardService:
             },
             "accounts": accounts_count,
             "last_sync": last_sync.isoformat() if last_sync else None,
-            "resources_affected": resources_affected
+            "resources_affected": resources_affected,
+            "governance": governance
         }
+
+    # =====================================================
+    # COST DATA
+    # =====================================================
     @staticmethod
     def get_cost_data(client_id: int):
 
@@ -84,7 +97,6 @@ class ClientDashboardService:
 
         monthly_cost_raw = ce.get_last_6_months_cost()
 
-        # Normalización defensiva extra
         monthly_cost = []
         for item in monthly_cost_raw:
             amount = float(item["amount"])
@@ -95,14 +107,12 @@ class ClientDashboardService:
                 "month": item["month"],
                 "amount": amount
             })
+
         service_breakdown = ce.get_service_breakdown_current_month()
 
         raw_current_month_cost = monthly_cost[-1]["amount"] if monthly_cost else 0
-
-        # Normalización financiera (evita residuos flotantes AWS)
         current_month_cost = 0 if abs(raw_current_month_cost) < 0.01 else float(raw_current_month_cost)
 
-        # Obtener ahorro potencial desde findings
         savings = db.session.query(
             func.sum(AWSFinding.estimated_monthly_savings)
         ).filter_by(
@@ -122,6 +132,10 @@ class ClientDashboardService:
             "potential_savings": float(savings),
             "savings_percentage": round(savings_percentage, 2)
         }
+
+    # =====================================================
+    # INVENTORY SUMMARY
+    # =====================================================
     @staticmethod
     def get_inventory_summary(client_id: int):
 
@@ -144,3 +158,46 @@ class ClientDashboardService:
         ]
 
         return services
+
+    # =====================================================
+    # GOVERNANCE SCORE
+    # =====================================================
+    @staticmethod
+    def get_governance_score(client_id: int):
+
+        total_resources = db.session.query(
+            AWSResourceInventory.id
+        ).filter_by(
+            client_id=client_id,
+            is_active=True
+        ).count()
+
+        if total_resources == 0:
+            return {
+                "total_resources": 0,
+                "non_compliant_resources": 0,
+                "compliant_resources": 0,
+                "compliance_percentage": 100.0
+            }
+
+        non_compliant_resources = db.session.query(
+            func.count(func.distinct(AWSFinding.resource_id))
+        ).filter(
+            AWSFinding.client_id == client_id,
+            AWSFinding.resolved == False,
+            AWSFinding.finding_type.like("MISSING_TAG%")
+        ).scalar() or 0
+
+        compliant_resources = total_resources - non_compliant_resources
+
+        compliance_percentage = round(
+            (compliant_resources / total_resources) * 100,
+            2
+        )
+
+        return {
+            "total_resources": total_resources,
+            "non_compliant_resources": non_compliant_resources,
+            "compliant_resources": compliant_resources,
+            "compliance_percentage": compliance_percentage
+        }
