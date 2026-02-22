@@ -2,18 +2,14 @@ import boto3
 from botocore.exceptions import ClientError
 from src.aws.sts_service import STSService
 
-# Audits existentes
 from src.aws.audits.ec2_audit import EC2Audit
 from src.aws.audits.ebs_audit import EBSAudit
 from src.aws.audits.tag_audit import TagAudit
-
-# Nuevos audits
 from src.aws.audits.s3_audit import S3Audit
 from src.aws.audits.snapshot_audit import SnapshotAudit
 from src.aws.audits.eip_audit import EIPAudit
 from src.aws.audits.elb_audit import ELBAudit
 
-# Inventory Scanner
 from src.aws.inventory_scanner import InventoryScanner
 
 
@@ -23,9 +19,6 @@ class FinOpsAuditor:
 
         sts_service = STSService()
 
-        # =====================================================
-        # 1️⃣ ASUMIR ROLE EN CUENTA CLIENTE
-        # =====================================================
         creds = sts_service.assume_role(
             role_arn=aws_account.role_arn,
             external_id=aws_account.external_id,
@@ -39,9 +32,6 @@ class FinOpsAuditor:
                 "findings_created": 0
             }
 
-        # =====================================================
-        # 2️⃣ CREAR SESIÓN TEMPORAL
-        # =====================================================
         session = boto3.Session(
             aws_access_key_id=creds["AccessKeyId"],
             aws_secret_access_key=creds["SecretAccessKey"],
@@ -49,9 +39,18 @@ class FinOpsAuditor:
             region_name="us-east-1"
         )
 
-        # =====================================================
-        # 3️⃣ REGISTRAR AUDITORÍAS ACTIVAS
-        # =====================================================
+        # ================================
+        # 1️⃣ INVENTORY SCAN (PRIMERO)
+        # ================================
+        try:
+            scanner = InventoryScanner(session, client_id, aws_account)
+            scanner.run()
+        except Exception as e:
+            print(f"[INVENTORY ERROR]: {str(e)}")
+
+        # ================================
+        # 2️⃣ AUDITS
+        # ================================
         audits = [
             EC2Audit(session, client_id, aws_account),
             EBSAudit(session, client_id, aws_account),
@@ -64,9 +63,6 @@ class FinOpsAuditor:
 
         total_findings = 0
 
-        # =====================================================
-        # 4️⃣ EJECUTAR AUDITS
-        # =====================================================
         for audit in audits:
             try:
                 created = audit.run()
@@ -76,18 +72,6 @@ class FinOpsAuditor:
             except Exception as e:
                 print(f"[INTERNAL ERROR] {audit.__class__.__name__}: {str(e)}")
 
-        # =====================================================
-        # 5️⃣ INVENTORY SCAN (UNA SOLA VEZ)
-        # =====================================================
-        try:
-            scanner = InventoryScanner(session, client_id, aws_account)
-            scanner.run()
-        except Exception as e:
-            print(f"[INVENTORY ERROR]: {str(e)}")
-
-        # =====================================================
-        # 6️⃣ RETURN RESULTADO
-        # =====================================================
         return {
             "status": "ok",
             "findings_created": total_findings
