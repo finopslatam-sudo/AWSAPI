@@ -51,6 +51,7 @@ from src.models.aws_account import AWSAccount
 from src.models.aws_finding import AWSFinding
 from src.models.tag_policy import TagPolicy
 from src.models.aws_resource_inventory import AWSResourceInventory
+from src.models.risk_snapshot import RiskSnapshot
 
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("SQLALCHEMY_DATABASE_URI")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
