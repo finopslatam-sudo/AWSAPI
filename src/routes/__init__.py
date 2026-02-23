@@ -1,3 +1,2 @@
 from .admin_clients_routes import register_admin_clients_routes
 from .client_audit_routes import client_audit_bp
-from src.routes.client_dashboard_routes import dashboard_bp
