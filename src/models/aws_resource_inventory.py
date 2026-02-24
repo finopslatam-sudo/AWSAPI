@@ -29,6 +29,12 @@ class AWSResourceInventory(db.Model):
         index=True
     )  # EC2, S3, RDS, Lambda
 
+    service_name = db.Column(
+    db.String(50),
+    nullable=False,
+    index=True
+    )
+
     resource_type = db.Column(
         db.String(50),
         nullable=False,
