@@ -1,9 +1,12 @@
+import logging
 from datetime import datetime
 from sqlalchemy.dialects.postgresql import insert
-import boto3
 
 from src.models.database import db
 from src.models.aws_resource_inventory import AWSResourceInventory
+
+
+logger = logging.getLogger(__name__)
 
 
 class InventoryScanner:
@@ -18,45 +21,58 @@ class InventoryScanner:
     # =====================================================
     def run(self):
 
+        logger.info(f"Inventory started | client_id={self.client_id}")
+
         now = datetime.utcnow()
 
-        # 1️⃣ Reconciliation: marcar todo inactivo
-        AWSResourceInventory.query.filter_by(
-            client_id=self.client_id,
-            aws_account_id=self.aws_account.id
-        ).update({
-            "is_active": False,
-            "updated_at": now
-        })
+        try:
+            # 1️⃣ Reconciliation
+            AWSResourceInventory.query.filter_by(
+                client_id=self.client_id,
+                aws_account_id=self.aws_account.id
+            ).update({
+                "is_active": False,
+                "updated_at": now
+            })
 
-        db.session.flush()
+            db.session.flush()
 
-        # 2️⃣ Detectar regiones activas
-        regions = self.get_enabled_regions()
+            # 2️⃣ Regiones activas
+            regions = self.get_enabled_regions()
 
-        # 3️⃣ Escaneo regional
-        for region in regions:
-            self.scan_ec2(region)
-            self.scan_ebs(region)
-            self.scan_rds(region)
-            self.scan_lambda(region)
-            self.scan_dynamodb(region)
-            self.scan_cloudwatch_logs(region)
+            # 3️⃣ Escaneo regional
+            for region in regions:
+                self.scan_ec2(region)
+                self.scan_ebs(region)
+                self.scan_rds(region)
+                self.scan_lambda(region)
+                self.scan_dynamodb(region)
+                self.scan_cloudwatch_logs(region)
 
-        # 4️⃣ Servicios globales
-        self.scan_s3()
+            # 4️⃣ Servicios globales
+            self.scan_s3()
 
-        db.session.commit()
+            logger.info(f"Inventory completed | client_id={self.client_id}")
+
+        except Exception:
+            logger.exception(
+                f"Inventory critical failure | client_id={self.client_id}"
+            )
+            raise  # 🔥 NUNCA ocultar error
 
     # =====================================================
     # REGIONES ACTIVAS
     # =====================================================
     def get_enabled_regions(self):
 
-        ec2 = self.session.client("ec2", region_name="us-east-1")
-        response = ec2.describe_regions(AllRegions=False)
+        try:
+            ec2 = self.session.client("ec2", region_name="us-east-1")
+            response = ec2.describe_regions(AllRegions=False)
+            return [r["RegionName"] for r in response["Regions"]]
 
-        return [r["RegionName"] for r in response["Regions"]]
+        except Exception:
+            logger.exception("Failed to retrieve enabled regions")
+            raise
 
     # =====================================================
     # UPSERT ENTERPRISE
@@ -140,8 +156,10 @@ class InventoryScanner:
                                 "public_ip": instance.get("PublicIpAddress")
                             }
                         )
-        except Exception as e:
-            print(f"[EC2] {region}: {e}")
+
+        except Exception:
+            logger.exception(f"EC2 scan failed | region={region}")
+            raise
 
     # =====================================================
     # EBS
@@ -174,8 +192,10 @@ class InventoryScanner:
                             "encrypted": volume.get("Encrypted")
                         }
                     )
-        except Exception as e:
-            print(f"[EBS] {region}: {e}")
+
+        except Exception:
+            logger.exception(f"EBS scan failed | region={region}")
+            raise
 
     # =====================================================
     # S3 (GLOBAL)
@@ -199,8 +219,10 @@ class InventoryScanner:
                         "creation_date": str(bucket.get("CreationDate"))
                     }
                 )
-        except Exception as e:
-            print(f"[S3] global: {e}")
+
+        except Exception:
+            logger.exception("S3 scan failed")
+            raise
 
     # =====================================================
     # RDS
@@ -229,5 +251,7 @@ class InventoryScanner:
                             "publicly_accessible": db_instance.get("PubliclyAccessible")
                         }
                     )
-        except Exception as e:
-            print(f"[RDS] {region}: {e}")
+
+        except Exception:
+            logger.exception(f"RDS scan failed | region={region}")
+            raise
