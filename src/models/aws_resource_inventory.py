@@ -19,8 +19,27 @@ class AWSResourceInventory(db.Model):
         nullable=False
     )
 
-    resource_id = db.Column(db.String(100), nullable=False)
-    resource_type = db.Column(db.String(50), nullable=False)
+    # =============================
+    # NUEVA ESTRUCTURA CLARA
+    # =============================
+
+    service_name = db.Column(
+        db.String(50),
+        nullable=False,
+        index=True
+    )  # EC2, S3, RDS, Lambda
+
+    resource_type = db.Column(
+        db.String(50),
+        nullable=False,
+        index=True
+    )  # Instance, Volume, Bucket, DBInstance
+
+    resource_id = db.Column(
+        db.String(100),
+        nullable=False,
+        index=True
+    )
 
     region = db.Column(db.String(50))
     state = db.Column(db.String(50))
