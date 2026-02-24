@@ -24,7 +24,7 @@ class InventoryScanner:
         db.session.commit()
 
     # =====================================================
-    # UPSERT CENTRALIZADO (ENTERPRISE SAFE)
+    # UPSERT CENTRALIZADO ENTERPRISE
     # =====================================================
     def upsert_resource(
         self,
@@ -144,7 +144,7 @@ class InventoryScanner:
                 resource_type="Bucket",
                 resource_id=bucket["Name"],
                 state="active",
-                tags={},  # se puede mejorar con get_bucket_tagging
+                tags={},
                 resource_metadata={
                     "creation_date": str(bucket["CreationDate"])
                 }

@@ -15,7 +15,18 @@ client_inventory_bp = Blueprint(
 
 
 # ======================================================
-# GET INVENTORY (ESCALABLE + FILTRABLE + PAGINADO)
+# UTIL — SAFE INT PARSER
+# ======================================================
+
+def safe_int(value, default):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+# ======================================================
+# GET INVENTORY (ENTERPRISE CORRECTO)
 # ======================================================
 
 @client_inventory_bp.route("/inventory", methods=["GET"])
@@ -34,12 +45,16 @@ def get_inventory():
     client_id = user.client_id
 
     # -----------------------------
-    # Query Params
+    # Query Params seguros
     # -----------------------------
 
     service_filter = request.args.get("service")
-    page = int(request.args.get("page", 1))
-    per_page = int(request.args.get("per_page", 50))
+
+    page = safe_int(request.args.get("page"), 1)
+    per_page = safe_int(request.args.get("per_page"), 50)
+
+    # Limitar per_page para evitar abuso
+    per_page = min(max(per_page, 1), 200)
 
     # -----------------------------
     # Base Query
@@ -52,21 +67,21 @@ def get_inventory():
 
     if service_filter:
         base_query = base_query.filter(
-            AWSResourceInventory.resource_type == service_filter
+            AWSResourceInventory.service_name == service_filter
         )
 
     # -----------------------------
-    # Summary por servicio
+    # Summary por servicio (CORRECTO)
     # -----------------------------
 
     summary_query = db.session.query(
-        AWSResourceInventory.resource_type,
+        AWSResourceInventory.service_name,
         func.count(AWSResourceInventory.id)
     ).filter_by(
         client_id=client_id,
         is_active=True
     ).group_by(
-        AWSResourceInventory.resource_type
+        AWSResourceInventory.service_name
     ).all()
 
     summary = {
@@ -78,7 +93,10 @@ def get_inventory():
     # Paginación
     # -----------------------------
 
-    pagination = base_query.paginate(
+    pagination = base_query.order_by(
+        AWSResourceInventory.service_name,
+        AWSResourceInventory.resource_id
+    ).paginate(
         page=page,
         per_page=per_page,
         error_out=False
@@ -87,7 +105,7 @@ def get_inventory():
     inventory_items = pagination.items
 
     # -----------------------------
-    # Findings agregados (1 sola query)
+    # Findings agregados (UNA sola query)
     # -----------------------------
 
     findings_agg = db.session.query(
@@ -121,7 +139,8 @@ def get_inventory():
 
         resources.append({
             "resource_id": item.resource_id,
-            "service_name": item.resource_type,  # hoy resource_type = servicio
+            "service_name": item.service_name,
+            "resource_type": item.resource_type,
             "region": item.region,
             "state": item.state,
             "has_findings": bool(finding_data),
@@ -148,7 +167,7 @@ def get_inventory():
 
 
 # ======================================================
-# GET INVENTORY SERVICES (CARDS ENTERPRISE)
+# GET INVENTORY SERVICES (CARDS)
 # ======================================================
 
 @client_inventory_bp.route("/inventory/services", methods=["GET"])
@@ -167,13 +186,13 @@ def get_inventory_services():
     client_id = user.client_id
 
     services = db.session.query(
-        AWSResourceInventory.resource_type,
+        AWSResourceInventory.service_name,
         func.count(AWSResourceInventory.id)
     ).filter_by(
         client_id=client_id,
         is_active=True
     ).group_by(
-        AWSResourceInventory.resource_type
+        AWSResourceInventory.service_name
     ).all()
 
     return jsonify({
