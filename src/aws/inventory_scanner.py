@@ -9,61 +9,57 @@ from src.models.aws_resource_inventory import AWSResourceInventory
 class InventoryScanner:
 
     def __init__(self, session, client_id, aws_account):
-        self.base_session = session
+        self.session = session
         self.client_id = client_id
         self.aws_account = aws_account
 
     # =====================================================
-    # PUBLIC ENTRYPOINT (MULTI-REGIÓN)
+    # PUBLIC ENTRYPOINT (RECONCILIATION + MULTI REGION)
     # =====================================================
     def run(self):
 
-        # 1️⃣ Marcar todo como inactivo antes de escanear
+        now = datetime.utcnow()
+
+        # 1️⃣ Reconciliation: marcar todo inactivo
         AWSResourceInventory.query.filter_by(
             client_id=self.client_id,
             aws_account_id=self.aws_account.id
         ).update({
             "is_active": False,
-            "updated_at": datetime.utcnow()
+            "updated_at": now
         })
 
-        # 2️⃣ Detectar regiones habilitadas
+        db.session.flush()
+
+        # 2️⃣ Detectar regiones activas
         regions = self.get_enabled_regions()
 
-        # 3️⃣ Escanear servicios regionales
+        # 3️⃣ Escaneo regional
         for region in regions:
-            regional_session = boto3.Session(
-                aws_access_key_id=self.base_session.get_credentials().access_key,
-                aws_secret_access_key=self.base_session.get_credentials().secret_key,
-                aws_session_token=self.base_session.get_credentials().token,
-                region_name=region
-            )
+            self.scan_ec2(region)
+            self.scan_ebs(region)
+            self.scan_rds(region)
+            self.scan_lambda(region)
+            self.scan_dynamodb(region)
+            self.scan_cloudwatch_logs(region)
 
-            self.scan_ec2(regional_session, region)
-            self.scan_ebs(regional_session, region)
-            self.scan_rds(regional_session, region)
-            self.scan_lambda(regional_session, region)
-            self.scan_dynamodb(regional_session, region)
-            self.scan_cloudwatch_logs(regional_session, region)
-
-        # 4️⃣ Escanear servicios globales (una sola vez)
-        self.scan_s3(self.base_session)
+        # 4️⃣ Servicios globales
+        self.scan_s3()
 
         db.session.commit()
 
     # =====================================================
-    # DETECTAR REGIONES ACTIVAS
+    # REGIONES ACTIVAS
     # =====================================================
     def get_enabled_regions(self):
 
-        ec2 = self.base_session.client("ec2", region_name="us-east-1")
-
+        ec2 = self.session.client("ec2", region_name="us-east-1")
         response = ec2.describe_regions(AllRegions=False)
 
         return [r["RegionName"] for r in response["Regions"]]
 
     # =====================================================
-    # UPSERT
+    # UPSERT ENTERPRISE
     # =====================================================
     def upsert_resource(
         self,
@@ -113,197 +109,125 @@ class InventoryScanner:
         db.session.execute(stmt)
 
     # =====================================================
-    # EC2 (REGIONAL)
+    # EC2
     # =====================================================
-    def scan_ec2(self, session, region):
+    def scan_ec2(self, region):
 
-        ec2 = session.client("ec2")
-        paginator = ec2.get_paginator("describe_instances")
+        try:
+            ec2 = self.session.client("ec2", region_name=region)
+            paginator = ec2.get_paginator("describe_instances")
 
-        for page in paginator.paginate():
-            for reservation in page.get("Reservations", []):
-                for instance in reservation.get("Instances", []):
+            for page in paginator.paginate():
+                for reservation in page.get("Reservations", []):
+                    for instance in reservation.get("Instances", []):
+
+                        tags = {
+                            tag["Key"]: tag["Value"]
+                            for tag in instance.get("Tags", [])
+                        }
+
+                        self.upsert_resource(
+                            service_name="EC2",
+                            resource_type="Instance",
+                            resource_id=instance["InstanceId"],
+                            region=region,
+                            state=instance.get("State", {}).get("Name"),
+                            tags=tags,
+                            resource_metadata={
+                                "instance_type": instance.get("InstanceType"),
+                                "availability_zone": instance.get("Placement", {}).get("AvailabilityZone"),
+                                "private_ip": instance.get("PrivateIpAddress"),
+                                "public_ip": instance.get("PublicIpAddress")
+                            }
+                        )
+        except Exception as e:
+            print(f"[EC2] {region}: {e}")
+
+    # =====================================================
+    # EBS
+    # =====================================================
+    def scan_ebs(self, region):
+
+        try:
+            ec2 = self.session.client("ec2", region_name=region)
+            paginator = ec2.get_paginator("describe_volumes")
+
+            for page in paginator.paginate():
+                for volume in page.get("Volumes", []):
 
                     tags = {
                         tag["Key"]: tag["Value"]
-                        for tag in instance.get("Tags", [])
+                        for tag in volume.get("Tags", [])
                     }
 
                     self.upsert_resource(
-                        service_name="EC2",
-                        resource_type="Instance",
-                        resource_id=instance["InstanceId"],
+                        service_name="EBS",
+                        resource_type="Volume",
+                        resource_id=volume["VolumeId"],
                         region=region,
-                        state=instance.get("State", {}).get("Name"),
+                        state=volume.get("State"),
                         tags=tags,
                         resource_metadata={
-                            "instance_type": instance.get("InstanceType"),
-                            "availability_zone": instance.get("Placement", {}).get("AvailabilityZone"),
-                            "private_ip": instance.get("PrivateIpAddress"),
-                            "public_ip": instance.get("PublicIpAddress")
+                            "size_gb": volume.get("Size"),
+                            "volume_type": volume.get("VolumeType"),
+                            "availability_zone": volume.get("AvailabilityZone"),
+                            "encrypted": volume.get("Encrypted")
                         }
                     )
-
-    # =====================================================
-    # EBS (REGIONAL)
-    # =====================================================
-    def scan_ebs(self, session, region):
-
-        ec2 = session.client("ec2")
-        paginator = ec2.get_paginator("describe_volumes")
-
-        for page in paginator.paginate():
-            for volume in page.get("Volumes", []):
-
-                tags = {
-                    tag["Key"]: tag["Value"]
-                    for tag in volume.get("Tags", [])
-                }
-
-                self.upsert_resource(
-                    service_name="EBS",
-                    resource_type="Volume",
-                    resource_id=volume["VolumeId"],
-                    region=region,
-                    state=volume.get("State"),
-                    tags=tags,
-                    resource_metadata={
-                        "size_gb": volume.get("Size"),
-                        "volume_type": volume.get("VolumeType"),
-                        "availability_zone": volume.get("AvailabilityZone"),
-                        "encrypted": volume.get("Encrypted")
-                    }
-                )
+        except Exception as e:
+            print(f"[EBS] {region}: {e}")
 
     # =====================================================
     # S3 (GLOBAL)
     # =====================================================
-    def scan_s3(self, session):
+    def scan_s3(self):
 
-        s3 = session.client("s3")
-        buckets = s3.list_buckets()
+        try:
+            s3 = self.session.client("s3")
+            buckets = s3.list_buckets()
 
-        for bucket in buckets.get("Buckets", []):
+            for bucket in buckets.get("Buckets", []):
 
-            self.upsert_resource(
-                service_name="S3",
-                resource_type="Bucket",
-                resource_id=bucket["Name"],
-                region="global",
-                state="active",
-                tags={},
-                resource_metadata={
-                    "creation_date": str(bucket.get("CreationDate"))
-                }
-            )
+                self.upsert_resource(
+                    service_name="S3",
+                    resource_type="Bucket",
+                    resource_id=bucket["Name"],
+                    region="global",
+                    state="active",
+                    tags={},
+                    resource_metadata={
+                        "creation_date": str(bucket.get("CreationDate"))
+                    }
+                )
+        except Exception as e:
+            print(f"[S3] global: {e}")
 
     # =====================================================
     # RDS
     # =====================================================
-    def scan_rds(self, session, region):
-
-        rds = session.client("rds", region_name=region)
-        response = rds.describe_db_instances()
-
-        for db_instance in response.get("DBInstances", []):
-
-            self.upsert_resource(
-                service_name="RDS",
-                resource_type="DBInstance",
-                resource_id=db_instance["DBInstanceIdentifier"],
-                region=region,
-                state=db_instance["DBInstanceStatus"],
-                tags={},  # se pueden agregar luego con list_tags
-                resource_metadata={
-                    "engine": db_instance.get("Engine"),
-                    "instance_class": db_instance.get("DBInstanceClass"),
-                    "allocated_storage": db_instance.get("AllocatedStorage"),
-                    "multi_az": db_instance.get("MultiAZ"),
-                    "publicly_accessible": db_instance.get("PubliclyAccessible")
-                }
-            )
-    # =====================================================
-    # LAMBDA
-    # =====================================================
-    def scan_lambda(self, session, region):
+    def scan_rds(self, region):
 
         try:
-            lambda_client = session.client("lambda", region_name=region)
-            response = lambda_client.list_functions()
+            rds = self.session.client("rds", region_name=region)
+            paginator = rds.get_paginator("describe_db_instances")
 
-            for function in response.get("Functions", []):
+            for page in paginator.paginate():
+                for db_instance in page.get("DBInstances", []):
 
-                self.upsert_resource(
-                    service_name="Lambda",
-                    resource_type="Function",
-                    resource_id=function["FunctionName"],
-                    region=region,
-                    state="active",
-                    tags={},  # opcional expandir con list_tags
-                    resource_metadata={
-                        "runtime": function.get("Runtime"),
-                        "memory_size": function.get("MemorySize"),
-                        "timeout": function.get("Timeout"),
-                        "last_modified": function.get("LastModified")
-                    }
-                )
-
+                    self.upsert_resource(
+                        service_name="RDS",
+                        resource_type="DBInstance",
+                        resource_id=db_instance["DBInstanceIdentifier"],
+                        region=region,
+                        state=db_instance.get("DBInstanceStatus"),
+                        tags={},
+                        resource_metadata={
+                            "engine": db_instance.get("Engine"),
+                            "instance_class": db_instance.get("DBInstanceClass"),
+                            "allocated_storage": db_instance.get("AllocatedStorage"),
+                            "multi_az": db_instance.get("MultiAZ"),
+                            "publicly_accessible": db_instance.get("PubliclyAccessible")
+                        }
+                    )
         except Exception as e:
-            print(f"[Lambda] Error in region {region}: {e}")
-
-    # =====================================================
-    # DYNAMODB
-    # =====================================================
-    def scan_dynamodb(self, session, region):
-
-        try:
-            dynamodb = session.client("dynamodb", region_name=region)
-            response = dynamodb.list_tables()
-
-            for table_name in response.get("TableNames", []):
-
-                table_info = dynamodb.describe_table(TableName=table_name)["Table"]
-
-                self.upsert_resource(
-                    service_name="DynamoDB",
-                    resource_type="Table",
-                    resource_id=table_name,
-                    region=region,
-                    state=table_info.get("TableStatus"),
-                    tags={},  # opcional expandir con list_tags
-                    resource_metadata={
-                        "billing_mode": table_info.get("BillingModeSummary", {}).get("BillingMode"),
-                        "item_count": table_info.get("ItemCount"),
-                        "table_size_bytes": table_info.get("TableSizeBytes")
-                    }
-                )
-
-        except Exception as e:
-            print(f"[DynamoDB] Error in region {region}: {e}")
-
-    # =====================================================
-    # CLOUDWATCH LOG GROUPS
-    # =====================================================
-    def scan_cloudwatch_logs(self, session, region):
-
-        try:
-            logs = session.client("logs", region_name=region)
-            response = logs.describe_log_groups()
-
-            for log_group in response.get("logGroups", []):
-
-                self.upsert_resource(
-                    service_name="CloudWatch",
-                    resource_type="LogGroup",
-                    resource_id=log_group["logGroupName"],
-                    region=region,
-                    state="active",
-                    tags={},
-                    resource_metadata={
-                        "retention_in_days": log_group.get("retentionInDays"),
-                        "stored_bytes": log_group.get("storedBytes")
-                    }
-                )
-
-        except Exception as e:
-            print(f"[CloudWatch Logs] Error in region {region}: {e}")
+            print(f"[RDS] {region}: {e}")

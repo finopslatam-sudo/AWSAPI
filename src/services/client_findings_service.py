@@ -1,10 +1,16 @@
-from sqlalchemy import func, or_
-from src.models.aws_finding import AWSFinding
-from src.models.database import db
+from sqlalchemy import func, or_, case, and_
 from datetime import datetime
+
+from src.models.database import db
+from src.models.aws_finding import AWSFinding
+from src.models.aws_resource_inventory import AWSResourceInventory
+
 
 class ClientFindingsService:
 
+    # =====================================================
+    # LIST FINDINGS (ENTERPRISE READY)
+    # =====================================================
     @staticmethod
     def list_findings(
         client_id,
@@ -18,22 +24,36 @@ class ClientFindingsService:
         sort_order="desc"
     ):
 
-        query = AWSFinding.query.filter_by(client_id=client_id)
+        # ---------------- BASE QUERY (JOIN INVENTORY ACTIVO) ----------------
+        query = (
+            db.session.query(AWSFinding)
+            .join(
+                AWSResourceInventory,
+                and_(
+                    AWSFinding.resource_id == AWSResourceInventory.resource_id,
+                    AWSFinding.client_id == AWSResourceInventory.client_id
+                )
+            )
+            .filter(
+                AWSFinding.client_id == client_id,
+                AWSResourceInventory.is_active.is_(True)
+            )
+        )
 
         # ---------------- STATUS FILTER ----------------
         if status == "active":
-            query = query.filter_by(resolved=False)
+            query = query.filter(AWSFinding.resolved.is_(False))
 
         elif status == "resolved":
-            query = query.filter_by(resolved=True)
+            query = query.filter(AWSFinding.resolved.is_(True))
 
         # ---------------- SEVERITY FILTER ----------------
         if severity:
-            query = query.filter_by(severity=severity)
+            query = query.filter(AWSFinding.severity == severity)
 
         # ---------------- FINDING TYPE FILTER ----------------
         if finding_type:
-            query = query.filter_by(finding_type=finding_type)
+            query = query.filter(AWSFinding.finding_type == finding_type)
 
         # ---------------- SEARCH FILTER ----------------
         if search:
@@ -44,19 +64,19 @@ class ClientFindingsService:
                 )
             )
 
-        # ---------------- SORTING (SAFE) ----------------
-        allowed_sort_fields = [
-            "created_at",
-            "detected_at",
-            "severity",
-            "estimated_monthly_savings",
-            "resource_id"
-        ]
+        # ---------------- SAFE SORTING ----------------
+        allowed_sort_fields = {
+            "created_at": AWSFinding.created_at,
+            "detected_at": AWSFinding.detected_at,
+            "severity": AWSFinding.severity,
+            "estimated_monthly_savings": AWSFinding.estimated_monthly_savings,
+            "resource_id": AWSFinding.resource_id
+        }
 
-        if sort_by not in allowed_sort_fields:
-            sort_by = "created_at"
-
-        sort_column = getattr(AWSFinding, sort_by)
+        sort_column = allowed_sort_fields.get(
+            sort_by,
+            AWSFinding.created_at
+        )
 
         if sort_order == "asc":
             query = query.order_by(sort_column.asc())
@@ -94,43 +114,82 @@ class ClientFindingsService:
             ]
         }
 
+    # =====================================================
+    # GLOBAL STATS (1 QUERY - ENTERPRISE)
+    # =====================================================
     @staticmethod
     def get_stats(client_id):
 
-        base_query = AWSFinding.query.filter_by(client_id=client_id)
+        results = (
+            db.session.query(
+                func.count(AWSFinding.id).label("total"),
 
-        total = base_query.count()
-        active = base_query.filter_by(resolved=False).count()
-        resolved = base_query.filter_by(resolved=True).count()
+                func.sum(
+                    case((AWSFinding.resolved.is_(False), 1), else_=0)
+                ).label("active"),
 
-        high = base_query.filter_by(severity="HIGH").count()
-        medium = base_query.filter_by(severity="MEDIUM").count()
-        low = base_query.filter_by(severity="LOW").count()
+                func.sum(
+                    case((AWSFinding.resolved.is_(True), 1), else_=0)
+                ).label("resolved"),
 
-        savings = db.session.query(
-            func.sum(AWSFinding.estimated_monthly_savings)
-        ).filter_by(
-            client_id=client_id,
-            resolved=False
-        ).scalar() or 0
+                func.sum(
+                    case((AWSFinding.severity == "HIGH", 1), else_=0)
+                ).label("high"),
+
+                func.sum(
+                    case((AWSFinding.severity == "MEDIUM", 1), else_=0)
+                ).label("medium"),
+
+                func.sum(
+                    case((AWSFinding.severity == "LOW", 1), else_=0)
+                ).label("low"),
+
+                func.sum(
+                    case(
+                        (AWSFinding.resolved.is_(False),
+                         AWSFinding.estimated_monthly_savings),
+                        else_=0
+                    )
+                ).label("savings")
+            )
+            .join(
+                AWSResourceInventory,
+                and_(
+                    AWSFinding.resource_id == AWSResourceInventory.resource_id,
+                    AWSFinding.client_id == AWSResourceInventory.client_id
+                )
+            )
+            .filter(
+                AWSFinding.client_id == client_id,
+                AWSResourceInventory.is_active.is_(True)
+            )
+            .first()
+        )
 
         return {
-            "total": total,
-            "active": active,
-            "resolved": resolved,
-            "high": high,
-            "medium": medium,
-            "low": low,
-            "estimated_monthly_savings": float(savings)
+            "total": results.total or 0,
+            "active": results.active or 0,
+            "resolved": results.resolved or 0,
+            "high": results.high or 0,
+            "medium": results.medium or 0,
+            "low": results.low or 0,
+            "estimated_monthly_savings": float(results.savings or 0)
         }
 
+    # =====================================================
+    # RESOLVE FINDING (AUDIT READY)
+    # =====================================================
     @staticmethod
     def resolve_finding(client_id, finding_id, user_id):
 
-        finding = AWSFinding.query.filter_by(
-            id=finding_id,
-            client_id=client_id
-        ).first()
+        finding = (
+            db.session.query(AWSFinding)
+            .filter(
+                AWSFinding.id == finding_id,
+                AWSFinding.client_id == client_id
+            )
+            .first()
+        )
 
         if not finding:
             return None
@@ -141,8 +200,8 @@ class ClientFindingsService:
         finding.resolved = True
         finding.resolved_at = datetime.utcnow()
         finding.resolved_by = user_id
+        finding.updated_at = datetime.utcnow()
 
         db.session.commit()
 
         return finding
-

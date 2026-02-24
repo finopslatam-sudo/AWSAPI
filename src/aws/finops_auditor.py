@@ -1,22 +1,23 @@
 import boto3
-from botocore.exceptions import ClientError
+from datetime import datetime
+
 from src.aws.sts_service import STSService
-
-from src.aws.audits.ec2_audit import EC2Audit
-from src.aws.audits.ebs_audit import EBSAudit
-from src.aws.audits.tag_audit import TagAudit
-from src.aws.audits.s3_audit import S3Audit
-from src.aws.audits.snapshot_audit import SnapshotAudit
-from src.aws.audits.eip_audit import EIPAudit
-from src.aws.audits.elb_audit import ELBAudit
-
 from src.aws.inventory_scanner import InventoryScanner
 from src.aws.finding_engine.finding_engine import FindingEngine
+from src.services.risk_snapshot_service import RiskSnapshotService
+from src.models.database import db
+
 
 class FinOpsAuditor:
 
+    # =====================================================
+    # MAIN ORCHESTRATOR (ENTERPRISE SAFE)
+    # =====================================================
     def run_comprehensive_audit(self, client_id, aws_account):
 
+        # ==========================================
+        # 1️⃣ ASSUME ROLE
+        # ==========================================
         sts_service = STSService()
 
         creds = sts_service.assume_role(
@@ -39,51 +40,40 @@ class FinOpsAuditor:
             region_name="us-east-1"
         )
 
-        # ================================
-        # 1️⃣ INVENTORY SCAN (PRIMERO)
-        # ================================
+        findings_created = 0
+
         try:
+            # ==========================================
+            # 2️⃣ INVENTORY RECONCILIATION
+            # ==========================================
             scanner = InventoryScanner(session, client_id, aws_account)
             scanner.run()
-        except Exception as e:
-            print(f"[INVENTORY ERROR]: {str(e)}")
 
-        # ================================
-        # 2️⃣ AUDITS
-        # ================================
-#        audits = [
-#            EC2Audit(session, client_id, aws_account),
-#            EBSAudit(session, client_id, aws_account),
-#            TagAudit(session, client_id, aws_account),
-#            S3Audit(session, client_id, aws_account),
-#            SnapshotAudit(session, client_id, aws_account),
-#            EIPAudit(session, client_id, aws_account),
-#            ELBAudit(session, client_id, aws_account),
-#        ]
-#
-#        total_findings = 0
-#
-#        for audit in audits:
-#            try:
-#                created = audit.run()
-#                total_findings += created
-#            except ClientError as e:
-#                print(f"[AWS ERROR] {audit.__class__.__name__}: {str(e)}")
-#            except Exception as e:
-#                print(f"[INTERNAL ERROR] {audit.__class__.__name__}: {str(e)}")
-#
-#        return {
-#            "status": "ok",
-#            "findings_created": total_findings
-#        }
-        # ================================
-        # 2️⃣ FINDING ENGINE (DESACOPLADO)
-        # ================================
-        try:
+            # ==========================================
+            # 3️⃣ RUN FINDING ENGINE
+            # ==========================================
             findings_created = FindingEngine.run(client_id)
+
+            # ==========================================
+            # 4️⃣ GENERATE RISK SNAPSHOT
+            # ==========================================
+            RiskSnapshotService.create_snapshot(client_id)
+
+            # ==========================================
+            # 5️⃣ UPDATE ACCOUNT LAST SYNC
+            # ==========================================
+            aws_account.last_sync = datetime.utcnow()
+            db.session.commit()
+
         except Exception as e:
-            print(f"[FINDING ENGINE ERROR]: {str(e)}")
-            findings_created = 0
+            db.session.rollback()
+            print(f"[AUDIT PIPELINE ERROR]: {str(e)}")
+
+            return {
+                "status": "error",
+                "message": "Audit execution failed",
+                "findings_created": 0
+            }
 
         return {
             "status": "ok",

@@ -150,3 +150,24 @@ def get_dashboard_costs():
         "status": "ok",
         "data": data
     })
+@client_findings_bp.route("/findings/summary-by-service", methods=["GET"])
+@jwt_required()
+def get_findings_summary_by_service():
+
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user or not user.client_id:
+        return jsonify({
+            "status": "error",
+            "message": "Invalid user"
+        }), 400
+
+    data = ClientFindingsService.get_summary_by_service(
+        client_id=user.client_id
+    )
+
+    return jsonify({
+        "status": "ok",
+        "data": data
+    })
