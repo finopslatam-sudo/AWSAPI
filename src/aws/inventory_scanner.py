@@ -41,6 +41,7 @@ class InventoryScanner:
 
             self.scan_ec2(regional_session, region)
             self.scan_ebs(regional_session, region)
+            self.scan_rds(regional_session, region)
 
         # 4️⃣ Escanear servicios globales (una sola vez)
         self.scan_s3(self.base_session)
@@ -190,5 +191,31 @@ class InventoryScanner:
                 tags={},
                 resource_metadata={
                     "creation_date": str(bucket.get("CreationDate"))
+                }
+            )
+
+    # =====================================================
+    # RDS
+    # =====================================================
+    def scan_rds(self, session, region):
+
+        rds = session.client("rds", region_name=region)
+        response = rds.describe_db_instances()
+
+        for db_instance in response.get("DBInstances", []):
+
+            self.upsert_resource(
+                service_name="RDS",
+                resource_type="DBInstance",
+                resource_id=db_instance["DBInstanceIdentifier"],
+                region=region,
+                state=db_instance["DBInstanceStatus"],
+                tags={},  # se pueden agregar luego con list_tags
+                resource_metadata={
+                    "engine": db_instance.get("Engine"),
+                    "instance_class": db_instance.get("DBInstanceClass"),
+                    "allocated_storage": db_instance.get("AllocatedStorage"),
+                    "multi_az": db_instance.get("MultiAZ"),
+                    "publicly_accessible": db_instance.get("PubliclyAccessible")
                 }
             )
