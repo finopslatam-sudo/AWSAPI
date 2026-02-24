@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
 
@@ -7,8 +7,16 @@ from src.models.user import User
 from src.models.aws_resource_inventory import AWSResourceInventory
 from src.models.aws_finding import AWSFinding
 
-client_inventory_bp = Blueprint("client_inventory", __name__, url_prefix="/api/client")
+client_inventory_bp = Blueprint(
+    "client_inventory",
+    __name__,
+    url_prefix="/api/client"
+)
 
+
+# ======================================================
+# GET INVENTORY (ESCALABLE + FILTRABLE + PAGINADO)
+# ======================================================
 
 @client_inventory_bp.route("/inventory", methods=["GET"])
 @jwt_required()
@@ -18,13 +26,39 @@ def get_inventory():
     user = User.query.get(user_id)
 
     if not user or not user.client_id:
-        return jsonify({"status": "error", "message": "Invalid user"}), 400
+        return jsonify({
+            "status": "error",
+            "message": "Invalid user"
+        }), 400
 
     client_id = user.client_id
 
-    # ================================
-    # SUMMARY POR SERVICIO
-    # ================================
+    # -----------------------------
+    # Query Params
+    # -----------------------------
+
+    service_filter = request.args.get("service")
+    page = int(request.args.get("page", 1))
+    per_page = int(request.args.get("per_page", 50))
+
+    # -----------------------------
+    # Base Query
+    # -----------------------------
+
+    base_query = AWSResourceInventory.query.filter_by(
+        client_id=client_id,
+        is_active=True
+    )
+
+    if service_filter:
+        base_query = base_query.filter(
+            AWSResourceInventory.resource_type == service_filter
+        )
+
+    # -----------------------------
+    # Summary por servicio
+    # -----------------------------
+
     summary_query = db.session.query(
         AWSResourceInventory.resource_type,
         func.count(AWSResourceInventory.id)
@@ -36,43 +70,119 @@ def get_inventory():
     ).all()
 
     summary = {
-        resource_type: count
-        for resource_type, count in summary_query
+        service: count
+        for service, count in summary_query
     }
 
-    # ================================
-    # LISTADO DETALLADO
-    # ================================
-    resources = []
+    # -----------------------------
+    # Paginación
+    # -----------------------------
 
-    inventory_items = AWSResourceInventory.query.filter_by(
+    pagination = base_query.paginate(
+        page=page,
+        per_page=per_page,
+        error_out=False
+    )
+
+    inventory_items = pagination.items
+
+    # -----------------------------
+    # Findings agregados (1 sola query)
+    # -----------------------------
+
+    findings_agg = db.session.query(
+        AWSFinding.resource_id,
+        func.count(AWSFinding.id).label("count"),
+        func.max(AWSFinding.severity).label("max_severity")
+    ).filter_by(
         client_id=client_id,
-        is_active=True
+        resolved=False
+    ).group_by(
+        AWSFinding.resource_id
     ).all()
+
+    findings_map = {
+        f.resource_id: {
+            "count": f.count,
+            "max_severity": f.max_severity
+        }
+        for f in findings_agg
+    }
+
+    # -----------------------------
+    # Construcción respuesta
+    # -----------------------------
+
+    resources = []
 
     for item in inventory_items:
 
-        findings_count = AWSFinding.query.filter_by(
-            client_id=client_id,
-            resource_id=item.resource_id,
-            resolved=False
-        ).count()
+        finding_data = findings_map.get(item.resource_id)
 
         resources.append({
             "resource_id": item.resource_id,
-            "resource_type": item.resource_type,
+            "service_name": item.resource_type,  # hoy resource_type = servicio
             "region": item.region,
             "state": item.state,
-            "has_findings": findings_count > 0,
-            "findings_count": findings_count,
+            "has_findings": bool(finding_data),
+            "findings_count": finding_data["count"] if finding_data else 0,
+            "max_severity": finding_data["max_severity"] if finding_data else None,
             "tags": item.tags,
-            "metadata": item.resource_metadata
+            "detected_at": item.detected_at,
+            "last_seen_at": item.last_seen_at
         })
 
     return jsonify({
         "status": "ok",
         "data": {
             "summary": summary,
-            "resources": resources
+            "resources": resources,
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total": pagination.total,
+                "pages": pagination.pages
+            }
         }
+    })
+
+
+# ======================================================
+# GET INVENTORY SERVICES (CARDS ENTERPRISE)
+# ======================================================
+
+@client_inventory_bp.route("/inventory/services", methods=["GET"])
+@jwt_required()
+def get_inventory_services():
+
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user or not user.client_id:
+        return jsonify({
+            "status": "error",
+            "message": "Invalid user"
+        }), 400
+
+    client_id = user.client_id
+
+    services = db.session.query(
+        AWSResourceInventory.resource_type,
+        func.count(AWSResourceInventory.id)
+    ).filter_by(
+        client_id=client_id,
+        is_active=True
+    ).group_by(
+        AWSResourceInventory.resource_type
+    ).all()
+
+    return jsonify({
+        "status": "ok",
+        "data": [
+            {
+                "service": service,
+                "total_resources": count
+            }
+            for service, count in services
+        ]
     })
