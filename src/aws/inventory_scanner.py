@@ -42,6 +42,9 @@ class InventoryScanner:
             self.scan_ec2(regional_session, region)
             self.scan_ebs(regional_session, region)
             self.scan_rds(regional_session, region)
+            self.scan_lambda(regional_session, region)
+            self.scan_dynamodb(regional_session, region)
+            self.scan_cloudwatch_logs(regional_session, region)
 
         # 4️⃣ Escanear servicios globales (una sola vez)
         self.scan_s3(self.base_session)
@@ -219,3 +222,88 @@ class InventoryScanner:
                     "publicly_accessible": db_instance.get("PubliclyAccessible")
                 }
             )
+    # =====================================================
+    # LAMBDA
+    # =====================================================
+    def scan_lambda(self, session, region):
+
+        try:
+            lambda_client = session.client("lambda", region_name=region)
+            response = lambda_client.list_functions()
+
+            for function in response.get("Functions", []):
+
+                self.upsert_resource(
+                    service_name="Lambda",
+                    resource_type="Function",
+                    resource_id=function["FunctionName"],
+                    region=region,
+                    state="active",
+                    tags={},  # opcional expandir con list_tags
+                    resource_metadata={
+                        "runtime": function.get("Runtime"),
+                        "memory_size": function.get("MemorySize"),
+                        "timeout": function.get("Timeout"),
+                        "last_modified": function.get("LastModified")
+                    }
+                )
+
+        except Exception as e:
+            print(f"[Lambda] Error in region {region}: {e}")
+
+    # =====================================================
+    # DYNAMODB
+    # =====================================================
+    def scan_dynamodb(self, session, region):
+
+        try:
+            dynamodb = session.client("dynamodb", region_name=region)
+            response = dynamodb.list_tables()
+
+            for table_name in response.get("TableNames", []):
+
+                table_info = dynamodb.describe_table(TableName=table_name)["Table"]
+
+                self.upsert_resource(
+                    service_name="DynamoDB",
+                    resource_type="Table",
+                    resource_id=table_name,
+                    region=region,
+                    state=table_info.get("TableStatus"),
+                    tags={},  # opcional expandir con list_tags
+                    resource_metadata={
+                        "billing_mode": table_info.get("BillingModeSummary", {}).get("BillingMode"),
+                        "item_count": table_info.get("ItemCount"),
+                        "table_size_bytes": table_info.get("TableSizeBytes")
+                    }
+                )
+
+        except Exception as e:
+            print(f"[DynamoDB] Error in region {region}: {e}")
+
+    # =====================================================
+    # CLOUDWATCH LOG GROUPS
+    # =====================================================
+    def scan_cloudwatch_logs(self, session, region):
+
+        try:
+            logs = session.client("logs", region_name=region)
+            response = logs.describe_log_groups()
+
+            for log_group in response.get("logGroups", []):
+
+                self.upsert_resource(
+                    service_name="CloudWatch",
+                    resource_type="LogGroup",
+                    resource_id=log_group["logGroupName"],
+                    region=region,
+                    state="active",
+                    tags={},
+                    resource_metadata={
+                        "retention_in_days": log_group.get("retentionInDays"),
+                        "stored_bytes": log_group.get("storedBytes")
+                    }
+                )
+
+        except Exception as e:
+            print(f"[CloudWatch Logs] Error in region {region}: {e}")
