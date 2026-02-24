@@ -1,5 +1,6 @@
 from datetime import datetime
 from sqlalchemy.dialects.postgresql import insert
+import boto3
 
 from src.models.database import db
 from src.models.aws_resource_inventory import AWSResourceInventory
@@ -8,18 +9,16 @@ from src.models.aws_resource_inventory import AWSResourceInventory
 class InventoryScanner:
 
     def __init__(self, session, client_id, aws_account):
-        self.session = session
+        self.base_session = session
         self.client_id = client_id
         self.aws_account = aws_account
-        self.region = session.region_name
 
     # =====================================================
-    # PUBLIC ENTRYPOINT
+    # PUBLIC ENTRYPOINT (MULTI-REGIÓN)
     # =====================================================
     def run(self):
 
-        # 1️⃣ Marcar recursos existentes como inactivos
-        # Esto evita "ghost resources"
+        # 1️⃣ Marcar todo como inactivo antes de escanear
         AWSResourceInventory.query.filter_by(
             client_id=self.client_id,
             aws_account_id=self.aws_account.id
@@ -28,22 +27,46 @@ class InventoryScanner:
             "updated_at": datetime.utcnow()
         })
 
-        # 2️⃣ Ejecutar scans
-        self.scan_ec2()
-        self.scan_ebs()
-        self.scan_s3()
+        # 2️⃣ Detectar regiones habilitadas
+        regions = self.get_enabled_regions()
 
-        # 3️⃣ Commit final
+        # 3️⃣ Escanear servicios regionales
+        for region in regions:
+            regional_session = boto3.Session(
+                aws_access_key_id=self.base_session.get_credentials().access_key,
+                aws_secret_access_key=self.base_session.get_credentials().secret_key,
+                aws_session_token=self.base_session.get_credentials().token,
+                region_name=region
+            )
+
+            self.scan_ec2(regional_session, region)
+            self.scan_ebs(regional_session, region)
+
+        # 4️⃣ Escanear servicios globales (una sola vez)
+        self.scan_s3(self.base_session)
+
         db.session.commit()
 
     # =====================================================
-    # UPSERT CENTRALIZADO ENTERPRISE
+    # DETECTAR REGIONES ACTIVAS
+    # =====================================================
+    def get_enabled_regions(self):
+
+        ec2 = self.base_session.client("ec2", region_name="us-east-1")
+
+        response = ec2.describe_regions(AllRegions=False)
+
+        return [r["RegionName"] for r in response["Regions"]]
+
+    # =====================================================
+    # UPSERT
     # =====================================================
     def upsert_resource(
         self,
         service_name,
         resource_type,
         resource_id,
+        region,
         state=None,
         tags=None,
         resource_metadata=None
@@ -57,7 +80,7 @@ class InventoryScanner:
             service_name=service_name,
             resource_type=resource_type,
             resource_id=resource_id,
-            region=self.region,
+            region=region,
             state=state,
             tags=tags or {},
             resource_metadata=resource_metadata or {},
@@ -73,6 +96,7 @@ class InventoryScanner:
             set_={
                 "service_name": service_name,
                 "resource_type": resource_type,
+                "region": region,
                 "state": state,
                 "tags": tags or {},
                 "resource_metadata": resource_metadata or {},
@@ -85,11 +109,11 @@ class InventoryScanner:
         db.session.execute(stmt)
 
     # =====================================================
-    # EC2
+    # EC2 (REGIONAL)
     # =====================================================
-    def scan_ec2(self):
+    def scan_ec2(self, session, region):
 
-        ec2 = self.session.client("ec2")
+        ec2 = session.client("ec2")
         paginator = ec2.get_paginator("describe_instances")
 
         for page in paginator.paginate():
@@ -105,11 +129,11 @@ class InventoryScanner:
                         service_name="EC2",
                         resource_type="Instance",
                         resource_id=instance["InstanceId"],
+                        region=region,
                         state=instance.get("State", {}).get("Name"),
                         tags=tags,
                         resource_metadata={
                             "instance_type": instance.get("InstanceType"),
-                            "launch_time": str(instance.get("LaunchTime")),
                             "availability_zone": instance.get("Placement", {}).get("AvailabilityZone"),
                             "private_ip": instance.get("PrivateIpAddress"),
                             "public_ip": instance.get("PublicIpAddress")
@@ -117,11 +141,11 @@ class InventoryScanner:
                     )
 
     # =====================================================
-    # EBS
+    # EBS (REGIONAL)
     # =====================================================
-    def scan_ebs(self):
+    def scan_ebs(self, session, region):
 
-        ec2 = self.session.client("ec2")
+        ec2 = session.client("ec2")
         paginator = ec2.get_paginator("describe_volumes")
 
         for page in paginator.paginate():
@@ -136,23 +160,23 @@ class InventoryScanner:
                     service_name="EBS",
                     resource_type="Volume",
                     resource_id=volume["VolumeId"],
+                    region=region,
                     state=volume.get("State"),
                     tags=tags,
                     resource_metadata={
                         "size_gb": volume.get("Size"),
                         "volume_type": volume.get("VolumeType"),
                         "availability_zone": volume.get("AvailabilityZone"),
-                        "encrypted": volume.get("Encrypted"),
-                        "iops": volume.get("Iops")
+                        "encrypted": volume.get("Encrypted")
                     }
                 )
 
     # =====================================================
-    # S3
+    # S3 (GLOBAL)
     # =====================================================
-    def scan_s3(self):
+    def scan_s3(self, session):
 
-        s3 = self.session.client("s3")
+        s3 = session.client("s3")
         buckets = s3.list_buckets()
 
         for bucket in buckets.get("Buckets", []):
@@ -161,8 +185,9 @@ class InventoryScanner:
                 service_name="S3",
                 resource_type="Bucket",
                 resource_id=bucket["Name"],
+                region="global",
                 state="active",
-                tags={},  # opcional: se puede expandir con get_bucket_tagging
+                tags={},
                 resource_metadata={
                     "creation_date": str(bucket.get("CreationDate"))
                 }
