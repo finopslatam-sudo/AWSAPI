@@ -52,29 +52,43 @@ class ClientSnapshotService:
         }
 
     # =====================================================
-    # GET TREND (LAST N DAYS)
+    # GET TREND (GROUPED BY DAY - ENTERPRISE)
     # =====================================================
     @staticmethod
     def get_trend(client_id: int, days: int = 30):
 
+        from sqlalchemy import func
+        from datetime import datetime, timedelta
+
+        cutoff = datetime.utcnow() - timedelta(days=days)
+
+        # Subquery: obtener el último snapshot por día
+        subquery = (
+            db.session.query(
+                func.date(RiskSnapshot.created_at).label("snapshot_date"),
+                func.max(RiskSnapshot.created_at).label("max_created_at")
+            )
+            .filter(
+                RiskSnapshot.client_id == client_id,
+                RiskSnapshot.created_at >= cutoff
+            )
+            .group_by(func.date(RiskSnapshot.created_at))
+            .subquery()
+        )
+
+        # Join con tabla principal para obtener el snapshot completo
         snapshots = (
-            RiskSnapshot.query
-            .filter_by(client_id=client_id)
+            db.session.query(RiskSnapshot)
+            .join(
+                subquery,
+                RiskSnapshot.created_at == subquery.c.max_created_at
+            )
             .order_by(RiskSnapshot.created_at.asc())
             .all()
         )
 
         if not snapshots:
             return []
-
-        # Filtrar manualmente últimos N días
-        from datetime import datetime, timedelta
-        cutoff = datetime.utcnow() - timedelta(days=days)
-
-        filtered = [
-            s for s in snapshots
-            if s.created_at >= cutoff
-        ]
 
         return [
             {
@@ -86,7 +100,7 @@ class ClientSnapshotService:
                 "total_findings": s.total_findings,
                 "total_resources": s.total_resources
             }
-            for s in filtered
+            for s in snapshots
         ]
 
     # =====================================================
