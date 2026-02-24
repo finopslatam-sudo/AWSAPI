@@ -1,5 +1,6 @@
 from datetime import datetime
 from sqlalchemy.dialects.postgresql import insert
+
 from src.models.database import db
 from src.models.aws_resource_inventory import AWSResourceInventory
 
@@ -17,10 +18,22 @@ class InventoryScanner:
     # =====================================================
     def run(self):
 
+        # 1️⃣ Marcar recursos existentes como inactivos
+        # Esto evita "ghost resources"
+        AWSResourceInventory.query.filter_by(
+            client_id=self.client_id,
+            aws_account_id=self.aws_account.id
+        ).update({
+            "is_active": False,
+            "updated_at": datetime.utcnow()
+        })
+
+        # 2️⃣ Ejecutar scans
         self.scan_ec2()
         self.scan_ebs()
         self.scan_s3()
 
+        # 3️⃣ Commit final
         db.session.commit()
 
     # =====================================================
@@ -77,28 +90,31 @@ class InventoryScanner:
     def scan_ec2(self):
 
         ec2 = self.session.client("ec2")
-        response = ec2.describe_instances()
+        paginator = ec2.get_paginator("describe_instances")
 
-        for reservation in response.get("Reservations", []):
-            for instance in reservation.get("Instances", []):
+        for page in paginator.paginate():
+            for reservation in page.get("Reservations", []):
+                for instance in reservation.get("Instances", []):
 
-                tags = {
-                    tag["Key"]: tag["Value"]
-                    for tag in instance.get("Tags", [])
-                }
-
-                self.upsert_resource(
-                    service_name="EC2",
-                    resource_type="Instance",
-                    resource_id=instance["InstanceId"],
-                    state=instance["State"]["Name"],
-                    tags=tags,
-                    resource_metadata={
-                        "instance_type": instance["InstanceType"],
-                        "launch_time": str(instance["LaunchTime"]),
-                        "availability_zone": instance["Placement"]["AvailabilityZone"]
+                    tags = {
+                        tag["Key"]: tag["Value"]
+                        for tag in instance.get("Tags", [])
                     }
-                )
+
+                    self.upsert_resource(
+                        service_name="EC2",
+                        resource_type="Instance",
+                        resource_id=instance["InstanceId"],
+                        state=instance.get("State", {}).get("Name"),
+                        tags=tags,
+                        resource_metadata={
+                            "instance_type": instance.get("InstanceType"),
+                            "launch_time": str(instance.get("LaunchTime")),
+                            "availability_zone": instance.get("Placement", {}).get("AvailabilityZone"),
+                            "private_ip": instance.get("PrivateIpAddress"),
+                            "public_ip": instance.get("PublicIpAddress")
+                        }
+                    )
 
     # =====================================================
     # EBS
@@ -106,28 +122,30 @@ class InventoryScanner:
     def scan_ebs(self):
 
         ec2 = self.session.client("ec2")
-        response = ec2.describe_volumes()
+        paginator = ec2.get_paginator("describe_volumes")
 
-        for volume in response.get("Volumes", []):
+        for page in paginator.paginate():
+            for volume in page.get("Volumes", []):
 
-            tags = {
-                tag["Key"]: tag["Value"]
-                for tag in volume.get("Tags", [])
-            }
-
-            self.upsert_resource(
-                service_name="EBS",
-                resource_type="Volume",
-                resource_id=volume["VolumeId"],
-                state=volume["State"],
-                tags=tags,
-                resource_metadata={
-                    "size_gb": volume["Size"],
-                    "volume_type": volume["VolumeType"],
-                    "availability_zone": volume["AvailabilityZone"],
-                    "encrypted": volume["Encrypted"]
+                tags = {
+                    tag["Key"]: tag["Value"]
+                    for tag in volume.get("Tags", [])
                 }
-            )
+
+                self.upsert_resource(
+                    service_name="EBS",
+                    resource_type="Volume",
+                    resource_id=volume["VolumeId"],
+                    state=volume.get("State"),
+                    tags=tags,
+                    resource_metadata={
+                        "size_gb": volume.get("Size"),
+                        "volume_type": volume.get("VolumeType"),
+                        "availability_zone": volume.get("AvailabilityZone"),
+                        "encrypted": volume.get("Encrypted"),
+                        "iops": volume.get("Iops")
+                    }
+                )
 
     # =====================================================
     # S3
@@ -144,8 +162,8 @@ class InventoryScanner:
                 resource_type="Bucket",
                 resource_id=bucket["Name"],
                 state="active",
-                tags={},
+                tags={},  # opcional: se puede expandir con get_bucket_tagging
                 resource_metadata={
-                    "creation_date": str(bucket["CreationDate"])
+                    "creation_date": str(bucket.get("CreationDate"))
                 }
             )
