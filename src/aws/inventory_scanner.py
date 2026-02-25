@@ -11,10 +11,9 @@ logger = logging.getLogger(__name__)
 
 class InventoryScanner:
 
-    def __init__(self, session, client_id, aws_account):
-        self.session = session
+    def __init__(self, client_id, aws_account_id):
         self.client_id = client_id
-        self.aws_account = aws_account
+        self.aws_account_id = aws_account_id
 
     # =====================================================
     # PUBLIC ENTRYPOINT (RECONCILIATION + MULTI REGION)
@@ -29,7 +28,7 @@ class InventoryScanner:
             # 1️⃣ Reconciliation
             AWSResourceInventory.query.filter_by(
                 client_id=self.client_id,
-                aws_account_id=self.aws_account.id
+                aws_account_id=self.aws_account_id
             ).update({
                 "is_active": False,
                 "updated_at": now
