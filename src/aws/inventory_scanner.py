@@ -1,9 +1,13 @@
 import logging
 from datetime import datetime
+
+import boto3
 from sqlalchemy.dialects.postgresql import insert
 
 from src.models.database import db
+from src.models.aws_account import AWSAccount
 from src.models.aws_resource_inventory import AWSResourceInventory
+from src.aws.sts_service import STSService
 
 
 logger = logging.getLogger(__name__)
@@ -15,13 +19,29 @@ class InventoryScanner:
         self.client_id = client_id
         self.aws_account_id = aws_account_id
 
+        # 🔹 Cargar cuenta (solo para credenciales)
+        aws_account = AWSAccount.query.get(aws_account_id)
+
+        if not aws_account:
+            raise Exception("AWS account not found")
+
+        # 🔹 Obtener credenciales STS
+        sts_service = STSService(aws_account)
+        credentials = sts_service.assume_role()
+
+        # 🔹 Crear sesión boto3 propia
+        self.aws_session = boto3.Session(
+            aws_access_key_id=credentials["AccessKeyId"],
+            aws_secret_access_key=credentials["SecretAccessKey"],
+            aws_session_token=credentials["SessionToken"],
+        )
+
     # =====================================================
     # PUBLIC ENTRYPOINT (RECONCILIATION + MULTI REGION)
     # =====================================================
     def run(self):
 
         logger.info(f"Inventory started | client_id={self.client_id}")
-
         now = datetime.utcnow()
 
         try:
@@ -52,7 +72,6 @@ class InventoryScanner:
                 self.scan_dynamodb(region)
                 self.scan_cloudwatch_logs(region)
 
-                # 🔥 COMMIT POR REGIÓN
                 db.session.commit()
                 db.session.expunge_all()
 
@@ -70,7 +89,7 @@ class InventoryScanner:
             logger.exception(
                 f"Inventory critical failure | client_id={self.client_id}"
             )
-            raise  # 🔥 NUNCA ocultar error
+            raise
 
     # =====================================================
     # REGIONES ACTIVAS
@@ -78,7 +97,7 @@ class InventoryScanner:
     def get_enabled_regions(self):
 
         try:
-            ec2 = self.session.client("ec2", region_name="us-east-1")
+            ec2 = self.aws_session.client("ec2", region_name="us-east-1")
             response = ec2.describe_regions(AllRegions=False)
             return [r["RegionName"] for r in response["Regions"]]
 
@@ -104,7 +123,7 @@ class InventoryScanner:
 
         stmt = insert(AWSResourceInventory).values(
             client_id=self.client_id,
-            aws_account_id=self.aws_account.id,
+            aws_account_id=self.aws_account_id,
             service_name=service_name,
             resource_type=resource_type,
             resource_id=resource_id,
@@ -142,7 +161,7 @@ class InventoryScanner:
     def scan_ec2(self, region):
 
         try:
-            ec2 = self.session.client("ec2", region_name=region)
+            ec2 = self.aws_session.client("ec2", region_name=region)
             paginator = ec2.get_paginator("describe_instances")
 
             for page in paginator.paginate():
@@ -179,7 +198,7 @@ class InventoryScanner:
     def scan_ebs(self, region):
 
         try:
-            ec2 = self.session.client("ec2", region_name=region)
+            ec2 = self.aws_session.client("ec2", region_name=region)
             paginator = ec2.get_paginator("describe_volumes")
 
             for page in paginator.paginate():
@@ -215,7 +234,7 @@ class InventoryScanner:
     def scan_s3(self):
 
         try:
-            s3 = self.session.client("s3")
+            s3 = self.aws_session.client("s3")
             buckets = s3.list_buckets()
 
             for bucket in buckets.get("Buckets", []):
@@ -242,7 +261,7 @@ class InventoryScanner:
     def scan_rds(self, region):
 
         try:
-            rds = self.session.client("rds", region_name=region)
+            rds = self.aws_session.client("rds", region_name=region)
             paginator = rds.get_paginator("describe_db_instances")
 
             for page in paginator.paginate():
@@ -266,98 +285,4 @@ class InventoryScanner:
 
         except Exception:
             logger.exception(f"RDS scan failed | region={region}")
-            raise
-    # =====================================================
-    # LAMBDA
-    # =====================================================
-    def scan_lambda(self, region):
-
-        try:
-            lambda_client = self.session.client("lambda", region_name=region)
-            paginator = lambda_client.get_paginator("list_functions")
-
-            for page in paginator.paginate():
-                for function in page.get("Functions", []):
-
-                    self.upsert_resource(
-                        service_name="Lambda",
-                        resource_type="Function",
-                        resource_id=function["FunctionName"],
-                        region=region,
-                        state="active",
-                        tags={},  # Lambda requiere llamada extra para tags
-                        resource_metadata={
-                            "runtime": function.get("Runtime"),
-                            "handler": function.get("Handler"),
-                            "memory_size": function.get("MemorySize"),
-                            "timeout": function.get("Timeout"),
-                            "last_modified": function.get("LastModified")
-                        }
-                    )
-
-        except Exception:
-            logger.exception(f"Lambda scan failed | region={region}")
-            raise
-
-    # =====================================================
-    # DYNAMODB
-    # =====================================================
-    def scan_dynamodb(self, region):
-
-        try:
-            dynamodb = self.session.client("dynamodb", region_name=region)
-            paginator = dynamodb.get_paginator("list_tables")
-
-            for page in paginator.paginate():
-                for table_name in page.get("TableNames", []):
-
-                    table = dynamodb.describe_table(TableName=table_name)["Table"]
-
-                    self.upsert_resource(
-                        service_name="DynamoDB",
-                        resource_type="Table",
-                        resource_id=table_name,
-                        region=region,
-                        state=table.get("TableStatus"),
-                        tags={},  # Requiere llamada extra para tags
-                        resource_metadata={
-                            "billing_mode": table.get("BillingModeSummary", {}).get("BillingMode"),
-                            "item_count": table.get("ItemCount"),
-                            "table_size_bytes": table.get("TableSizeBytes"),
-                            "creation_date": str(table.get("CreationDateTime"))
-                        }
-                    )
-
-        except Exception:
-            logger.exception(f"DynamoDB scan failed | region={region}")
-            raise
-
-    # =====================================================
-    # CLOUDWATCH LOGS
-    # =====================================================
-    def scan_cloudwatch_logs(self, region):
-
-        try:
-            logs_client = self.session.client("logs", region_name=region)
-            paginator = logs_client.get_paginator("describe_log_groups")
-
-            for page in paginator.paginate():
-                for log_group in page.get("logGroups", []):
-
-                    self.upsert_resource(
-                        service_name="CloudWatch",
-                        resource_type="LogGroup",
-                        resource_id=log_group["logGroupName"],
-                        region=region,
-                        state="active",
-                        tags={},  # Requiere llamada extra para tags
-                        resource_metadata={
-                            "stored_bytes": log_group.get("storedBytes"),
-                            "retention_days": log_group.get("retentionInDays"),
-                            "creation_time": log_group.get("creationTime")
-                        }
-                    )
-
-        except Exception:
-            logger.exception(f"CloudWatch Logs scan failed | region={region}")
             raise
