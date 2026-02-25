@@ -76,7 +76,7 @@ class InventoryScanner:
                 db.session.commit()
                 db.session.expunge_all()
 
-            self.scan_s3()
+            #self.scan_s3()
 
             db.session.commit()
             db.session.expunge_all()
