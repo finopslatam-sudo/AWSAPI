@@ -31,15 +31,15 @@ class InventoryService:
 
                 # Conteo por severidad
                 func.sum(
-                    case((AWSFinding.severity == "high", 1), else_=0)
+                    case((AWSFinding.severity == "HIGH", 1), else_=0)
                 ).label("high_count"),
 
                 func.sum(
-                    case((AWSFinding.severity == "medium", 1), else_=0)
+                    case((AWSFinding.severity == "MEDIUM", 1), else_=0)
                 ).label("medium_count"),
 
                 func.sum(
-                    case((AWSFinding.severity == "low", 1), else_=0)
+                    case((AWSFinding.severity == "LOW", 1), else_=0)
                 ).label("low_count"),
             )
 
