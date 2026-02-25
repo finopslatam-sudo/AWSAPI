@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 class InventoryScanner:
 
     def __init__(self, client_id, aws_account_id):
-
         self.client_id = client_id
         self.aws_account_id = aws_account_id
 
@@ -24,10 +23,10 @@ class InventoryScanner:
         if not aws_account:
             raise Exception("AWS account not found")
 
-        # 🔹 Obtener credenciales STS (según tu implementación real)
+        # 🔹 Obtener credenciales STS (FORMA CORRECTA)
         sts_service = STSService()
 
-        creds = sts_service.assume_role(
+        credentials = sts_service.assume_role(
             role_arn=aws_account.role_arn,
             external_id=aws_account.external_id,
             session_name="finops-inventory"
@@ -35,9 +34,9 @@ class InventoryScanner:
 
         # 🔹 Crear sesión boto3
         self.aws_session = boto3.Session(
-            aws_access_key_id=creds["AccessKeyId"],
-            aws_secret_access_key=creds["SecretAccessKey"],
-            aws_session_token=creds["SessionToken"],
+            aws_access_key_id=credentials["AccessKeyId"],
+            aws_secret_access_key=credentials["SecretAccessKey"],
+            aws_session_token=credentials["SessionToken"],
         )
 
     # =====================================================
@@ -91,16 +90,12 @@ class InventoryScanner:
             raise
 
     # =====================================================
-    # REGIONS
-    # =====================================================
     def get_enabled_regions(self):
 
         ec2 = self.aws_session.client("ec2", region_name="us-east-1")
         response = ec2.describe_regions(AllRegions=False)
         return [r["RegionName"] for r in response["Regions"]]
 
-    # =====================================================
-    # UPSERT
     # =====================================================
     def upsert_resource(
         self,
@@ -150,7 +145,7 @@ class InventoryScanner:
         db.session.execute(stmt)
 
     # =====================================================
-    # SCANS (solo muestro EC2 como ejemplo, los demás igual)
+    # EC2
     # =====================================================
     def scan_ec2(self, region):
 
@@ -180,3 +175,61 @@ class InventoryScanner:
                             "public_ip": instance.get("PublicIpAddress")
                         }
                     )
+
+    # =====================================================
+    # EBS
+    # =====================================================
+    def scan_ebs(self, region):
+
+        ec2 = self.aws_session.client("ec2", region_name=region)
+        paginator = ec2.get_paginator("describe_volumes")
+
+        for page in paginator.paginate():
+            for volume in page.get("Volumes", []):
+
+                tags = {
+                    tag["Key"]: tag["Value"]
+                    for tag in volume.get("Tags", [])
+                }
+
+                self.upsert_resource(
+                    service_name="EBS",
+                    resource_type="Volume",
+                    resource_id=volume["VolumeId"],
+                    region=region,
+                    state=volume.get("State"),
+                    tags=tags,
+                    resource_metadata={
+                        "size_gb": volume.get("Size"),
+                        "volume_type": volume.get("VolumeType"),
+                        "availability_zone": volume.get("AvailabilityZone"),
+                        "encrypted": volume.get("Encrypted")
+                    }
+                )
+
+    # =====================================================
+    # RDS
+    # =====================================================
+    def scan_rds(self, region):
+
+        rds = self.aws_session.client("rds", region_name=region)
+        paginator = rds.get_paginator("describe_db_instances")
+
+        for page in paginator.paginate():
+            for db_instance in page.get("DBInstances", []):
+
+                self.upsert_resource(
+                    service_name="RDS",
+                    resource_type="DBInstance",
+                    resource_id=db_instance["DBInstanceIdentifier"],
+                    region=region,
+                    state=db_instance.get("DBInstanceStatus"),
+                    tags={},
+                    resource_metadata={
+                        "engine": db_instance.get("Engine"),
+                        "instance_class": db_instance.get("DBInstanceClass"),
+                        "allocated_storage": db_instance.get("AllocatedStorage"),
+                        "multi_az": db_instance.get("MultiAZ"),
+                        "publicly_accessible": db_instance.get("PubliclyAccessible")
+                    }
+                )
