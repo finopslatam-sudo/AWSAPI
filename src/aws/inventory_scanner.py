@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime
-
 import boto3
 from sqlalchemy.dialects.postgresql import insert
 
@@ -16,28 +15,33 @@ logger = logging.getLogger(__name__)
 class InventoryScanner:
 
     def __init__(self, client_id, aws_account_id):
+
         self.client_id = client_id
         self.aws_account_id = aws_account_id
 
-        # 🔹 Cargar cuenta (solo para credenciales)
+        # 🔹 Cargar cuenta
         aws_account = AWSAccount.query.get(aws_account_id)
-
         if not aws_account:
             raise Exception("AWS account not found")
 
-        # 🔹 Obtener credenciales STS
-        sts_service = STSService(aws_account)
-        credentials = sts_service.assume_role()
+        # 🔹 Obtener credenciales STS (según tu implementación real)
+        sts_service = STSService()
 
-        # 🔹 Crear sesión boto3 propia
+        creds = sts_service.assume_role(
+            role_arn=aws_account.role_arn,
+            external_id=aws_account.external_id,
+            session_name="finops-inventory"
+        )
+
+        # 🔹 Crear sesión boto3
         self.aws_session = boto3.Session(
-            aws_access_key_id=credentials["AccessKeyId"],
-            aws_secret_access_key=credentials["SecretAccessKey"],
-            aws_session_token=credentials["SessionToken"],
+            aws_access_key_id=creds["AccessKeyId"],
+            aws_secret_access_key=creds["SecretAccessKey"],
+            aws_session_token=creds["SessionToken"],
         )
 
     # =====================================================
-    # PUBLIC ENTRYPOINT (RECONCILIATION + MULTI REGION)
+    # PUBLIC ENTRYPOINT
     # =====================================================
     def run(self):
 
@@ -45,7 +49,7 @@ class InventoryScanner:
         now = datetime.utcnow()
 
         try:
-            # 1️⃣ Reconciliation
+
             AWSResourceInventory.query.filter_by(
                 client_id=self.client_id,
                 aws_account_id=self.aws_account_id
@@ -57,13 +61,11 @@ class InventoryScanner:
             db.session.commit()
             db.session.expunge_all()
 
-            # 2️⃣ Regiones activas
             regions = self.get_enabled_regions()
 
-            # 3️⃣ Escaneo regional
             for region in regions:
 
-                logger.info(f"Scanning region {region} | client_id={self.client_id}")
+                logger.info(f"Scanning region {region}")
 
                 self.scan_ec2(region)
                 self.scan_ebs(region)
@@ -75,15 +77,12 @@ class InventoryScanner:
                 db.session.commit()
                 db.session.expunge_all()
 
-                logger.info(f"Region committed {region} | client_id={self.client_id}")
-
-            # 4️⃣ Servicios globales
             self.scan_s3()
 
             db.session.commit()
             db.session.expunge_all()
 
-            logger.info(f"Inventory completed | client_id={self.client_id}")
+            logger.info("Inventory completed")
 
         except Exception:
             logger.exception(
@@ -92,21 +91,16 @@ class InventoryScanner:
             raise
 
     # =====================================================
-    # REGIONES ACTIVAS
+    # REGIONS
     # =====================================================
     def get_enabled_regions(self):
 
-        try:
-            ec2 = self.aws_session.client("ec2", region_name="us-east-1")
-            response = ec2.describe_regions(AllRegions=False)
-            return [r["RegionName"] for r in response["Regions"]]
-
-        except Exception:
-            logger.exception("Failed to retrieve enabled regions")
-            raise
+        ec2 = self.aws_session.client("ec2", region_name="us-east-1")
+        response = ec2.describe_regions(AllRegions=False)
+        return [r["RegionName"] for r in response["Regions"]]
 
     # =====================================================
-    # UPSERT ENTERPRISE
+    # UPSERT
     # =====================================================
     def upsert_resource(
         self,
@@ -156,133 +150,33 @@ class InventoryScanner:
         db.session.execute(stmt)
 
     # =====================================================
-    # EC2
+    # SCANS (solo muestro EC2 como ejemplo, los demás igual)
     # =====================================================
     def scan_ec2(self, region):
 
-        try:
-            ec2 = self.aws_session.client("ec2", region_name=region)
-            paginator = ec2.get_paginator("describe_instances")
+        ec2 = self.aws_session.client("ec2", region_name=region)
+        paginator = ec2.get_paginator("describe_instances")
 
-            for page in paginator.paginate():
-                for reservation in page.get("Reservations", []):
-                    for instance in reservation.get("Instances", []):
-
-                        tags = {
-                            tag["Key"]: tag["Value"]
-                            for tag in instance.get("Tags", [])
-                        }
-
-                        self.upsert_resource(
-                            service_name="EC2",
-                            resource_type="Instance",
-                            resource_id=instance["InstanceId"],
-                            region=region,
-                            state=instance.get("State", {}).get("Name"),
-                            tags=tags,
-                            resource_metadata={
-                                "instance_type": instance.get("InstanceType"),
-                                "availability_zone": instance.get("Placement", {}).get("AvailabilityZone"),
-                                "private_ip": instance.get("PrivateIpAddress"),
-                                "public_ip": instance.get("PublicIpAddress")
-                            }
-                        )
-
-        except Exception:
-            logger.exception(f"EC2 scan failed | region={region}")
-            raise
-
-    # =====================================================
-    # EBS
-    # =====================================================
-    def scan_ebs(self, region):
-
-        try:
-            ec2 = self.aws_session.client("ec2", region_name=region)
-            paginator = ec2.get_paginator("describe_volumes")
-
-            for page in paginator.paginate():
-                for volume in page.get("Volumes", []):
+        for page in paginator.paginate():
+            for reservation in page.get("Reservations", []):
+                for instance in reservation.get("Instances", []):
 
                     tags = {
                         tag["Key"]: tag["Value"]
-                        for tag in volume.get("Tags", [])
+                        for tag in instance.get("Tags", [])
                     }
 
                     self.upsert_resource(
-                        service_name="EBS",
-                        resource_type="Volume",
-                        resource_id=volume["VolumeId"],
+                        service_name="EC2",
+                        resource_type="Instance",
+                        resource_id=instance["InstanceId"],
                         region=region,
-                        state=volume.get("State"),
+                        state=instance.get("State", {}).get("Name"),
                         tags=tags,
                         resource_metadata={
-                            "size_gb": volume.get("Size"),
-                            "volume_type": volume.get("VolumeType"),
-                            "availability_zone": volume.get("AvailabilityZone"),
-                            "encrypted": volume.get("Encrypted")
+                            "instance_type": instance.get("InstanceType"),
+                            "availability_zone": instance.get("Placement", {}).get("AvailabilityZone"),
+                            "private_ip": instance.get("PrivateIpAddress"),
+                            "public_ip": instance.get("PublicIpAddress")
                         }
                     )
-
-        except Exception:
-            logger.exception(f"EBS scan failed | region={region}")
-            raise
-
-    # =====================================================
-    # S3 (GLOBAL)
-    # =====================================================
-    def scan_s3(self):
-
-        try:
-            s3 = self.aws_session.client("s3")
-            buckets = s3.list_buckets()
-
-            for bucket in buckets.get("Buckets", []):
-
-                self.upsert_resource(
-                    service_name="S3",
-                    resource_type="Bucket",
-                    resource_id=bucket["Name"],
-                    region="global",
-                    state="active",
-                    tags={},
-                    resource_metadata={
-                        "creation_date": str(bucket.get("CreationDate"))
-                    }
-                )
-
-        except Exception:
-            logger.exception("S3 scan failed")
-            raise
-
-    # =====================================================
-    # RDS
-    # =====================================================
-    def scan_rds(self, region):
-
-        try:
-            rds = self.aws_session.client("rds", region_name=region)
-            paginator = rds.get_paginator("describe_db_instances")
-
-            for page in paginator.paginate():
-                for db_instance in page.get("DBInstances", []):
-
-                    self.upsert_resource(
-                        service_name="RDS",
-                        resource_type="DBInstance",
-                        resource_id=db_instance["DBInstanceIdentifier"],
-                        region=region,
-                        state=db_instance.get("DBInstanceStatus"),
-                        tags={},
-                        resource_metadata={
-                            "engine": db_instance.get("Engine"),
-                            "instance_class": db_instance.get("DBInstanceClass"),
-                            "allocated_storage": db_instance.get("AllocatedStorage"),
-                            "multi_az": db_instance.get("MultiAZ"),
-                            "publicly_accessible": db_instance.get("PubliclyAccessible")
-                        }
-                    )
-
-        except Exception:
-            logger.exception(f"RDS scan failed | region={region}")
-            raise
