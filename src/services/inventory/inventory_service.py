@@ -92,3 +92,85 @@ class InventoryService:
             }
             for r in results
         ]
+    
+# ======================================================
+# RESOURCES BY SERVICE (ENTERPRISE DETAIL)
+# ======================================================
+
+    @staticmethod
+    def get_resources_by_service(client_id, service_name):
+
+        severity_rank = case(
+            (AWSFinding.severity == "LOW", 1),
+            (AWSFinding.severity == "MEDIUM", 2),
+            (AWSFinding.severity == "HIGH", 3),
+            else_=0
+        )
+
+        query = (
+            db.session.query(
+                AWSResourceInventory.resource_id,
+                AWSResourceInventory.resource_type,
+                AWSResourceInventory.region,
+                AWSResourceInventory.state,
+                AWSResourceInventory.detected_at,
+
+                func.count(AWSFinding.id).label("findings_count"),
+
+                func.max(severity_rank).label("max_severity_rank"),
+            )
+            .outerjoin(
+                AWSFinding,
+                and_(
+                    AWSFinding.resource_id == AWSResourceInventory.resource_id,
+                    AWSFinding.client_id == client_id,
+                    AWSFinding.resolved == False
+                )
+            )
+            .filter(
+                AWSResourceInventory.client_id == client_id,
+                AWSResourceInventory.is_active == True,
+                AWSResourceInventory.service_name == service_name
+            )
+            .group_by(
+                AWSResourceInventory.resource_id,
+                AWSResourceInventory.resource_type,
+                AWSResourceInventory.region,
+                AWSResourceInventory.state,
+                AWSResourceInventory.detected_at
+            )
+        )
+
+        results = query.all()
+
+        severity_map = {
+            1: "LOW",
+            2: "MEDIUM",
+            3: "HIGH"
+        }
+
+        now = datetime.utcnow()
+
+        data = []
+
+        for r in results:
+
+            aging_days = (
+                (now - r.detected_at).days
+                if r.detected_at else 0
+            )
+
+            risk_score = (r.max_severity_rank or 0) * (r.findings_count or 0)
+
+            data.append({
+                "resource_id": r.resource_id,
+                "resource_type": r.resource_type,
+                "region": r.region,
+                "state": r.state,
+                "findings_count": r.findings_count or 0,
+                "max_severity": severity_map.get(r.max_severity_rank),
+                "aging_days": aging_days,
+                "risk_score": risk_score
+            })
+
+        return data
