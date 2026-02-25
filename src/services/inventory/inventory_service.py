@@ -250,3 +250,84 @@ class InventoryService:
                 "pages": pagination.pages
             }
         }
+    
+# ======================================================
+# GLOBAL HEALTH SCORE (ENTERPRISE SAFE)
+# ======================================================
+    @staticmethod
+    def get_global_health_score(client_id):
+
+        query = (
+            db.session.query(
+                func.count(func.distinct(AWSResourceInventory.id)).label("total_resources"),
+
+                func.sum(
+                    case((AWSFinding.severity == "HIGH", 1), else_=0)
+                ).label("high_count"),
+
+                func.sum(
+                    case((AWSFinding.severity == "MEDIUM", 1), else_=0)
+                ).label("medium_count"),
+
+                func.sum(
+                    case((AWSFinding.severity == "LOW", 1), else_=0)
+                ).label("low_count"),
+
+                func.count(AWSFinding.id).label("total_findings")
+            )
+            .outerjoin(
+                AWSFinding,
+                and_(
+                    AWSFinding.resource_id == AWSResourceInventory.resource_id,
+                    AWSFinding.client_id == client_id,
+                    AWSFinding.resolved == False
+                )
+            )
+            .filter(
+                AWSResourceInventory.client_id == client_id,
+                AWSResourceInventory.is_active == True
+            )
+        )
+
+        result = query.one()
+
+        total_resources = result.total_resources or 0
+        high = result.high_count or 0
+        medium = result.medium_count or 0
+        low = result.low_count or 0
+        total_findings = result.total_findings or 0
+
+        # ----------------------------
+        # HEALTH SCORE LOGIC
+        # ----------------------------
+
+        risk_points = (high * 10) + (medium * 5) + (low * 2)
+
+        if total_resources > 0:
+            risk_per_resource = risk_points / total_resources
+            health_score = max(0, 100 - (risk_per_resource * 10))
+        else:
+            health_score = 100
+
+        health_score = round(health_score)
+
+        # ----------------------------
+        # RISK LEVEL
+        # ----------------------------
+
+        if health_score >= 85:
+            risk_level = "LOW"
+        elif health_score >= 60:
+            risk_level = "MEDIUM"
+        else:
+            risk_level = "HIGH"
+
+        return {
+            "health_score": health_score,
+            "risk_level": risk_level,
+            "total_resources": total_resources,
+            "total_findings": total_findings,
+            "high": high,
+            "medium": medium,
+            "low": low
+        }
