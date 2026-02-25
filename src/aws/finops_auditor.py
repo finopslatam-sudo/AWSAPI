@@ -8,6 +8,7 @@ from src.aws.inventory_scanner import InventoryScanner
 from src.aws.finding_engine.finding_engine import FindingEngine
 from src.services.risk_snapshot_service import RiskSnapshotService
 from src.models.database import db
+from src.models.aws_account import AWSAccount
 
 
 logger = logging.getLogger(__name__)
@@ -18,10 +19,21 @@ class FinOpsAuditor:
     # =====================================================
     # MAIN ORCHESTRATOR (FULL ENTERPRISE SAFE + TIMING)
     # =====================================================
-    def run_comprehensive_audit(self, client_id, aws_account):
+    def run_comprehensive_audit(self, client_id, aws_account_id):
 
         audit_start = time.time()
         logger.info(f"AUDIT START | client_id={client_id}")
+
+        # 🔥 Resolver AWSAccount dentro del contexto
+        aws_account = AWSAccount.query.get(aws_account_id)
+
+        if not aws_account:
+            logger.error(f"AWSAccount not found | client_id={client_id}")
+            return {
+                "status": "error",
+                "message": "AWS account not found",
+                "findings_created": 0
+            }
 
         # ==========================================
         # 1️⃣ ASSUME ROLE
