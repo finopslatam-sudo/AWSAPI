@@ -66,6 +66,7 @@ class RiskSnapshotService:
 
             existing_snapshot.governance_percentage = governance_data["compliance_percentage"]
             existing_snapshot.financial_exposure = float(financial_exposure)
+            existing_snapshot.created_at = datetime.utcnow()
 
             db.session.commit()
             return existing_snapshot
