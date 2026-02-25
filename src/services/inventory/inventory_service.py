@@ -25,7 +25,7 @@ class InventoryService:
             db.session.query(
                 AWSResourceInventory.service_name.label("service"),
 
-                func.count(AWSResourceInventory.id).label("total_resources"),
+                func.count(func.distinct(AWSResourceInventory.id)).label("total_resources"),
 
                 func.count(AWSFinding.id).label("total_findings"),
 
