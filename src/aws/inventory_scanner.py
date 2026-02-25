@@ -47,47 +47,58 @@ class InventoryScanner:
         logger.info(f"Inventory started | client_id={self.client_id}")
         now = datetime.utcnow()
 
+        # 1️⃣ Desactivar recursos anteriores
+        AWSResourceInventory.query.filter_by(
+            client_id=self.client_id,
+            aws_account_id=self.aws_account_id
+        ).update({
+            "is_active": False,
+            "updated_at": now
+        })
+
+        db.session.commit()
+        db.session.expunge_all()
+
+        # 2️⃣ Obtener regiones
+        regions = self.get_enabled_regions()
+
+        # 3️⃣ Scans regionales protegidos
+        for region in regions:
+
+            logger.info(f"Scanning region {region}")
+
+            services = [
+                ("EC2", self.scan_ec2),
+                ("EBS", self.scan_ebs),
+                ("RDS", self.scan_rds),
+                ("Lambda", self.scan_lambda),
+                ("DynamoDB", self.scan_dynamodb),
+                ("CloudWatchLogs", self.scan_cloudwatch_logs),
+            ]
+
+            for service_name, service_method in services:
+                try:
+                    service_method(region)
+                except Exception:
+                    logger.exception(
+                        f"{service_name} scan failed | region={region} | client_id={self.client_id}"
+                    )
+
+            db.session.commit()
+            db.session.expunge_all()
+
+        # 4️⃣ Servicio global S3
         try:
-
-            AWSResourceInventory.query.filter_by(
-                client_id=self.client_id,
-                aws_account_id=self.aws_account_id
-            ).update({
-                "is_active": False,
-                "updated_at": now
-            })
-
-            db.session.commit()
-            db.session.expunge_all()
-
-            regions = self.get_enabled_regions()
-
-            for region in regions:
-
-                logger.info(f"Scanning region {region}")
-
-                self.scan_ec2(region)
-                self.scan_ebs(region)
-                self.scan_rds(region)
-                self.scan_lambda(region)
-                self.scan_dynamodb(region)
-                self.scan_cloudwatch_logs(region)
-
-                db.session.commit()
-                db.session.expunge_all()
-
-            #self.scan_s3()
-
-            db.session.commit()
-            db.session.expunge_all()
-
-            logger.info("Inventory completed")
-
+            self.scan_s3()
         except Exception:
             logger.exception(
-                f"Inventory critical failure | client_id={self.client_id}"
+                f"S3 scan failed | client_id={self.client_id}"
             )
-            raise
+
+        db.session.commit()
+        db.session.expunge_all()
+
+        logger.info("Inventory completed")
 
     # =====================================================
     def get_enabled_regions(self):
@@ -327,4 +338,35 @@ class InventoryScanner:
         except Exception:
             logger.exception(f"CloudWatch Logs scan failed | region={region}")
             raise
+
+    # =====================================================
+    # S3 (GLOBAL SERVICE)
+    # =====================================================
+    def scan_s3(self):
+
+        s3 = self.aws_session.client("s3")
+        response = s3.list_buckets()
+
+        for bucket in response.get("Buckets", []):
+
+            bucket_name = bucket["Name"]
+
+            # Obtener región del bucket
+            try:
+                location = s3.get_bucket_location(Bucket=bucket_name)
+                region = location.get("LocationConstraint") or "us-east-1"
+            except Exception:
+                region = "unknown"
+
+            self.upsert_resource(
+                service_name="S3",
+                resource_type="Bucket",
+                resource_id=bucket_name,
+                region=region,
+                state="active",
+                tags={},
+                resource_metadata={
+                    "creation_date": str(bucket.get("CreationDate"))
+                }
+            )
     
