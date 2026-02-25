@@ -1,5 +1,6 @@
 import boto3
 import logging
+import time
 from datetime import datetime
 
 from src.aws.sts_service import STSService
@@ -15,16 +16,19 @@ logger = logging.getLogger(__name__)
 class FinOpsAuditor:
 
     # =====================================================
-    # MAIN ORCHESTRATOR (FULL ENTERPRISE SAFE)
+    # MAIN ORCHESTRATOR (FULL ENTERPRISE SAFE + TIMING)
     # =====================================================
     def run_comprehensive_audit(self, client_id, aws_account):
 
-        logger.info(f"Starting audit | client_id={client_id}")
+        audit_start = time.time()
+        logger.info(f"AUDIT START | client_id={client_id}")
 
         # ==========================================
         # 1️⃣ ASSUME ROLE
         # ==========================================
         try:
+            sts_start = time.time()
+
             sts_service = STSService()
 
             creds = sts_service.assume_role(
@@ -48,6 +52,11 @@ class FinOpsAuditor:
                 region_name="us-east-1"
             )
 
+            sts_elapsed = time.time() - sts_start
+            logger.info(
+                f"STS COMPLETED | client_id={client_id} | duration={sts_elapsed:.2f}s"
+            )
+
         except Exception:
             logger.exception(f"STS CRITICAL ERROR | client_id={client_id}")
             db.session.rollback()
@@ -61,10 +70,17 @@ class FinOpsAuditor:
         # 2️⃣ INVENTORY
         # ==========================================
         try:
-            logger.info(f"Inventory scan started | client_id={client_id}")
+            inventory_start = time.time()
+
+            logger.info(f"INVENTORY START | client_id={client_id}")
             scanner = InventoryScanner(session, client_id, aws_account)
             scanner.run()
-            logger.info(f"Inventory scan completed | client_id={client_id}")
+            inventory_elapsed = time.time() - inventory_start
+
+            logger.info(
+                f"INVENTORY COMPLETED | client_id={client_id} | duration={inventory_elapsed:.2f}s"
+            )
+
         except Exception:
             logger.exception(f"INVENTORY ERROR | client_id={client_id}")
             db.session.rollback()
@@ -78,11 +94,17 @@ class FinOpsAuditor:
         # 3️⃣ FINDING ENGINE
         # ==========================================
         try:
-            logger.info(f"Finding engine started | client_id={client_id}")
+            findings_start = time.time()
+
+            logger.info(f"FINDING ENGINE START | client_id={client_id}")
             findings_created = FindingEngine.run(client_id)
+            findings_elapsed = time.time() - findings_start
+
             logger.info(
-                f"Finding engine completed | client_id={client_id} | findings={findings_created}"
+                f"FINDING ENGINE COMPLETED | client_id={client_id} | "
+                f"findings={findings_created} | duration={findings_elapsed:.2f}s"
             )
+
         except Exception:
             logger.exception(f"FINDING ENGINE ERROR | client_id={client_id}")
             db.session.rollback()
@@ -96,9 +118,16 @@ class FinOpsAuditor:
         # 4️⃣ SNAPSHOT GENERATION
         # ==========================================
         try:
-            logger.info(f"Snapshot generation started | client_id={client_id}")
+            snapshot_start = time.time()
+
+            logger.info(f"SNAPSHOT START | client_id={client_id}")
             RiskSnapshotService.create_snapshot(client_id)
-            logger.info(f"Snapshot generation completed | client_id={client_id}")
+            snapshot_elapsed = time.time() - snapshot_start
+
+            logger.info(
+                f"SNAPSHOT COMPLETED | client_id={client_id} | duration={snapshot_elapsed:.2f}s"
+            )
+
         except Exception:
             logger.exception(f"SNAPSHOT ERROR | client_id={client_id}")
             db.session.rollback()
@@ -123,9 +152,15 @@ class FinOpsAuditor:
                 "findings_created": 0
             }
 
-        logger.info(f"Audit completed successfully | client_id={client_id}")
+        audit_elapsed = time.time() - audit_start
+
+        logger.info(
+            f"AUDIT COMPLETED SUCCESSFULLY | client_id={client_id} | "
+            f"total_duration={audit_elapsed:.2f}s"
+        )
 
         return {
             "status": "ok",
-            "findings_created": findings_created
+            "findings_created": findings_created,
+            "duration_seconds": round(audit_elapsed, 2)
         }
