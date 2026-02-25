@@ -39,14 +39,19 @@ def run_client_audit():
     if not aws_account:
         return jsonify({"error": "No active AWS account found"}), 404
 
-    # 🔥 Evitar doble ejecución
+    # 🔥 Evitar doble ejecución simultánea
     if aws_account.audit_status == "running":
         return jsonify({"status": "already_running"}), 200
 
+    # 🔹 Marcar como running
     aws_account.audit_status = "running"
     aws_account.audit_started_at = datetime.utcnow()
+    aws_account.audit_finished_at = None
     db.session.commit()
 
+    # ==========================================
+    # BACKGROUND TASK
+    # ==========================================
     def background_audit(client_id, aws_account_id):
 
         try:
@@ -58,8 +63,10 @@ def run_client_audit():
             account.audit_finished_at = datetime.utcnow()
             db.session.commit()
 
+            logger.info(f"AUDIT COMPLETED | client_id={client_id}")
+
         except Exception:
-            logger.exception("Background audit failed")
+            logger.exception(f"AUDIT FAILED | client_id={client_id}")
 
             account = AWSAccount.query.get(aws_account_id)
             account.audit_status = "failed"
@@ -68,8 +75,10 @@ def run_client_audit():
 
     thread = threading.Thread(
         target=background_audit,
-        args=(user.client_id, aws_account.id)
+        args=(user.client_id, aws_account.id),
+        daemon=True
     )
+
     thread.start()
 
     return jsonify({"status": "started"}), 202
