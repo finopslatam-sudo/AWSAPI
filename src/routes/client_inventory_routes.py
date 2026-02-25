@@ -191,3 +191,30 @@ def get_inventory_services():
         "status": "ok",
         "data": data
     }), 200
+
+# ======================================================
+# GET GLOBAL HEALTH SCORE
+# ======================================================
+@client_inventory_bp.route("/inventory/health", methods=["GET"])
+@jwt_required()
+def get_global_health_score():
+
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user or not user.client_id:
+        return jsonify({
+            "status": "error",
+            "message": "Invalid user"
+        }), 400
+
+    from src.services.inventory.inventory_service import InventoryService
+
+    data = InventoryService.get_global_health_score(
+        client_id=user.client_id
+    )
+
+    return jsonify({
+        "status": "ok",
+        "data": data
+    }), 200
