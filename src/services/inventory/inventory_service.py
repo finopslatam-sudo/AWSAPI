@@ -11,33 +11,26 @@ class InventoryService:
     # ======================================================
     # SERVICES SUMMARY (ENTERPRISE SAFE)
     # ======================================================
-
     @staticmethod
     def get_services_summary(client_id):
+
+        severity_rank = case(
+            (AWSFinding.severity == "LOW", 1),
+            (AWSFinding.severity == "MEDIUM", 2),
+            (AWSFinding.severity == "HIGH", 3),
+            else_=0
+        )
 
         query = (
             db.session.query(
                 AWSResourceInventory.service_name.label("service"),
 
-                # Total recursos activos
-                func.count(
-                    func.distinct(AWSResourceInventory.id)
-                ).label("total_resources"),
+                func.count(AWSResourceInventory.id).label("total_resources"),
 
-                # Total findings abiertos
                 func.count(AWSFinding.id).label("total_findings"),
 
-                # Severidad máxima
-                func.max(
-                    case(
-                        (AWSFinding.severity == "LOW", 1),
-                        (AWSFinding.severity == "MEDIUM", 2),
-                        (AWSFinding.severity == "HIGH", 3),
-                        else_=0
-                    )
-                ).label("max_severity_rank"),
+                func.max(severity_rank).label("max_severity_rank"),
 
-                # Conteo por severidad
                 func.sum(
                     case((AWSFinding.severity == "HIGH", 1), else_=0)
                 ).label("high_count"),
@@ -50,8 +43,6 @@ class InventoryService:
                     case((AWSFinding.severity == "LOW", 1), else_=0)
                 ).label("low_count"),
             )
-
-            # LEFT JOIN CONTROLADO
             .outerjoin(
                 AWSFinding,
                 and_(
@@ -60,44 +51,65 @@ class InventoryService:
                     AWSFinding.resolved == False
                 )
             )
-
-            # Filtros inventario
             .filter(
                 AWSResourceInventory.client_id == client_id,
                 AWSResourceInventory.is_active == True
             )
-
-            .group_by(
-                AWSResourceInventory.service_name
-            )
+            .group_by(AWSResourceInventory.service_name)
         )
 
         results = query.all()
 
-        severity_map = {
-            1: "LOW",
-            2: "MEDIUM",
-            3: "HIGH"
-        }
+        data = []
 
-        return [
-            {
+        for r in results:
+
+            total_resources = r.total_resources or 0
+            high = r.high_count or 0
+            medium = r.medium_count or 0
+            low = r.low_count or 0
+
+            # ----------------------------
+            # HEALTH SCORE LOGIC
+            # ----------------------------
+
+            risk_points = (high * 10) + (medium * 5) + (low * 2)
+
+            if total_resources > 0:
+                risk_per_resource = risk_points / total_resources
+                health_score = max(0, 100 - (risk_per_resource * 10))
+            else:
+                health_score = 100
+
+            health_score = round(health_score)
+
+            # ----------------------------
+            # RISK LEVEL LABEL
+            # ----------------------------
+
+            if health_score >= 85:
+                risk_level = "LOW"
+            elif health_score >= 60:
+                risk_level = "MEDIUM"
+            else:
+                risk_level = "HIGH"
+
+            data.append({
                 "service": r.service,
-                "total_resources": r.total_resources or 0,
+                "total_resources": total_resources,
                 "total_findings": r.total_findings or 0,
-                "max_severity": severity_map.get(r.max_severity_rank),
-                "high": r.high_count or 0,
-                "medium": r.medium_count or 0,
-                "low": r.low_count or 0,
-            }
-            for r in results
-        ]
-    
+                "high": high,
+                "medium": medium,
+                "low": low,
+                "health_score": health_score,
+                "risk_level": risk_level
+            })
 
+        return data
+    
 # ======================================================
 # RESOURCES BY SERVICE (ENTERPRISE HARDENED)
 # ======================================================
-
     @staticmethod
     def get_resources_by_service(
         client_id,

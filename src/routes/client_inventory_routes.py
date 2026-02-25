@@ -195,12 +195,11 @@ def get_inventory_services():
     }), 200
 
 # ======================================================
-# GET INVENTORY RESOURCES (ENTERPRISE HARDENED)
+# GET INVENTORY SERVICES (HEALTH SCORE ENTERPRISE)
 # ======================================================
-
-@client_inventory_bp.route("/inventory/resources", methods=["GET"])
+@client_inventory_bp.route("/inventory/services", methods=["GET"])
 @jwt_required()
-def get_inventory_resources_by_service():
+def get_inventory_services():
 
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
@@ -211,32 +210,13 @@ def get_inventory_resources_by_service():
             "message": "Invalid user"
         }), 400
 
-    service_name = request.args.get("service")
-    min_severity = request.args.get("min_severity")
-    sort = request.args.get("sort", "risk_desc")
-
-    page = int(request.args.get("page", 1))
-    per_page = int(request.args.get("per_page", 50))
-
-    if not service_name:
-        return jsonify({
-            "status": "error",
-            "message": "Missing service parameter"
-        }), 400
-
     from src.services.inventory.inventory_service import InventoryService
 
-    result = InventoryService.get_resources_by_service(
-        client_id=user.client_id,
-        service_name=service_name,
-        min_severity=min_severity,
-        sort=sort,
-        page=page,
-        per_page=per_page
+    data = InventoryService.get_services_summary(
+        client_id=user.client_id
     )
 
     return jsonify({
         "status": "ok",
-        "data": result["items"],
-        "pagination": result["pagination"]
+        "data": data
     }), 200
