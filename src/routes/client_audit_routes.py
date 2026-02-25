@@ -22,63 +22,75 @@ logger = logging.getLogger(__name__)
 @jwt_required()
 def run_client_audit():
 
-    try:
-        identity = get_jwt_identity()
-        user = User.query.get(identity)
+    identity = get_jwt_identity()
+    user = User.query.get(identity)
 
-        if not user:
-            return jsonify({"error": "User not found"}), 404
+    if not user:
+        return jsonify({"error": "User not found"}), 404
 
-        # 🔥 Guardar primitivos ANTES de cualquier commit en auditor
-        client_id = user.client_id
-        client_role = user.client_role
+    if user.client_role not in ["owner", "finops_admin"]:
+        return jsonify({"error": "Unauthorized"}), 403
 
-        if client_role not in ["owner", "finops_admin"]:
-            return jsonify({"error": "Unauthorized"}), 403
+    aws_account = AWSAccount.query.filter_by(
+        client_id=user.client_id,
+        is_active=True
+    ).first()
 
-        aws_account = AWSAccount.query.filter_by(
-            client_id=client_id,
-            is_active=True
-        ).first()
+    if not aws_account:
+        return jsonify({"error": "No active AWS account found"}), 404
 
-        if not aws_account:
-            return jsonify({"error": "No active AWS account found"}), 404
+    # 🔥 Evitar doble ejecución
+    if aws_account.audit_status == "running":
+        return jsonify({"status": "already_running"}), 200
 
-        # 🔥 Guardar id primitivo también
-        aws_account_id = aws_account.id
+    aws_account.audit_status = "running"
+    aws_account.audit_started_at = datetime.utcnow()
+    db.session.commit()
 
-        auditor = FinOpsAuditor()
+    def background_audit(client_id, aws_account_id):
 
-        result = auditor.run_comprehensive_audit(
-            client_id=client_id,
-            aws_account=aws_account
-        )
+        try:
+            auditor = FinOpsAuditor()
+            auditor.run_comprehensive_audit(client_id, aws_account_id)
 
-        if result.get("status") != "ok":
-            logger.error(
-                f"AUDIT FAILED | client_id={client_id} | result={result}"
-            )
-            return jsonify({
-                "status": "error",
-                "message": "Audit execution failed",
-                "details": result
-            }), 500
+            account = AWSAccount.query.get(aws_account_id)
+            account.audit_status = "completed"
+            account.audit_finished_at = datetime.utcnow()
+            db.session.commit()
 
-        # ⚠ Volver a cargar aws_account limpio desde DB
-        fresh_account = AWSAccount.query.get(aws_account_id)
-        fresh_account.last_sync = datetime.utcnow()
-        db.session.commit()
+        except Exception:
+            logger.exception("Background audit failed")
 
-        return jsonify({
-            "status": "ok",
-            "audit_result": result
-        }), 200
+            account = AWSAccount.query.get(aws_account_id)
+            account.audit_status = "failed"
+            account.audit_finished_at = datetime.utcnow()
+            db.session.commit()
 
-    except Exception:
-        logger.exception(
-            f"CRITICAL AUDIT ERROR | client_id={client_id if 'client_id' in locals() else 'unknown'}"
-        )
-        return jsonify({
-            "status": "error",
-            "message": "Unexpected audit failure"
-        }), 500
+    thread = threading.Thread(
+        target=background_audit,
+        args=(user.client_id, aws_account.id)
+    )
+    thread.start()
+
+    return jsonify({"status": "started"}), 202
+
+@client_audit_bp.route("/audit/status", methods=["GET"])
+@jwt_required()
+def audit_status():
+
+    identity = get_jwt_identity()
+    user = User.query.get(identity)
+
+    aws_account = AWSAccount.query.filter_by(
+        client_id=user.client_id,
+        is_active=True
+    ).first()
+
+    if not aws_account:
+        return jsonify({"error": "No AWS account"}), 404
+
+    return jsonify({
+        "status": aws_account.audit_status,
+        "started_at": aws_account.audit_started_at,
+        "finished_at": aws_account.audit_finished_at
+    }), 200
