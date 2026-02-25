@@ -185,23 +185,11 @@ def get_inventory_services():
 
     client_id = user.client_id
 
-    services = db.session.query(
-        AWSResourceInventory.service_name,
-        func.count(AWSResourceInventory.id)
-    ).filter_by(
-        client_id=client_id,
-        is_active=True
-    ).group_by(
-        AWSResourceInventory.service_name
-    ).all()
+    from src.services.inventory.inventory_service import InventoryService
+
+    data = InventoryService.get_services_summary(client_id)
 
     return jsonify({
         "status": "ok",
-        "data": [
-            {
-                "service": service,
-                "total_resources": count
-            }
-            for service, count in services
-        ]
-    })
+        "data": data
+    }), 200

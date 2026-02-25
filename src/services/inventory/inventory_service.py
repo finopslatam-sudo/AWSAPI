@@ -1,0 +1,80 @@
+from sqlalchemy import func, case, and_
+
+from src.models.database import db
+from src.models.aws_resource_inventory import AWSResourceInventory
+from src.models.aws_finding import AWSFinding
+
+
+class InventoryService:
+
+    # ======================================================
+    # SERVICES SUMMARY (ENTERPRISE SAFE)
+    # ======================================================
+
+    @staticmethod
+    def get_services_summary(client_id):
+
+        query = (
+            db.session.query(
+                AWSResourceInventory.service_name.label("service"),
+
+                # Total recursos activos
+                func.count(
+                    func.distinct(AWSResourceInventory.id)
+                ).label("total_resources"),
+
+                # Total findings abiertos
+                func.count(AWSFinding.id).label("total_findings"),
+
+                # Severidad máxima
+                func.max(AWSFinding.severity).label("max_severity"),
+
+                # Conteo por severidad
+                func.sum(
+                    case((AWSFinding.severity == "high", 1), else_=0)
+                ).label("high_count"),
+
+                func.sum(
+                    case((AWSFinding.severity == "medium", 1), else_=0)
+                ).label("medium_count"),
+
+                func.sum(
+                    case((AWSFinding.severity == "low", 1), else_=0)
+                ).label("low_count"),
+            )
+
+            # LEFT JOIN CONTROLADO
+            .outerjoin(
+                AWSFinding,
+                and_(
+                    AWSFinding.resource_id == AWSResourceInventory.resource_id,
+                    AWSFinding.client_id == client_id,
+                    AWSFinding.resolved == False
+                )
+            )
+
+            # Filtros inventario
+            .filter(
+                AWSResourceInventory.client_id == client_id,
+                AWSResourceInventory.is_active == True
+            )
+
+            .group_by(
+                AWSResourceInventory.service_name
+            )
+        )
+
+        results = query.all()
+
+        return [
+            {
+                "service": r.service,
+                "total_resources": r.total_resources or 0,
+                "total_findings": r.total_findings or 0,
+                "max_severity": r.max_severity,
+                "high": r.high_count or 0,
+                "medium": r.medium_count or 0,
+                "low": r.low_count or 0,
+            }
+            for r in results
+        ]
