@@ -27,7 +27,14 @@ class InventoryService:
                 func.count(AWSFinding.id).label("total_findings"),
 
                 # Severidad máxima
-                func.max(AWSFinding.severity).label("max_severity"),
+                func.max(
+                    case(
+                        (AWSFinding.severity == "LOW", 1),
+                        (AWSFinding.severity == "MEDIUM", 2),
+                        (AWSFinding.severity == "HIGH", 3),
+                        else_=0
+                    )
+                ).label("max_severity_rank"),
 
                 # Conteo por severidad
                 func.sum(
@@ -66,12 +73,18 @@ class InventoryService:
 
         results = query.all()
 
+        severity_map = {
+            1: "LOW",
+            2: "MEDIUM",
+            3: "HIGH"
+        }
+
         return [
             {
                 "service": r.service,
                 "total_resources": r.total_resources or 0,
                 "total_findings": r.total_findings or 0,
-                "max_severity": r.max_severity,
+                "max_severity": severity_map.get(r.max_severity_rank),
                 "high": r.high_count or 0,
                 "medium": r.medium_count or 0,
                 "low": r.low_count or 0,
