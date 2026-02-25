@@ -29,11 +29,18 @@ def run_client_audit():
         if not user:
             return jsonify({"error": "User not found"}), 404
 
-        if user.client_role not in ["owner", "finops_admin"]:
+        # 🔥 GUARDAR DATOS PRIMITIVOS ANTES DE AUDIT
+        client_id = user.client_id
+        client_role = user.client_role
+
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        if client_role not in ["owner", "finops_admin"]:
             return jsonify({"error": "Unauthorized"}), 403
 
         aws_account = AWSAccount.query.filter_by(
-            client_id=user.client_id,
+            client_id=client_id,
             is_active=True
         ).first()
 
@@ -43,7 +50,7 @@ def run_client_audit():
         auditor = FinOpsAuditor()
 
         result = auditor.run_comprehensive_audit(
-            client_id=user.client_id,
+            client_id=client_id,
             aws_account=aws_account
         )
 
@@ -73,7 +80,7 @@ def run_client_audit():
 
     except Exception as e:
         logger.exception(
-            f"CRITICAL AUDIT ERROR | client_id={user.client_id if 'user' in locals() else 'unknown'}"
+            f"CRITICAL AUDIT ERROR | client_id={client_id if 'client_id' in locals() else 'unknown'}"
         )
         return jsonify({
             "status": "error",
