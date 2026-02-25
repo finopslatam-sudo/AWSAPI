@@ -88,7 +88,6 @@ class LambdaRules:
                     )
 
                     db.session.add(finding)
-                    db.session.commit()
                     findings_created += 1
 
         return findings_created

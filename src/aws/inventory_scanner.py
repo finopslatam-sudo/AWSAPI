@@ -268,3 +268,97 @@ class InventoryScanner:
         except Exception:
             logger.exception(f"RDS scan failed | region={region}")
             raise
+    # =====================================================
+    # LAMBDA
+    # =====================================================
+    def scan_lambda(self, region):
+
+        try:
+            lambda_client = self.session.client("lambda", region_name=region)
+            paginator = lambda_client.get_paginator("list_functions")
+
+            for page in paginator.paginate():
+                for function in page.get("Functions", []):
+
+                    self.upsert_resource(
+                        service_name="Lambda",
+                        resource_type="Function",
+                        resource_id=function["FunctionName"],
+                        region=region,
+                        state="active",
+                        tags={},  # Lambda requiere llamada extra para tags
+                        resource_metadata={
+                            "runtime": function.get("Runtime"),
+                            "handler": function.get("Handler"),
+                            "memory_size": function.get("MemorySize"),
+                            "timeout": function.get("Timeout"),
+                            "last_modified": function.get("LastModified")
+                        }
+                    )
+
+        except Exception:
+            logger.exception(f"Lambda scan failed | region={region}")
+            raise
+
+    # =====================================================
+    # DYNAMODB
+    # =====================================================
+    def scan_dynamodb(self, region):
+
+        try:
+            dynamodb = self.session.client("dynamodb", region_name=region)
+            paginator = dynamodb.get_paginator("list_tables")
+
+            for page in paginator.paginate():
+                for table_name in page.get("TableNames", []):
+
+                    table = dynamodb.describe_table(TableName=table_name)["Table"]
+
+                    self.upsert_resource(
+                        service_name="DynamoDB",
+                        resource_type="Table",
+                        resource_id=table_name,
+                        region=region,
+                        state=table.get("TableStatus"),
+                        tags={},  # Requiere llamada extra para tags
+                        resource_metadata={
+                            "billing_mode": table.get("BillingModeSummary", {}).get("BillingMode"),
+                            "item_count": table.get("ItemCount"),
+                            "table_size_bytes": table.get("TableSizeBytes"),
+                            "creation_date": str(table.get("CreationDateTime"))
+                        }
+                    )
+
+        except Exception:
+            logger.exception(f"DynamoDB scan failed | region={region}")
+            raise
+
+    # =====================================================
+    # CLOUDWATCH LOGS
+    # =====================================================
+    def scan_cloudwatch_logs(self, region):
+
+        try:
+            logs_client = self.session.client("logs", region_name=region)
+            paginator = logs_client.get_paginator("describe_log_groups")
+
+            for page in paginator.paginate():
+                for log_group in page.get("logGroups", []):
+
+                    self.upsert_resource(
+                        service_name="CloudWatch",
+                        resource_type="LogGroup",
+                        resource_id=log_group["logGroupName"],
+                        region=region,
+                        state="active",
+                        tags={},  # Requiere llamada extra para tags
+                        resource_metadata={
+                            "stored_bytes": log_group.get("storedBytes"),
+                            "retention_days": log_group.get("retentionInDays"),
+                            "creation_time": log_group.get("creationTime")
+                        }
+                    )
+
+        except Exception:
+            logger.exception(f"CloudWatch Logs scan failed | region={region}")
+            raise

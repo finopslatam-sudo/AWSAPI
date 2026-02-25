@@ -59,6 +59,4 @@ class EC2Rules:
             db.session.add(finding)
             findings_created += 1
 
-        db.session.commit()
-
         return findings_created
