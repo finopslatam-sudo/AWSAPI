@@ -1,4 +1,5 @@
 from sqlalchemy import func, case, and_
+from datetime import datetime
 
 from src.models.database import db
 from src.models.aws_resource_inventory import AWSResourceInventory

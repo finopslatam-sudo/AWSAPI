@@ -193,3 +193,40 @@ def get_inventory_services():
         "status": "ok",
         "data": data
     }), 200
+
+# ======================================================
+# GET INVENTORY RESOURCES BY SERVICE (ENTERPRISE)
+# ======================================================
+
+@client_inventory_bp.route("/inventory/resources", methods=["GET"])
+@jwt_required()
+def get_inventory_resources_by_service():
+
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user or not user.client_id:
+        return jsonify({
+            "status": "error",
+            "message": "Invalid user"
+        }), 400
+
+    service_name = request.args.get("service")
+
+    if not service_name:
+        return jsonify({
+            "status": "error",
+            "message": "Missing service parameter"
+        }), 400
+
+    from src.services.inventory.inventory_service import InventoryService
+
+    data = InventoryService.get_resources_by_service(
+        user.client_id,
+        service_name
+    )
+
+    return jsonify({
+        "status": "ok",
+        "data": data
+    }), 200
