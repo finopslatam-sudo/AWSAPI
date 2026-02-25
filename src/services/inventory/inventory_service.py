@@ -93,12 +93,20 @@ class InventoryService:
             for r in results
         ]
     
+
 # ======================================================
-# RESOURCES BY SERVICE (ENTERPRISE DETAIL)
+# RESOURCES BY SERVICE (ENTERPRISE HARDENED)
 # ======================================================
 
     @staticmethod
-    def get_resources_by_service(client_id, service_name):
+    def get_resources_by_service(
+        client_id,
+        service_name,
+        min_severity=None,
+        sort="risk_desc",
+        page=1,
+        per_page=50
+    ):
 
         severity_rank = case(
             (AWSFinding.severity == "LOW", 1),
@@ -107,7 +115,7 @@ class InventoryService:
             else_=0
         )
 
-        query = (
+        base_query = (
             db.session.query(
                 AWSResourceInventory.resource_id,
                 AWSResourceInventory.resource_type,
@@ -116,7 +124,6 @@ class InventoryService:
                 AWSResourceInventory.detected_at,
 
                 func.count(AWSFinding.id).label("findings_count"),
-
                 func.max(severity_rank).label("max_severity_rank"),
             )
             .outerjoin(
@@ -141,13 +148,57 @@ class InventoryService:
             )
         )
 
-        results = query.all()
+        # -----------------------------------------
+        # FILTRO POR SEVERIDAD MÍNIMA
+        # -----------------------------------------
 
         severity_map = {
-            1: "LOW",
-            2: "MEDIUM",
-            3: "HIGH"
+            "LOW": 1,
+            "MEDIUM": 2,
+            "HIGH": 3
         }
+
+        if min_severity and min_severity in severity_map:
+            base_query = base_query.having(
+                func.max(severity_rank) >= severity_map[min_severity]
+            )
+
+        # -----------------------------------------
+        # ORDENAMIENTO
+        # -----------------------------------------
+
+        if sort == "risk_desc":
+            base_query = base_query.order_by(
+                func.max(severity_rank).desc(),
+                func.count(AWSFinding.id).desc()
+            )
+        elif sort == "risk_asc":
+            base_query = base_query.order_by(
+                func.max(severity_rank).asc(),
+                func.count(AWSFinding.id).asc()
+            )
+        elif sort == "aging_desc":
+            base_query = base_query.order_by(
+                AWSResourceInventory.detected_at.asc()
+            )
+        else:
+            base_query = base_query.order_by(
+                func.max(severity_rank).desc()
+            )
+
+        # -----------------------------------------
+        # PAGINACIÓN
+        # -----------------------------------------
+
+        per_page = min(max(per_page, 1), 200)
+
+        pagination = base_query.paginate(
+            page=page,
+            per_page=per_page,
+            error_out=False
+        )
+
+        results = pagination.items
 
         now = datetime.utcnow()
 
@@ -168,9 +219,22 @@ class InventoryService:
                 "region": r.region,
                 "state": r.state,
                 "findings_count": r.findings_count or 0,
-                "max_severity": severity_map.get(r.max_severity_rank),
+                "max_severity": (
+                    "LOW" if r.max_severity_rank == 1 else
+                    "MEDIUM" if r.max_severity_rank == 2 else
+                    "HIGH" if r.max_severity_rank == 3 else
+                    None
+                ),
                 "aging_days": aging_days,
                 "risk_score": risk_score
             })
 
-        return data
+        return {
+            "items": data,
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total": pagination.total,
+                "pages": pagination.pages
+            }
+        }

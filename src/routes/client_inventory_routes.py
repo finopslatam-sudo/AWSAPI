@@ -195,7 +195,7 @@ def get_inventory_services():
     }), 200
 
 # ======================================================
-# GET INVENTORY RESOURCES BY SERVICE (ENTERPRISE)
+# GET INVENTORY RESOURCES (ENTERPRISE HARDENED)
 # ======================================================
 
 @client_inventory_bp.route("/inventory/resources", methods=["GET"])
@@ -212,6 +212,11 @@ def get_inventory_resources_by_service():
         }), 400
 
     service_name = request.args.get("service")
+    min_severity = request.args.get("min_severity")
+    sort = request.args.get("sort", "risk_desc")
+
+    page = int(request.args.get("page", 1))
+    per_page = int(request.args.get("per_page", 50))
 
     if not service_name:
         return jsonify({
@@ -221,12 +226,17 @@ def get_inventory_resources_by_service():
 
     from src.services.inventory.inventory_service import InventoryService
 
-    data = InventoryService.get_resources_by_service(
-        user.client_id,
-        service_name
+    result = InventoryService.get_resources_by_service(
+        client_id=user.client_id,
+        service_name=service_name,
+        min_severity=min_severity,
+        sort=sort,
+        page=page,
+        per_page=per_page
     )
 
     return jsonify({
         "status": "ok",
-        "data": data
+        "data": result["items"],
+        "pagination": result["pagination"]
     }), 200
