@@ -16,7 +16,7 @@ class TrendService:
         snapshots = (
             db.session.query(
                 RiskSnapshot.created_at,
-                RiskSnapshot.risk_score,
+                RiskSnapshot.health_score,
                 RiskSnapshot.risk_level,
                 RiskSnapshot.governance_percentage,
                 RiskSnapshot.financial_exposure,

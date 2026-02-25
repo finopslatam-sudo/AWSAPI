@@ -156,6 +156,7 @@ class RDSRules:
 
         finding = AWSFinding(
             client_id=client_id,
+            aws_account_id=resource.aws_account_id,
             resource_id=resource.resource_id,
             resource_type=resource.resource_type,
             finding_type=finding_type,
