@@ -35,13 +35,17 @@ class InventoryScanner:
                 "updated_at": now
             })
 
-            db.session.flush()
+            db.session.commit()
+            db.session.expunge_all()
 
             # 2️⃣ Regiones activas
             regions = self.get_enabled_regions()
 
             # 3️⃣ Escaneo regional
             for region in regions:
+
+                logger.info(f"Scanning region {region} | client_id={self.client_id}")
+
                 self.scan_ec2(region)
                 self.scan_ebs(region)
                 self.scan_rds(region)
@@ -49,8 +53,17 @@ class InventoryScanner:
                 self.scan_dynamodb(region)
                 self.scan_cloudwatch_logs(region)
 
+                # 🔥 COMMIT POR REGIÓN
+                db.session.commit()
+                db.session.expunge_all()
+
+                logger.info(f"Region committed {region} | client_id={self.client_id}")
+
             # 4️⃣ Servicios globales
             self.scan_s3()
+
+            db.session.commit()
+            db.session.expunge_all()
 
             logger.info(f"Inventory completed | client_id={self.client_id}")
 
