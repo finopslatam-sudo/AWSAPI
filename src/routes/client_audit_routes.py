@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 import threading
@@ -54,30 +54,39 @@ def run_client_audit():
     # ==========================================
     # BACKGROUND TASK
     # ==========================================
-    def background_audit(client_id, aws_account_id):
+    def background_audit(app, client_id, aws_account_id):
 
-        try:
-            auditor = FinOpsAuditor()
-            auditor.run_comprehensive_audit(client_id, aws_account_id)
+        # 🔥 Crear application context explícito
+        with app.app_context():
 
-            account = AWSAccount.query.get(aws_account_id)
-            account.audit_status = "completed"
-            account.audit_finished_at = datetime.utcnow()
-            db.session.commit()
+            try:
+                auditor = FinOpsAuditor()
+                auditor.run_comprehensive_audit(client_id, aws_account_id)
 
-            logger.info(f"AUDIT COMPLETED | client_id={client_id}")
+                account = AWSAccount.query.get(aws_account_id)
+                account.audit_status = "completed"
+                account.audit_finished_at = datetime.utcnow()
 
-        except Exception:
-            logger.exception(f"AUDIT FAILED | client_id={client_id}")
+                db.session.commit()
+                db.session.remove()
 
-            account = AWSAccount.query.get(aws_account_id)
-            account.audit_status = "failed"
-            account.audit_finished_at = datetime.utcnow()
-            db.session.commit()
+                logger.info(f"AUDIT COMPLETED | client_id={client_id}")
 
+            except Exception:
+                logger.exception(f"AUDIT FAILED | client_id={client_id}")
+
+                account = AWSAccount.query.get(aws_account_id)
+                account.audit_status = "failed"
+                account.audit_finished_at = datetime.utcnow()
+
+                db.session.commit()
+                db.session.remove()
+
+
+    # 🔥 Pasamos la app explícitamente al thread
     thread = threading.Thread(
         target=background_audit,
-        args=(user.client_id, aws_account.id),
+        args=(current_app._get_current_object(), user.client_id, aws_account.id),
         daemon=True
     )
 
