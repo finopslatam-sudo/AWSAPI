@@ -73,7 +73,10 @@ class FinOpsAuditor:
             inventory_start = time.time()
 
             logger.info(f"INVENTORY START | client_id={client_id}")
-            scanner = InventoryScanner(session, client_id, aws_account)
+            scanner = InventoryScanner(
+                client_id=client_id,
+                aws_account_id=aws_account.id
+            )
             scanner.run()
             inventory_elapsed = time.time() - inventory_start
 
