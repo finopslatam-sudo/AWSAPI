@@ -1,12 +1,14 @@
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
+import threading
+import logging
+from datetime import datetime
+
+from src.models.database import db
 from src.models.user import User
 from src.models.aws_account import AWSAccount
-from src.models.database import db
 from src.aws.finops_auditor import FinOpsAuditor
-from datetime import datetime
-import logging
 
 
 client_audit_bp = Blueprint(
