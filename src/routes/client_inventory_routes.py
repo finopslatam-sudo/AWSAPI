@@ -165,35 +165,6 @@ def get_inventory():
         }
     })
 
-
-# ======================================================
-# GET INVENTORY SERVICES (CARDS)
-# ======================================================
-
-@client_inventory_bp.route("/inventory/services", methods=["GET"])
-@jwt_required()
-def get_inventory_services():
-
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-
-    if not user or not user.client_id:
-        return jsonify({
-            "status": "error",
-            "message": "Invalid user"
-        }), 400
-
-    client_id = user.client_id
-
-    from src.services.inventory.inventory_service import InventoryService
-
-    data = InventoryService.get_services_summary(client_id)
-
-    return jsonify({
-        "status": "ok",
-        "data": data
-    }), 200
-
 # ======================================================
 # GET INVENTORY SERVICES (HEALTH SCORE ENTERPRISE)
 # ======================================================
