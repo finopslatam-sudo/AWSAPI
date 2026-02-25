@@ -29,12 +29,9 @@ def run_client_audit():
         if not user:
             return jsonify({"error": "User not found"}), 404
 
-        # 🔥 GUARDAR DATOS PRIMITIVOS ANTES DE AUDIT
+        # 🔥 Guardar primitivos ANTES de cualquier commit en auditor
         client_id = user.client_id
         client_role = user.client_role
-
-        if not user:
-            return jsonify({"error": "User not found"}), 404
 
         if client_role not in ["owner", "finops_admin"]:
             return jsonify({"error": "Unauthorized"}), 403
@@ -47,6 +44,9 @@ def run_client_audit():
         if not aws_account:
             return jsonify({"error": "No active AWS account found"}), 404
 
+        # 🔥 Guardar id primitivo también
+        aws_account_id = aws_account.id
+
         auditor = FinOpsAuditor()
 
         result = auditor.run_comprehensive_audit(
@@ -54,12 +54,9 @@ def run_client_audit():
             aws_account=aws_account
         )
 
-        # ===============================
-        # VALIDAR RESULTADO DEL AUDITOR
-        # ===============================
         if result.get("status") != "ok":
             logger.error(
-                f"AUDIT FAILED | client_id={user.client_id} | result={result}"
+                f"AUDIT FAILED | client_id={client_id} | result={result}"
             )
             return jsonify({
                 "status": "error",
@@ -67,10 +64,9 @@ def run_client_audit():
                 "details": result
             }), 500
 
-        # ===============================
-        # UPDATE last_sync SOLO SI OK
-        # ===============================
-        aws_account.last_sync = datetime.utcnow()
+        # ⚠ Volver a cargar aws_account limpio desde DB
+        fresh_account = AWSAccount.query.get(aws_account_id)
+        fresh_account.last_sync = datetime.utcnow()
         db.session.commit()
 
         return jsonify({
@@ -78,7 +74,7 @@ def run_client_audit():
             "audit_result": result
         }), 200
 
-    except Exception as e:
+    except Exception:
         logger.exception(
             f"CRITICAL AUDIT ERROR | client_id={client_id if 'client_id' in locals() else 'unknown'}"
         )
