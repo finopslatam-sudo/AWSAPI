@@ -8,6 +8,8 @@ from src.aws.sts_service import STSService
 
 class SavingsPlanCoverageEngine:
 
+    MIN_COVERAGE_THRESHOLD = 70.0
+
     @staticmethod
     def run(client_id):
 
@@ -39,40 +41,45 @@ class SavingsPlanCoverageEngine:
         start = end - timedelta(days=30)
 
         try:
-
             response = ce.get_savings_plans_coverage(
                 TimePeriod={
                     "Start": str(start),
                     "End": str(end)
-                }
+                },
+                GroupBy=[
+                    {"Type": "DIMENSION", "Key": "SERVICE"}
+                ]
             )
-
         except Exception as e:
             print(f"[SP COVERAGE ERROR]: {str(e)}")
             return 0
 
-        coverage_data = response.get("SavingsPlansCoverage", {})
-        coverage_pct = float(
-            coverage_data.get("CoveragePercentage", 0)
-        )
-
-        print(f"SP Coverage %: {coverage_pct}")
-
         total = 0
 
-        if coverage_pct < 70:
+        for time_period in response.get("SavingsPlansCoverages", []):
 
-            AWSFinding.upsert_finding(
-                client_id=client_id,
-                aws_account_id=aws_account.id,
-                resource_id="GLOBAL_SP_COVERAGE",
-                resource_type="SavingsPlanCoverage",
-                finding_type="LOW_SP_COVERAGE",
-                severity="HIGH",
-                message=f"Savings Plans coverage last 30 days: {coverage_pct}%",
-                estimated_monthly_savings=None
-            )
+            for group in time_period.get("Groups", []):
 
-            total += 1
+                service_name = group["Attributes"].get("SERVICE")
+                coverage_pct = float(
+                    group["Coverage"].get("CoveragePercentage", 0)
+                )
+
+                print(f"SP Coverage | {service_name}: {coverage_pct}%")
+
+                if coverage_pct < SavingsPlanCoverageEngine.MIN_COVERAGE_THRESHOLD:
+
+                    AWSFinding.upsert_finding(
+                        client_id=client_id,
+                        aws_account_id=aws_account.id,
+                        resource_id=f"SP_{service_name}",
+                        resource_type="SavingsPlanCoverage",
+                        finding_type=f"LOW_SP_COVERAGE_{service_name.upper().replace(' ', '_')}",
+                        severity="HIGH",
+                        message=f"Savings Plans coverage for {service_name} last 30 days: {coverage_pct}%",
+                        estimated_monthly_savings=None
+                    )
+
+                    total += 1
 
         return total
