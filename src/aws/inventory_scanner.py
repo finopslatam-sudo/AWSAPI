@@ -75,6 +75,7 @@ class InventoryScanner:
                 ("DynamoDB", self.scan_dynamodb),
                 ("CloudWatchLogs", self.scan_cloudwatch_logs),
                 ("NAT", self.scan_nat_gateways),
+                ("ECS", self.scan_ecs),
             ]
 
             for service_name, service_method in services:
@@ -405,5 +406,71 @@ class InventoryScanner:
 
         except Exception:
             logger.exception(f"NAT Gateway scan failed | region={region}")
+            raise
+
+    # =====================================================
+    # ECS
+    # =====================================================
+    def scan_ecs(self, region):
+
+        try:
+            ecs = self.aws_session.client("ecs", region_name=region)
+
+            # 1️⃣ Listar clusters
+            cluster_arns = ecs.list_clusters().get("clusterArns", [])
+
+            for cluster_arn in cluster_arns:
+
+                cluster_details = ecs.describe_clusters(
+                    clusters=[cluster_arn]
+                )["clusters"][0]
+
+                cluster_name = cluster_details.get("clusterName")
+
+                self.upsert_resource(
+                    service_name="ECS",
+                    resource_type="Cluster",
+                    resource_id=cluster_name,
+                    region=region,
+                    state="active",
+                    tags={},
+                    resource_metadata={
+                        "status": cluster_details.get("status"),
+                        "running_tasks": cluster_details.get("runningTasksCount"),
+                        "pending_tasks": cluster_details.get("pendingTasksCount"),
+                        "active_services": cluster_details.get("activeServicesCount"),
+                    }
+                )
+
+                # 2️⃣ Listar servicios dentro del cluster
+                service_arns = ecs.list_services(
+                    cluster=cluster_arn
+                ).get("serviceArns", [])
+
+                if service_arns:
+                    services = ecs.describe_services(
+                        cluster=cluster_arn,
+                        services=service_arns
+                    )["services"]
+
+                    for service in services:
+
+                        self.upsert_resource(
+                            service_name="ECS",
+                            resource_type="Service",
+                            resource_id=service.get("serviceName"),
+                            region=region,
+                            state=service.get("status"),
+                            tags={},
+                            resource_metadata={
+                                "desired_count": service.get("desiredCount"),
+                                "running_count": service.get("runningCount"),
+                                "pending_count": service.get("pendingCount"),
+                                "launch_type": service.get("launchType"),
+                            }
+                        )
+
+        except Exception:
+            logger.exception(f"ECS scan failed | region={region}")
             raise
     
