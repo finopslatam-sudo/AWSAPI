@@ -1,4 +1,5 @@
 from src.models.database import db
+from sqlalchemy.dialects.postgresql import insert
 from datetime import datetime
 
 
@@ -63,9 +64,52 @@ class AWSFinding(db.Model):
         default=datetime.utcnow
     )
 
-    # ---------------- OPTIONAL RELATIONSHIP (auditoría futura) ----------------
     resolver = db.relationship(
         "User",
         foreign_keys=[resolved_by],
         lazy="joined"
     )
+
+    # =====================================================
+    # ENTERPRISE UPSERT
+    # =====================================================
+    @staticmethod
+    def upsert_finding(
+        client_id,
+        aws_account_id,
+        resource_id,
+        resource_type,
+        finding_type,
+        severity,
+        message,
+        estimated_monthly_savings=None
+    ):
+
+        now = datetime.utcnow()
+
+        stmt = insert(AWSFinding).values(
+            client_id=client_id,
+            aws_account_id=aws_account_id,
+            resource_id=resource_id,
+            resource_type=resource_type,
+            finding_type=finding_type,
+            severity=severity,
+            message=message,
+            estimated_monthly_savings=estimated_monthly_savings,
+            resolved=False,
+            detected_at=now,
+            created_at=now
+        )
+
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_client_resource_type",
+            set_={
+                "severity": severity,
+                "message": message,
+                "estimated_monthly_savings": estimated_monthly_savings,
+                "resolved": False,
+                "detected_at": now
+            }
+        )
+
+        db.session.execute(stmt)
