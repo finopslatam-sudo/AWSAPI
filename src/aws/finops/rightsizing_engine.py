@@ -82,6 +82,9 @@ class RightsizingEngine:
 
             datapoints = metrics.get("Datapoints", [])
 
+            print("EC2:", instance_id)
+            print("Datapoints:", datapoints)
+
             if not datapoints:
                 continue
 
@@ -101,6 +104,8 @@ class RightsizingEngine:
                     message=f"Average CPU last 7 days: {round(avg_cpu,2)}%",
                     estimated_monthly_savings=100.0
                 )
+                
+                print("Average CPU:", avg_cpu)
 
                 count += 1
 
