@@ -46,6 +46,7 @@ class CoverageEngine:
                 {"Type": "DIMENSION", "Key": "SERVICE"}
             ]
         )
+        print("🔥 COVERAGE ENGINE RUNNING")
 
         total = 0
 
