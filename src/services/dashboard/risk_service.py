@@ -12,7 +12,9 @@ class RiskService:
     @staticmethod
     def get_risk_score(client_id: int):
 
-        # Total active resources
+        # ---------------------------------
+        # 1️⃣ Total active resources
+        # ---------------------------------
         total_resources = (
             db.session.query(func.count(AWSResourceInventory.id))
             .filter(
@@ -32,7 +34,9 @@ class RiskService:
                 "low": 0
             }
 
-        # Single aggregated query for severities
+        # ---------------------------------
+        # 2️⃣ Aggregate severities in single query
+        # ---------------------------------
         results = (
             db.session.query(
                 func.sum(case((AWSFinding.severity == "HIGH", 1), else_=0)).label("high"),
@@ -58,10 +62,14 @@ class RiskService:
         medium = results.medium or 0
         low = results.low or 0
 
+        # ---------------------------------
+        # 3️⃣ Risk calculation
+        # ---------------------------------
         risk_points = (high * 5) + (medium * 3) + (low * 1)
         max_risk = total_resources * 5
 
         risk_score = 100 - ((risk_points / max_risk) * 100)
+        risk_score = max(min(risk_score, 100), 0)  # clamp 0–100
         risk_score = round(risk_score, 2)
 
         risk_level = RiskService._calculate_risk_level(risk_score)
@@ -116,7 +124,12 @@ class RiskService:
             risk_points = (high * 5) + (medium * 3) + (low * 1)
             max_risk = row.total_resources * 5
 
-            risk_score = 100 - ((risk_points / max_risk) * 100) if max_risk else 100
+            risk_score = (
+                100 - ((risk_points / max_risk) * 100)
+                if max_risk else 100
+            )
+
+            risk_score = max(min(risk_score, 100), 0)
             risk_score = round(risk_score, 2)
 
             breakdown[row.service_name] = {
@@ -152,7 +165,7 @@ class RiskService:
 
         services_list.sort(
             key=lambda x: (
-                x["risk_score"],
+                x["risk_score"],   # menor score = peor
                 -x["high"],
                 -x["medium"]
             )

@@ -8,10 +8,15 @@ class RiskSnapshot(db.Model):
     client_id = db.Column(db.Integer, nullable=False)
 
     # -------------------------------
-    # GLOBAL HEALTH
+    # RISK ENGINE SCORE
+    # -------------------------------
+    risk_score = db.Column(db.Numeric(5, 2))
+    risk_level = db.Column(db.String(20))
+
+    # -------------------------------
+    # INVENTORY HEALTH SCORE
     # -------------------------------
     health_score = db.Column(db.Integer)
-    risk_level = db.Column(db.String(20))
 
     # -------------------------------
     # DISTRIBUTION
@@ -23,9 +28,6 @@ class RiskSnapshot(db.Model):
     medium_count = db.Column(db.Integer)
     low_count = db.Column(db.Integer)
 
-    # -------------------------------
-    # OPTIONAL FUTURE FIELDS
-    # -------------------------------
     governance_percentage = db.Column(db.Numeric(5, 2))
     financial_exposure = db.Column(db.Numeric(10, 2))
 
