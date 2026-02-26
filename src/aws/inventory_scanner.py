@@ -77,6 +77,7 @@ class InventoryScanner:
                 ("NAT", self.scan_nat_gateways),
                 ("ECS", self.scan_ecs),
                 ("Redshift", self.scan_redshift),
+                ("EKS", self.scan_eks),
             ]
 
             for service_name, service_method in services:
@@ -507,5 +508,63 @@ class InventoryScanner:
             logger.exception(f"Redshift scan failed | region={region}")
             raise
 
+    # =====================================================
+    # EKS
+    # =====================================================
+    def scan_eks(self, region):
 
-    
+        try:
+            eks = self.aws_session.client("eks", region_name=region)
+
+            # 1️⃣ Listar clusters
+            cluster_names = eks.list_clusters().get("clusters", [])
+
+            for cluster_name in cluster_names:
+
+                cluster = eks.describe_cluster(name=cluster_name)["cluster"]
+
+                self.upsert_resource(
+                    service_name="EKS",
+                    resource_type="Cluster",
+                    resource_id=cluster_name,
+                    region=region,
+                    state=cluster.get("status"),
+                    tags={},
+                    resource_metadata={
+                        "version": cluster.get("version"),
+                        "endpoint": cluster.get("endpoint"),
+                        "platform_version": cluster.get("platformVersion"),
+                    }
+                )
+
+                # 2️⃣ Listar nodegroups
+                nodegroups = eks.list_nodegroups(
+                    clusterName=cluster_name
+                ).get("nodegroups", [])
+
+                for nodegroup_name in nodegroups:
+
+                    nodegroup = eks.describe_nodegroup(
+                        clusterName=cluster_name,
+                        nodegroupName=nodegroup_name
+                    )["nodegroup"]
+
+                    self.upsert_resource(
+                        service_name="EKS",
+                        resource_type="NodeGroup",
+                        resource_id=nodegroup_name,
+                        region=region,
+                        state=nodegroup.get("status"),
+                        tags={},
+                        resource_metadata={
+                            "instance_types": nodegroup.get("instanceTypes"),
+                            "min_size": nodegroup.get("scalingConfig", {}).get("minSize"),
+                            "max_size": nodegroup.get("scalingConfig", {}).get("maxSize"),
+                            "desired_size": nodegroup.get("scalingConfig", {}).get("desiredSize"),
+                            "capacity_type": nodegroup.get("capacityType"),
+                        }
+                    )
+
+        except Exception:
+            logger.exception(f"EKS scan failed | region={region}")
+            raise
