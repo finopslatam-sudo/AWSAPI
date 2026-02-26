@@ -76,6 +76,7 @@ class InventoryScanner:
                 ("CloudWatchLogs", self.scan_cloudwatch_logs),
                 ("NAT", self.scan_nat_gateways),
                 ("ECS", self.scan_ecs),
+                ("Redshift", self.scan_redshift),
             ]
 
             for service_name, service_method in services:
@@ -473,4 +474,38 @@ class InventoryScanner:
         except Exception:
             logger.exception(f"ECS scan failed | region={region}")
             raise
+
+    # =====================================================
+    # REDSHIFT
+    # =====================================================
+    def scan_redshift(self, region):
+
+        try:
+            redshift = self.aws_session.client("redshift", region_name=region)
+            paginator = redshift.get_paginator("describe_clusters")
+
+            for page in paginator.paginate():
+                for cluster in page.get("Clusters", []):
+
+                    self.upsert_resource(
+                        service_name="Redshift",
+                        resource_type="Cluster",
+                        resource_id=cluster["ClusterIdentifier"],
+                        region=region,
+                        state=cluster.get("ClusterStatus"),
+                        tags={},
+                        resource_metadata={
+                            "node_type": cluster.get("NodeType"),
+                            "cluster_type": cluster.get("ClusterType"),
+                            "number_of_nodes": cluster.get("NumberOfNodes"),
+                            "encrypted": cluster.get("Encrypted"),
+                            "publicly_accessible": cluster.get("PubliclyAccessible"),
+                        }
+                    )
+
+        except Exception:
+            logger.exception(f"Redshift scan failed | region={region}")
+            raise
+
+
     
