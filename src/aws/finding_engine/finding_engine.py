@@ -5,6 +5,9 @@ from src.aws.finding_engine.rds_rules import RDSRules
 from src.aws.finding_engine.lambda_rules import LambdaRules
 from src.aws.finding_engine.dynamodb_rules import DynamoDBRules
 from src.aws.finding_engine.cloudwatch_rules import CloudWatchRules
+from src.aws.finding_engine.rightsizing_rules import RightsizingRules
+from src.aws.finding_engine.ri_rules import ReservedInstanceRules
+from src.aws.finding_engine.savings_plan_rules import SavingsPlanRules
 
 from src.models.database import db
 
@@ -25,6 +28,11 @@ class FindingEngine:
             # EC2
             # ===============================
             total_findings += EC2Rules.stopped_instances_rule(client_id)
+
+            # ===============================
+            # RIGHTSIZING
+            # ===============================
+            total_findings += RightsizingRules.ec2_oversized_rule(client_id)
 
             # ===============================
             # EBS
@@ -60,6 +68,16 @@ class FindingEngine:
             # 🔥 SINGLE ENTERPRISE COMMIT
             # =====================================================
             db.session.commit()
+
+            # ===============================
+            # RESERVED INSTANCES
+            # ===============================
+            total_findings += ReservedInstanceRules.unused_ri_rule(client_id)
+
+            # ===============================
+            # SAVINGS PLANS
+            # ===============================
+            total_findings += SavingsPlanRules.review_active_plans_rule(client_id)
 
         except Exception as e:
             db.session.rollback()
