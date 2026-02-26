@@ -489,6 +489,8 @@ class InventoryScanner:
     # =====================================================
     def scan_redshift(self, region):
 
+        from botocore.exceptions import ClientError
+
         try:
             redshift = self.aws_session.client("redshift", region_name=region)
             paginator = redshift.get_paginator("describe_clusters")
@@ -511,6 +513,17 @@ class InventoryScanner:
                             "publicly_accessible": cluster.get("PubliclyAccessible"),
                         }
                     )
+
+        except ClientError as e:
+
+            error_code = e.response["Error"]["Code"]
+
+            if error_code in ["OptInRequired", "AccessDeniedException"]:
+                logger.info(f"Redshift not enabled in region {region}")
+                return
+
+            logger.exception(f"Redshift scan failed | region={region}")
+            raise
 
         except Exception:
             logger.exception(f"Redshift scan failed | region={region}")

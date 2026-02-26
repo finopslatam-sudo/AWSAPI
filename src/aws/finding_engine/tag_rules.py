@@ -20,7 +20,6 @@ class TagRules:
         ).all()
 
         findings_created = 0
-        findings_resolved = 0
 
         for resource in resources:
 
@@ -30,48 +29,47 @@ class TagRules:
 
                 finding_type = f"MISSING_TAG_{required_tag.upper()}"
 
+                # 🔥 BUSCAR SIN FILTRAR POR RESOLVED
                 existing = AWSFinding.query.filter_by(
                     client_id=client_id,
                     resource_id=resource.resource_id,
-                    finding_type=finding_type,
-                    resolved=False
+                    finding_type=finding_type
                 ).first()
 
                 # ================================
-                # CASO 1: TAG FALTA → CREAR FINDING
+                # TAG FALTA
                 # ================================
                 if required_tag not in tags:
 
                     if existing:
-                        continue
+                        existing.resolved = False
+                        existing.detected_at = datetime.utcnow()
+                        existing.message = f"Missing required tag: {required_tag}"
+                    else:
+                        finding = AWSFinding(
+                            client_id=client_id,
+                            aws_account_id=resource.aws_account_id,
+                            resource_id=resource.resource_id,
+                            resource_type=resource.resource_type,
+                            finding_type=finding_type,
+                            severity="LOW",
+                            message=f"Missing required tag: {required_tag}",
+                            estimated_monthly_savings=0.0,
+                            detected_at=datetime.utcnow(),
+                            created_at=datetime.utcnow(),
+                            resolved=False
+                        )
 
-                    finding = AWSFinding(
-                        client_id=client_id,
-                        aws_account_id=resource.aws_account_id,
-                        resource_id=resource.resource_id,
-                        resource_type=resource.resource_type,
-                        finding_type=finding_type,
-                        severity="LOW",
-                        message=f"Missing required tag: {required_tag}",
-                        estimated_monthly_savings=0.0,
-                        detected_at=datetime.utcnow(),
-                        created_at=datetime.utcnow(),
-                        resolved=False
-                    )
-
-                    db.session.add(finding)
-                    findings_created += 1
+                        db.session.add(finding)
+                        findings_created += 1
 
                 # ================================
-                # CASO 2: TAG EXISTE → RESOLVER FINDING
+                # TAG EXISTE → MARCAR RESUELTO
                 # ================================
                 else:
 
-                    if existing:
+                    if existing and not existing.resolved:
                         existing.resolved = True
                         existing.resolved_at = datetime.utcnow()
-                        findings_resolved += 1
-
-        db.session.commit()
 
         return findings_created
