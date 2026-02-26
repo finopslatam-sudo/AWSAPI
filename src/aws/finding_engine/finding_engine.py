@@ -9,6 +9,7 @@ from src.aws.finding_engine.rightsizing_rules import RightsizingRules
 from src.aws.finding_engine.ri_rules import ReservedInstanceRules
 from src.aws.finding_engine.savings_plan_rules import SavingsPlanRules
 from src.aws.finops.rightsizing_engine import RightsizingEngine
+from src.aws.finops.coverage_engine import CoverageEngine
 
 from src.models.aws_finding import AWSFinding
 from src.models.database import db
@@ -72,6 +73,9 @@ class FindingEngine:
 
             # REAL RIGHTSIZING ENGINE
             total_findings += RightsizingEngine.run(client_id)
+
+            # RI/SP COVERAGE ENGINE (Cost Explorer)
+            total_findings += CoverageEngine.run(client_id)
 
             # =====================================================
             # 3️⃣ SINGLE ENTERPRISE COMMIT
