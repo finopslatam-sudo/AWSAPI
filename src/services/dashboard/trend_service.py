@@ -35,7 +35,7 @@ class TrendService:
         for snap in snapshots:
             trend.append({
                 "date": snap.created_at.date().isoformat(),
-                "risk_score": float(snap.risk_score),
+                "health_score": snap.health_score,
                 "risk_level": snap.risk_level,
                 "governance_percentage": float(snap.governance_percentage),
                 "financial_exposure": float(snap.financial_exposure),
