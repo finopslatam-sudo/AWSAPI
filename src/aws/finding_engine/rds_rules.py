@@ -1,7 +1,5 @@
 from src.models.aws_resource_inventory import AWSResourceInventory
 from src.models.aws_finding import AWSFinding
-from src.models.database import db
-from datetime import datetime
 
 
 class RDSRules:
@@ -98,7 +96,7 @@ class RDSRules:
         )
 
     # =====================================================
-    # CORE RULE EVALUATOR (ENTERPRISE PATTERN)
+    # CORE ENGINE (IDEMPOTENT)
     # =====================================================
     @staticmethod
     def _evaluate_rule(client_id, condition, finding_type, severity, message, savings):
@@ -114,59 +112,35 @@ class RDSRules:
 
         for resource in resources:
 
+            existing = AWSFinding.query.filter_by(
+                client_id=client_id,
+                resource_id=resource.resource_id,
+                finding_type=finding_type
+            ).first()
+
             if condition(resource):
 
-                if not RDSRules._finding_exists(
-                    client_id,
-                    resource.resource_id,
-                    finding_type
-                ):
-
-                    RDSRules._create_finding(
-                        client_id,
-                        resource,
-                        finding_type,
-                        severity,
-                        message,
-                        savings
+                if existing:
+                    existing.resolved = False
+                    existing.message = message
+                    existing.severity = severity
+                    existing.estimated_monthly_savings = savings
+                else:
+                    created = AWSFinding.upsert_finding(
+                        client_id=client_id,
+                        aws_account_id=resource.aws_account_id,
+                        resource_id=resource.resource_id,
+                        resource_type=resource.resource_type,
+                        finding_type=finding_type,
+                        severity=severity,
+                        message=message,
+                        estimated_monthly_savings=savings
                     )
+                    if created:
+                        findings_created += 1
 
-                    findings_created += 1
+            else:
+                if existing and not existing.resolved:
+                    existing.resolved = True
 
         return findings_created
-
-    # =====================================================
-    # FINDING EXISTS CHECK
-    # =====================================================
-    @staticmethod
-    def _finding_exists(client_id, resource_id, finding_type):
-
-        return AWSFinding.query.filter_by(
-            client_id=client_id,
-            resource_id=resource_id,
-            finding_type=finding_type,
-            resolved=False
-        ).first() is not None
-
-    # =====================================================
-    # CREATE FINDING
-    # =====================================================
-    @staticmethod
-    def _create_finding(client_id, resource, finding_type, severity, message, savings):
-
-        finding = AWSFinding(
-            client_id=client_id,
-            aws_account_id=resource.aws_account_id,
-            resource_id=resource.resource_id,
-            resource_type=resource.resource_type,
-            finding_type=finding_type,
-            severity=severity,
-            message=message,
-            estimated_monthly_savings=savings,
-            resolved=False,
-            detected_at=datetime.utcnow(),
-            created_at=datetime.utcnow()
-        )
-
-        db.session.add(finding)
-        findings_created += 1

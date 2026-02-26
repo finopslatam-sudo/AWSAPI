@@ -1,6 +1,5 @@
 from datetime import datetime
 from sqlalchemy import and_
-from src.models.database import db
 from src.models.aws_resource_inventory import AWSResourceInventory
 from src.models.aws_finding import AWSFinding
 
@@ -29,16 +28,12 @@ class TagRules:
 
                 finding_type = f"MISSING_TAG_{required_tag.upper()}"
 
-                # 🔥 BUSCAR SIN FILTRAR POR RESOLVED
                 existing = AWSFinding.query.filter_by(
                     client_id=client_id,
                     resource_id=resource.resource_id,
                     finding_type=finding_type
                 ).first()
 
-                # ================================
-                # TAG FALTA
-                # ================================
                 if required_tag not in tags:
 
                     if existing:
@@ -46,7 +41,7 @@ class TagRules:
                         existing.detected_at = datetime.utcnow()
                         existing.message = f"Missing required tag: {required_tag}"
                     else:
-                        finding = AWSFinding(
+                        created = AWSFinding.upsert_finding(
                             client_id=client_id,
                             aws_account_id=resource.aws_account_id,
                             resource_id=resource.resource_id,
@@ -54,20 +49,11 @@ class TagRules:
                             finding_type=finding_type,
                             severity="LOW",
                             message=f"Missing required tag: {required_tag}",
-                            estimated_monthly_savings=0.0,
-                            detected_at=datetime.utcnow(),
-                            created_at=datetime.utcnow(),
-                            resolved=False
+                            estimated_monthly_savings=0.0
                         )
-
-                        db.session.add(finding)
-                        findings_created += 1
-
-                # ================================
-                # TAG EXISTE → MARCAR RESUELTO
-                # ================================
+                        if created:
+                            findings_created += 1
                 else:
-
                     if existing and not existing.resolved:
                         existing.resolved = True
                         existing.resolved_at = datetime.utcnow()

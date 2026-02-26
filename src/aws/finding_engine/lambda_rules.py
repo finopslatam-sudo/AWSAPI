@@ -1,7 +1,5 @@
 from src.models.aws_resource_inventory import AWSResourceInventory
 from src.models.aws_finding import AWSFinding
-from src.models.database import db
-from datetime import datetime
 
 
 class LambdaRules:
@@ -15,9 +13,6 @@ class LambdaRules:
 
         return total
 
-    # =====================================================
-    # MEMORY OVERPROVISION
-    # =====================================================
     @staticmethod
     def memory_overprovision_rule(client_id: int):
 
@@ -30,9 +25,6 @@ class LambdaRules:
             savings=5
         )
 
-    # =====================================================
-    # DEPRECATED RUNTIME
-    # =====================================================
     @staticmethod
     def deprecated_runtime_rule(client_id: int):
 
@@ -47,9 +39,6 @@ class LambdaRules:
             savings=0
         )
 
-    # =====================================================
-    # CORE ENGINE
-    # =====================================================
     @staticmethod
     def _evaluate_rule(client_id, condition, finding_type, severity, message, savings):
 
@@ -64,17 +53,21 @@ class LambdaRules:
 
         for resource in resources:
 
+            existing = AWSFinding.query.filter_by(
+                client_id=client_id,
+                resource_id=resource.resource_id,
+                finding_type=finding_type
+            ).first()
+
             if condition(resource):
 
-                exists = AWSFinding.query.filter_by(
-                    client_id=client_id,
-                    resource_id=resource.resource_id,
-                    finding_type=finding_type,
-                    resolved=False
-                ).first()
-
-                if not exists:
-                    finding = AWSFinding(
+                if existing:
+                    existing.resolved = False
+                    existing.message = message
+                    existing.severity = severity
+                    existing.estimated_monthly_savings = savings
+                else:
+                    created = AWSFinding.upsert_finding(
                         client_id=client_id,
                         aws_account_id=resource.aws_account_id,
                         resource_id=resource.resource_id,
@@ -82,13 +75,12 @@ class LambdaRules:
                         finding_type=finding_type,
                         severity=severity,
                         message=message,
-                        estimated_monthly_savings=savings,
-                        resolved=False,
-                        detected_at=datetime.utcnow(),
-                        created_at=datetime.utcnow()
+                        estimated_monthly_savings=savings
                     )
-
-                    db.session.add(finding)
-                    findings_created += 1
+                    if created:
+                        findings_created += 1
+            else:
+                if existing and not existing.resolved:
+                    existing.resolved = True
 
         return findings_created
