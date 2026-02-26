@@ -74,6 +74,7 @@ class InventoryScanner:
                 ("Lambda", self.scan_lambda),
                 ("DynamoDB", self.scan_dynamodb),
                 ("CloudWatchLogs", self.scan_cloudwatch_logs),
+                ("NAT", self.scan_nat_gateways),
             ]
 
             for service_name, service_method in services:
@@ -369,4 +370,40 @@ class InventoryScanner:
                     "creation_date": str(bucket.get("CreationDate"))
                 }
             )
+
+    # =====================================================
+    # NAT GATEWAY
+    # =====================================================
+    def scan_nat_gateways(self, region):
+
+        try:
+            ec2 = self.aws_session.client("ec2", region_name=region)
+            paginator = ec2.get_paginator("describe_nat_gateways")
+
+            for page in paginator.paginate():
+                for nat in page.get("NatGateways", []):
+
+                    tags = {
+                        tag["Key"]: tag["Value"]
+                        for tag in nat.get("Tags", [])
+                    }
+
+                    self.upsert_resource(
+                        service_name="NAT",
+                        resource_type="NatGateway",
+                        resource_id=nat["NatGatewayId"],
+                        region=region,
+                        state=nat.get("State"),
+                        tags=tags,
+                        resource_metadata={
+                            "subnet_id": nat.get("SubnetId"),
+                            "vpc_id": nat.get("VpcId"),
+                            "connectivity_type": nat.get("ConnectivityType"),
+                            "creation_time": str(nat.get("CreateTime"))
+                        }
+                    )
+
+        except Exception:
+            logger.exception(f"NAT Gateway scan failed | region={region}")
+            raise
     
