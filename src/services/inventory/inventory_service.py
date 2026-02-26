@@ -9,10 +9,14 @@ from src.models.aws_finding import AWSFinding
 class InventoryService:
 
     # ======================================================
-    # SERVICES SUMMARY (ENTERPRISE SAFE)
+    # SERVICES SUMMARY (ENTERPRISE SAFE - FIXED JOIN STRATEGY)
     # ======================================================
     @staticmethod
     def get_services_summary(client_id):
+
+        # --------------------------------------------------
+        # Severity ranking (used in subquery)
+        # --------------------------------------------------
 
         severity_rank = case(
             (AWSFinding.severity == "LOW", 1),
@@ -21,35 +25,68 @@ class InventoryService:
             else_=0
         )
 
+        # --------------------------------------------------
+        # SUBQUERY: Aggregate findings per resource FIRST
+        # --------------------------------------------------
+
+        findings_subq = (
+            db.session.query(
+                AWSFinding.resource_id.label("f_resource_id"),
+                func.count(AWSFinding.id).label("f_total"),
+                func.sum(
+                    case((AWSFinding.severity == "HIGH", 1), else_=0)
+                ).label("f_high"),
+                func.sum(
+                    case((AWSFinding.severity == "MEDIUM", 1), else_=0)
+                ).label("f_medium"),
+                func.sum(
+                    case((AWSFinding.severity == "LOW", 1), else_=0)
+                ).label("f_low"),
+                func.max(severity_rank).label("f_max_severity_rank"),
+            )
+            .filter(
+                AWSFinding.client_id == client_id,
+                AWSFinding.resolved == False
+            )
+            .group_by(AWSFinding.resource_id)
+            .subquery()
+        )
+
+        # --------------------------------------------------
+        # MAIN QUERY: Join against aggregated findings
+        # --------------------------------------------------
+
         query = (
             db.session.query(
                 AWSResourceInventory.service_name.label("service"),
 
-                func.count(func.distinct(AWSResourceInventory.id)).label("total_resources"),
+                func.count(
+                    func.distinct(AWSResourceInventory.id)
+                ).label("total_resources"),
 
-                func.count(AWSFinding.id).label("total_findings"),
+                func.coalesce(
+                    func.sum(findings_subq.c.f_total), 0
+                ).label("total_findings"),
 
-                func.max(severity_rank).label("max_severity_rank"),
-
-                func.sum(
-                    case((AWSFinding.severity == "HIGH", 1), else_=0)
+                func.coalesce(
+                    func.sum(findings_subq.c.f_high), 0
                 ).label("high_count"),
 
-                func.sum(
-                    case((AWSFinding.severity == "MEDIUM", 1), else_=0)
+                func.coalesce(
+                    func.sum(findings_subq.c.f_medium), 0
                 ).label("medium_count"),
 
-                func.sum(
-                    case((AWSFinding.severity == "LOW", 1), else_=0)
+                func.coalesce(
+                    func.sum(findings_subq.c.f_low), 0
                 ).label("low_count"),
+
+                func.max(
+                    findings_subq.c.f_max_severity_rank
+                ).label("max_severity_rank"),
             )
             .outerjoin(
-                AWSFinding,
-                and_(
-                    AWSFinding.resource_id == AWSResourceInventory.resource_id,
-                    AWSFinding.client_id == client_id,
-                    AWSFinding.resolved == False
-                )
+                findings_subq,
+                findings_subq.c.f_resource_id == AWSResourceInventory.resource_id
             )
             .filter(
                 AWSResourceInventory.client_id == client_id,
