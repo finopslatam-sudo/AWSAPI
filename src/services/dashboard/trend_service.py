@@ -1,30 +1,23 @@
-from datetime import datetime, timedelta
 from src.models.risk_snapshot import RiskSnapshot
 from src.models.database import db
+from datetime import datetime, timedelta
 
 
 class TrendService:
 
-    # =====================================================
-    # HISTORICAL TREND (ENTERPRISE READY)
-    # =====================================================
     @staticmethod
-    def get_risk_trend(client_id: int, days: int = 30):
+    def get_risk_trend(client_id: int, days: int):
 
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        since_date = datetime.utcnow() - timedelta(days=days)
 
         snapshots = (
             db.session.query(
                 RiskSnapshot.created_at,
-                RiskSnapshot.health_score,
-                RiskSnapshot.risk_level,
-                RiskSnapshot.governance_percentage,
-                RiskSnapshot.financial_exposure,
-                RiskSnapshot.total_findings
+                RiskSnapshot.risk_score
             )
             .filter(
                 RiskSnapshot.client_id == client_id,
-                RiskSnapshot.created_at >= cutoff_date
+                RiskSnapshot.created_at >= since_date
             )
             .order_by(RiskSnapshot.created_at.asc())
             .all()
@@ -34,37 +27,23 @@ class TrendService:
 
         for snap in snapshots:
             trend.append({
-                "date": snap.created_at.date().isoformat(),
-                "health_score": snap.health_score,
-                "risk_level": snap.risk_level,
-                "governance_percentage": float(snap.governance_percentage),
-                "financial_exposure": float(snap.financial_exposure),
-                "total_findings": snap.total_findings
+                "date": snap.created_at.strftime("%Y-%m-%d"),
+                "risk_score": float(snap.risk_score) if snap.risk_score is not None else 100.0
             })
 
-        # -----------------------------------------------------
-        # TREND SUMMARY (EXECUTIVE INSIGHT)
-        # -----------------------------------------------------
-        if len(trend) >= 2:
-            first_score = trend[0]["risk_score"]
-            last_score = trend[-1]["risk_score"]
+        # 🔥 Evitar crash si no hay datos
+        if not trend:
+            return {
+                "trend": [],
+                "delta": 0
+            }
 
-            delta = round(last_score - first_score, 2)
+        first_score = trend[0]["risk_score"]
+        last_score = trend[-1]["risk_score"]
 
-            if delta > 0:
-                direction = "IMPROVING"
-            elif delta < 0:
-                direction = "DETERIORATING"
-            else:
-                direction = "STABLE"
-        else:
-            delta = 0
-            direction = "INSUFFICIENT_DATA"
+        delta = round(last_score - first_score, 2)
 
         return {
-            "period_days": days,
-            "data_points": len(trend),
-            "risk_delta": delta,
-            "trend_direction": direction,
-            "series": trend
+            "trend": trend,
+            "delta": delta
         }
