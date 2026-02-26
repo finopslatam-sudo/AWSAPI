@@ -18,6 +18,9 @@ class CoverageEngine:
         if not aws_account:
             return 0
 
+        # ===============================
+        # Assume Role
+        # ===============================
         sts = STSService()
 
         credentials = sts.assume_role(
@@ -37,42 +40,46 @@ class CoverageEngine:
         end = datetime.utcnow().date()
         start = end - timedelta(days=30)
 
-        coverage = ce.get_reservation_coverage(
-            TimePeriod={
-                "Start": str(start),
-                "End": str(end)
-            },
-            GroupBy=[
-                {"Type": "DIMENSION", "Key": "SERVICE"}
-            ]
-        )
         print("🔥 COVERAGE ENGINE RUNNING")
+
+        # ===============================
+        # GLOBAL RI COVERAGE (NO GroupBy)
+        # ===============================
+        response = ce.get_reservation_coverage(
+            TimePeriod={
+                "Start": start.strftime("%Y-%m-%d"),
+                "End": end.strftime("%Y-%m-%d")
+            },
+            Granularity="MONTHLY"
+        )
 
         total = 0
 
-        for group in coverage.get("CoveragesByTime", []):
+        try:
+            coverage_pct = float(
+                response["Total"]["CoverageHours"]["CoverageHoursPercentage"]
+            )
+        except Exception:
+            return 0
 
-            for service in group.get("Groups", []):
+        print(f"RI Coverage %: {coverage_pct}")
 
-                coverage_pct = float(
-                    service["Coverage"]["CoveragePercentage"]
-                )
+        # ===============================
+        # Threshold
+        # ===============================
+        if coverage_pct < 70:
 
-                service_name = service["Attributes"]["SERVICE"]
+            AWSFinding.upsert_finding(
+                client_id=client_id,
+                aws_account_id=aws_account.id,
+                resource_id="GLOBAL",
+                resource_type="Account",
+                finding_type="LOW_RI_COVERAGE",
+                severity="HIGH",
+                message=f"Global RI coverage last 30 days: {round(coverage_pct, 2)}%",
+                estimated_monthly_savings=200
+            )
 
-                if coverage_pct < 70:
-
-                    AWSFinding.upsert_finding(
-                        client_id=client_id,
-                        aws_account_id=aws_account.id,
-                        resource_id=service_name,
-                        resource_type="Coverage",
-                        finding_type="LOW_RI_COVERAGE",
-                        severity="HIGH",
-                        message=f"RI coverage for {service_name}: {coverage_pct}%",
-                        estimated_monthly_savings=None
-                    )
-
-                    total += 1
+            total += 1
 
         return total
