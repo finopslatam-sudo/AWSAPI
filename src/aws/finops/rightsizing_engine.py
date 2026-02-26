@@ -37,7 +37,7 @@ class RightsizingEngine:
         total = 0
 
         total += RightsizingEngine.evaluate_ec2(session, client_id)
-        total += RightsizingEngine.evaluate_rds(session, client_id)
+        #total += RightsizingEngine.evaluate_rds(session, client_id)
 
         return total
     
@@ -104,7 +104,7 @@ class RightsizingEngine:
                     message=f"Average CPU last 7 days: {round(avg_cpu,2)}%",
                     estimated_monthly_savings=100.0
                 )
-                
+
                 print("Average CPU:", avg_cpu)
 
                 count += 1
