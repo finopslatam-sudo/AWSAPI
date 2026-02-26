@@ -78,6 +78,7 @@ class InventoryScanner:
                 ("ECS", self.scan_ecs),
                 ("Redshift", self.scan_redshift),
                 ("EKS", self.scan_eks),
+                ("ReservedInstances", self.scan_reserved_instances),
             ]
 
             for service_name, service_method in services:
@@ -567,4 +568,45 @@ class InventoryScanner:
 
         except Exception:
             logger.exception(f"EKS scan failed | region={region}")
+            raise
+
+    # =====================================================
+    # RESERVED INSTANCES (EC2)
+    # =====================================================
+    def scan_reserved_instances(self, region):
+
+        try:
+            ec2 = self.aws_session.client("ec2", region_name=region)
+
+            response = ec2.describe_reserved_instances(
+                Filters=[
+                    {
+                        "Name": "state",
+                        "Values": ["active"]
+                    }
+                ]
+            )
+
+            for ri in response.get("ReservedInstances", []):
+
+                self.upsert_resource(
+                    service_name="ReservedInstances",
+                    resource_type="EC2_RI",
+                    resource_id=ri["ReservedInstancesId"],
+                    region=region,
+                    state=ri.get("State"),
+                    tags={},
+                    resource_metadata={
+                        "instance_type": ri.get("InstanceType"),
+                        "instance_count": ri.get("InstanceCount"),
+                        "scope": ri.get("Scope"),
+                        "offering_type": ri.get("OfferingType"),
+                        "duration_seconds": ri.get("Duration"),
+                        "fixed_price": str(ri.get("FixedPrice")),
+                        "usage_price": str(ri.get("UsagePrice")),
+                    }
+                )
+
+        except Exception:
+            logger.exception(f"Reserved Instances scan failed | region={region}")
             raise
