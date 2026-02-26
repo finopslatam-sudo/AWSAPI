@@ -46,7 +46,7 @@ class CloudWatchRules:
         )
 
     # =====================================================
-    # CORE ENGINE
+    # CORE ENGINE (IDEMPOTENT)
     # =====================================================
     @staticmethod
     def _evaluate_rule(client_id, condition, finding_type, severity, message, savings):
@@ -62,16 +62,21 @@ class CloudWatchRules:
 
         for resource in resources:
 
+            existing = AWSFinding.query.filter_by(
+                client_id=client_id,
+                resource_id=resource.resource_id,
+                finding_type=finding_type
+            ).first()
+
             if condition(resource):
 
-                exists = AWSFinding.query.filter_by(
-                    client_id=client_id,
-                    resource_id=resource.resource_id,
-                    finding_type=finding_type,
-                    resolved=False
-                ).first()
-
-                if not exists:
+                if existing:
+                    existing.resolved = False
+                    existing.detected_at = datetime.utcnow()
+                    existing.message = message
+                    existing.severity = severity
+                    existing.estimated_monthly_savings = savings
+                else:
                     finding = AWSFinding(
                         client_id=client_id,
                         aws_account_id=resource.aws_account_id,
@@ -88,5 +93,10 @@ class CloudWatchRules:
 
                     db.session.add(finding)
                     findings_created += 1
+
+            else:
+                if existing and not existing.resolved:
+                    existing.resolved = True
+                    existing.resolved_at = datetime.utcnow()
 
         return findings_created
