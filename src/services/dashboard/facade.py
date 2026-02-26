@@ -38,6 +38,13 @@ class ClientDashboardFacade:
             .first()
         )
 
+        accounts_count = accounts_data.accounts_count if accounts_data else 0
+        last_sync = (
+            accounts_data.last_sync.isoformat()
+            if accounts_data and accounts_data.last_sync
+            else None
+        )
+
         # =====================================================
         # RESOURCES AFFECTED (solo inventory activo)
         # =====================================================
@@ -74,8 +81,8 @@ class ClientDashboardFacade:
 
         return {
             "findings": findings_stats,
-            "accounts": accounts_data.accounts_count or 0,
-            "last_sync": accounts_data.last_sync.isoformat() if accounts_data.last_sync else None,
+            "accounts": accounts_count,
+            "last_sync": last_sync,
             "resources_affected": resources_affected,
             "governance": governance,
             "risk": risk,
