@@ -101,10 +101,11 @@ class InventoryService:
 
         for r in results:
 
-            total_resources = r.total_resources or 0
-            high = r.high_count or 0
-            medium = r.medium_count or 0
-            low = r.low_count or 0
+            total_resources = int(r.total_resources or 0)
+            total_findings = int(r.total_findings or 0)
+            high = int(r.high_count or 0)
+            medium = int(r.medium_count or 0)
+            low = int(r.low_count or 0)
 
             # ----------------------------
             # HEALTH SCORE LOGIC
@@ -134,7 +135,7 @@ class InventoryService:
             data.append({
                 "service": r.service,
                 "total_resources": total_resources,
-                "total_findings": r.total_findings or 0,
+                "total_findings": total_findings,
                 "high": high,
                 "medium": medium,
                 "low": low,
