@@ -11,8 +11,7 @@ from src.services.dashboard.roi_service import ROIService
 from src.services.dashboard.trend_service import TrendService
 from src.services.dashboard.remediation_service import RemediationService
 from src.services.client_findings_service import ClientFindingsService
-from src.services.client_dashboard_service import ClientDashboardService
-
+from src.aws.cost_explorer_service import CostExplorerService #este
 
 class ClientDashboardFacade:
 
@@ -79,7 +78,7 @@ class ClientDashboardFacade:
         roi_projection = ROIService.get_roi_projection(client_id)
         trend = TrendService.get_risk_trend(client_id, 30)
         remediation = RemediationService.get_remediation_metrics(client_id, 30)
-        cost_data = ClientDashboardService.get_cost_data(client_id)
+        cost_data = ClientDashboardFacade._get_cost_data(client_id) #este
 
         return {
             "findings": findings_stats,
@@ -94,5 +93,66 @@ class ClientDashboardFacade:
             "roi_projection": roi_projection,
             "trend": trend,
             "remediation": remediation,
-            "cost": cost_data,
+            "cost": cost_data, #estee
+        }
+    @staticmethod #y de aqui al final
+    def _get_cost_data(client_id: int):
+
+        aws_account = AWSAccount.query.filter_by(
+            client_id=client_id,
+            is_active=True
+        ).first()
+
+        if not aws_account:
+            return {
+                "monthly_cost": [],
+                "service_breakdown": [],
+                "current_month_cost": 0.0,
+                "potential_savings": 0.0,
+                "savings_percentage": 0.0
+            }
+
+        ce = CostExplorerService(aws_account)
+
+        monthly_cost_raw = ce.get_last_6_months_cost()
+
+        monthly_cost = []
+        for item in monthly_cost_raw:
+            amount = float(item["amount"])
+            if abs(amount) < 0.01:
+                amount = 0.0
+
+            monthly_cost.append({
+                "month": item["month"],
+                "amount": amount
+            })
+
+        service_breakdown = ce.get_service_breakdown_current_month()
+
+        raw_current_month_cost = monthly_cost[-1]["amount"] if monthly_cost else 0
+        current_month_cost = (
+            0.0 if abs(raw_current_month_cost) < 0.01
+            else float(raw_current_month_cost)
+        )
+
+        savings = db.session.query(
+            func.sum(AWSFinding.estimated_monthly_savings)
+        ).filter_by(
+            client_id=client_id,
+            resolved=False
+        ).scalar() or 0
+
+        savings = float(savings)
+
+        savings_percentage = (
+            0.0 if current_month_cost <= 0
+            else round((savings / current_month_cost) * 100, 2)
+        )
+
+        return {
+            "monthly_cost": monthly_cost,
+            "service_breakdown": service_breakdown,
+            "current_month_cost": float(current_month_cost),
+            "potential_savings": float(savings),
+            "savings_percentage": float(savings_percentage)
         }
