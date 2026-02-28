@@ -205,3 +205,42 @@ class ClientFindingsService:
         db.session.commit()
 
         return finding
+    
+    # =====================================================
+    # SUMMARY BY SERVICE (ENTERPRISE SAFE)
+    # =====================================================
+    @staticmethod
+    def get_summary_by_service(client_id):
+
+        results = (
+            db.session.query(
+                AWSFinding.resource_type,
+                func.count(AWSFinding.id).label("total"),
+                func.sum(
+                    case((AWSFinding.severity == "HIGH", 1), else_=0)
+                ).label("high"),
+                func.sum(
+                    case((AWSFinding.severity == "MEDIUM", 1), else_=0)
+                ).label("medium"),
+                func.sum(
+                    case((AWSFinding.severity == "LOW", 1), else_=0)
+                ).label("low"),
+            )
+            .filter(
+                AWSFinding.client_id == client_id,
+                AWSFinding.resolved == False
+            )
+            .group_by(AWSFinding.resource_type)
+            .all()
+        )
+
+        return [
+            {
+                "service": r.resource_type,
+                "total": r.total or 0,
+                "high": r.high or 0,
+                "medium": r.medium or 0,
+                "low": r.low or 0
+            }
+            for r in results
+        ]
