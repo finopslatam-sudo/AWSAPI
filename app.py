@@ -6,7 +6,7 @@ import os
 
 # Forzar override
 if os.path.exists("/etc/finops-api.env"):
-    load_dotenv("/etc/finops-api.env", override=True)
+    load_dotenv("/etc/finops-api.env", override=False)
 else:
     load_dotenv(override=True)
 # =====================================================

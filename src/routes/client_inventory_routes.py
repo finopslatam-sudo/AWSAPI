@@ -10,7 +10,7 @@ from src.models.aws_finding import AWSFinding
 client_inventory_bp = Blueprint(
     "client_inventory",
     __name__,
-    url_prefix="/api/client"
+    url_prefix="/api/client/inventory"
 )
 
 
@@ -29,7 +29,7 @@ def safe_int(value, default):
 # GET INVENTORY (ENTERPRISE CORRECTO)
 # ======================================================
 
-@client_inventory_bp.route("/inventory", methods=["GET"])
+@client_inventory_bp.route("/", methods=["GET"])
 @jwt_required()
 def get_inventory():
 
@@ -168,7 +168,7 @@ def get_inventory():
 # ======================================================
 # GET INVENTORY SERVICES (HEALTH SCORE ENTERPRISE)
 # ======================================================
-@client_inventory_bp.route("/inventory/services", methods=["GET"])
+@client_inventory_bp.route("/services", methods=["GET"])
 @jwt_required()
 def get_inventory_services():
 
@@ -195,7 +195,7 @@ def get_inventory_services():
 # ======================================================
 # GET GLOBAL HEALTH SCORE
 # ======================================================
-@client_inventory_bp.route("/inventory/health", methods=["GET"])
+@client_inventory_bp.route("/health", methods=["GET"])
 @jwt_required()
 def get_global_health_score():
 

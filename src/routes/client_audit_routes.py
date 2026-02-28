@@ -14,13 +14,13 @@ from src.aws.finops_auditor import FinOpsAuditor
 client_audit_bp = Blueprint(
     "client_audit",
     __name__,
-    url_prefix="/api/client"
+    url_prefix="/api/client/audit"
 )
 
 logger = logging.getLogger(__name__)
 
 
-@client_audit_bp.route("/audit/run", methods=["POST"])
+@client_audit_bp.route("/run", methods=["POST"])
 @jwt_required()
 def run_client_audit():
 
@@ -94,7 +94,7 @@ def run_client_audit():
 
     return jsonify({"status": "started"}), 202
 
-@client_audit_bp.route("/audit/status", methods=["GET"])
+@client_audit_bp.route("/status", methods=["GET"])
 @jwt_required()
 def audit_status():
 
