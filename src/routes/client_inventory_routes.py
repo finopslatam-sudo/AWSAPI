@@ -29,6 +29,7 @@ def safe_int(value, default):
 # GET INVENTORY (ENTERPRISE CORRECTO)
 # ======================================================
 
+@client_inventory_bp.route("", methods=["GET"])
 @client_inventory_bp.route("/", methods=["GET"])
 @jwt_required()
 def get_inventory():
