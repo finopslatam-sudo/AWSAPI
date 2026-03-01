@@ -11,7 +11,7 @@ from src.services.dashboard.roi_service import ROIService
 from src.services.dashboard.trend_service import TrendService
 from src.services.dashboard.remediation_service import RemediationService
 from src.services.client_findings_service import ClientFindingsService
-from src.aws.cost_explorer_service import CostExplorerService #este
+from src.aws.cost_explorer_service import CostExplorerService
 
 class ClientDashboardFacade:
 
@@ -68,6 +68,30 @@ class ClientDashboardFacade:
         )
 
         # =====================================================
+        # SERVICES SCANNED (Inventory real activo)
+        # =====================================================
+        services_scanned_raw = (
+            db.session.query(
+                AWSResourceInventory.service_name,
+                func.count(AWSResourceInventory.id).label("total_resources")
+            )
+            .filter(
+                AWSResourceInventory.client_id == client_id,
+                AWSResourceInventory.is_active.is_(True)
+            )
+            .group_by(AWSResourceInventory.service_name)
+            .all()
+        )
+
+        services_scanned = [
+            {
+                "service": s.service_name,
+                "total_resources": s.total_resources
+            }
+            for s in services_scanned_raw
+        ]
+
+        # =====================================================
         # DELEGATED SERVICES
         # =====================================================
         governance = GovernanceService.get_governance_score(client_id)
@@ -85,6 +109,7 @@ class ClientDashboardFacade:
             "accounts": accounts_count,
             "last_sync": last_sync,
             "resources_affected": resources_affected,
+            "services_scanned": services_scanned,
             "governance": governance,
             "risk": risk,
             "risk_by_service": risk_by_service,
@@ -93,9 +118,10 @@ class ClientDashboardFacade:
             "roi_projection": roi_projection,
             "trend": trend,
             "remediation": remediation,
-            "cost": cost_data, #estee
+            "cost": cost_data,
+            
         }
-    @staticmethod #y de aqui al final
+    @staticmethod
     def _get_cost_data(client_id: int):
 
         aws_account = AWSAccount.query.filter_by(
