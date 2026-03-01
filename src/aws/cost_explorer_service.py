@@ -2,6 +2,7 @@ import boto3
 from datetime import date
 from dateutil.relativedelta import relativedelta
 from src.aws.sts_service import STSService
+from datetime import timedelta
 
 
 class CostExplorerService:
@@ -37,17 +38,32 @@ class CostExplorerService:
         results = []
 
         for r in response["ResultsByTime"]:
+
+            amount = float(r["Total"]["UnblendedCost"]["Amount"])
+
+            # Normalización AWS floating noise
+            if abs(amount) < 0.01:
+                amount = 0.0
+
             results.append({
                 "month": r["TimePeriod"]["Start"][:7],
-                "amount": float(r["Total"]["UnblendedCost"]["Amount"])
+                "amount": amount
             })
 
         return results
 
     def get_service_breakdown_current_month(self):
 
-        start = date.today().replace(day=1)
-        end = date.today()
+        today = date.today()
+
+        # AWS requiere End exclusivo → usamos mañana
+        start = today.replace(day=1)
+        end = today + timedelta(days=1)
+
+        # Protección adicional (enterprise safe)
+        if start >= end:
+            # fallback mínimo válido (evita crash en día 1)
+            end = start + timedelta(days=1)
 
         response = self.client.get_cost_and_usage(
             TimePeriod={
@@ -64,12 +80,12 @@ class CostExplorerService:
 
         breakdown = []
 
-        if response["ResultsByTime"]:
-            for group in response["ResultsByTime"][0]["Groups"]:
+        if response.get("ResultsByTime"):
+            groups = response["ResultsByTime"][0].get("Groups", [])
 
+            for group in groups:
                 amount = float(group["Metrics"]["UnblendedCost"]["Amount"])
 
-                # Normalización AWS floating noise
                 if abs(amount) < 0.01:
                     amount = 0.0
 
