@@ -13,6 +13,7 @@ client_inventory_bp = Blueprint(
     url_prefix="/api/client/inventory"
 )
 
+client_inventory_bp.strict_slashes = False
 
 # ======================================================
 # UTIL — SAFE INT PARSER
@@ -29,8 +30,7 @@ def safe_int(value, default):
 # GET INVENTORY (ENTERPRISE CORRECTO)
 # ======================================================
 
-@client_inventory_bp.route("", methods=["GET"])
-@client_inventory_bp.route("/", methods=["GET"])
+@client_inventory_bp.route("/", methods=["GET"], strict_slashes=False)
 @jwt_required()
 def get_inventory():
 
