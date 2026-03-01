@@ -17,6 +17,7 @@ class ClientFindingsService:
         status=None,
         severity=None,
         finding_type=None,
+        service=None,
         page=1,
         per_page=20,
         search=None,
@@ -54,6 +55,10 @@ class ClientFindingsService:
         # ---------------- FINDING TYPE FILTER ----------------
         if finding_type:
             query = query.filter(AWSFinding.finding_type == finding_type)
+
+        # ---------------- SERVICE FILTER ----------------
+        if service:
+            query = query.filter(AWSFinding.resource_type == service)
 
         # ---------------- SEARCH FILTER ----------------
         if search:
@@ -244,3 +249,4 @@ class ClientFindingsService:
             }
             for r in results
         ]
+    

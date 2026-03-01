@@ -47,6 +47,7 @@ class ReservedInstanceRules:
                         aws_account_id=ri.aws_account_id,
                         resource_id=ri.resource_id,
                         resource_type="ReservedInstance",
+                        aws_service=ri.service_name,
                         finding_type="RI_UNUSED",
                         severity="HIGH",
                         message=f"Reserved Instance for {ri_type} appears unused",

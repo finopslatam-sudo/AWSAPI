@@ -30,6 +30,7 @@ def get_client_findings():
     status = request.args.get("status")
     severity = request.args.get("severity")
     finding_type = request.args.get("finding_type")
+    service = request.args.get("service")
     search = request.args.get("search")
 
     page = request.args.get("page", 1, type=int)
@@ -43,6 +44,7 @@ def get_client_findings():
         status=status,
         severity=severity,
         finding_type=finding_type,
+        service=service,
         page=page,
         per_page=per_page,
         search=search,

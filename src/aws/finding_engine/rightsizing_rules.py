@@ -38,7 +38,8 @@ class RightsizingRules:
                     client_id=client_id,
                     aws_account_id=instance.aws_account_id,
                     resource_id=instance.resource_id,
-                    resource_type="EC2",
+                    resource_type="Instance",
+                    aws_service=instance.service_name,  # 👈 AGREGAR AQUÍ
                     finding_type="RIGHTSIZING_OPPORTUNITY",
                     severity="MEDIUM",
                     message=f"Instance {instance.resource_id} may be oversized ({instance_type})",

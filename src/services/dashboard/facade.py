@@ -156,3 +156,4 @@ class ClientDashboardFacade:
             "potential_savings": float(savings),
             "savings_percentage": float(savings_percentage)
         }
+    

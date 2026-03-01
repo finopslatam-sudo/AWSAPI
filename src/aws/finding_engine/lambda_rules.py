@@ -72,6 +72,7 @@ class LambdaRules:
                         aws_account_id=resource.aws_account_id,
                         resource_id=resource.resource_id,
                         resource_type=resource.resource_type,
+                        aws_service="Lambda",
                         finding_type=finding_type,
                         severity=severity,
                         message=message,

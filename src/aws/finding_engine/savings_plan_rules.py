@@ -31,6 +31,7 @@ class SavingsPlanRules:
                     aws_account_id=plan.aws_account_id,
                     resource_id=plan.resource_id,
                     resource_type="SavingsPlan",
+                    aws_service=plan.service_name,
                     finding_type="SP_REVIEW",
                     severity="MEDIUM",
                     message="Savings Plan active — verify utilization coverage",

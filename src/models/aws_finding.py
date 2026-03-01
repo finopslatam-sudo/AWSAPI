@@ -25,6 +25,12 @@ class AWSFinding(db.Model):
     resource_id = db.Column(db.String(100), nullable=False)
     resource_type = db.Column(db.String(50), nullable=False)
 
+    # ✅ NUEVO CAMPO ENTERPRISE
+    aws_service = db.Column(
+        db.String(50),
+        nullable=False
+    )
+
     # ---------------- FINDING METADATA ----------------
     finding_type = db.Column(db.String(100), nullable=False)
     severity = db.Column(db.String(20), nullable=False)
@@ -71,7 +77,7 @@ class AWSFinding(db.Model):
     )
 
     # =====================================================
-    # ENTERPRISE UPSERT
+    # ENTERPRISE UPSERT (ACTUALIZADO)
     # =====================================================
     @staticmethod
     def upsert_finding(
@@ -79,6 +85,7 @@ class AWSFinding(db.Model):
         aws_account_id,
         resource_id,
         resource_type,
+        aws_service,
         finding_type,
         severity,
         message,
@@ -92,6 +99,7 @@ class AWSFinding(db.Model):
             aws_account_id=aws_account_id,
             resource_id=resource_id,
             resource_type=resource_type,
+            aws_service=aws_service,
             finding_type=finding_type,
             severity=severity,
             message=message,
@@ -108,7 +116,9 @@ class AWSFinding(db.Model):
                 "message": message,
                 "estimated_monthly_savings": estimated_monthly_savings,
                 "resolved": False,
-                "detected_at": now
+                "detected_at": now,
+                "resource_type": resource_type,
+                "aws_service": aws_service,
             }
         )
 
