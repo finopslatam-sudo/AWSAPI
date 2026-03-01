@@ -58,7 +58,9 @@ class ClientFindingsService:
 
         # ---------------- SERVICE FILTER ----------------
         if service:
-            query = query.filter(AWSFinding.resource_type == service)
+            query = query.filter(
+                AWSFinding.aws_service.ilike(service)
+            )
 
         # ---------------- SEARCH FILTER ----------------
         if search:
@@ -220,7 +222,7 @@ class ClientFindingsService:
 
         results = (
             db.session.query(
-                AWSFinding.resource_type,
+                AWSFinding.aws_service,
                 func.count(AWSFinding.id).label("total"),
                 func.sum(
                     case((AWSFinding.severity == "HIGH", 1), else_=0)
@@ -236,13 +238,13 @@ class ClientFindingsService:
                 AWSFinding.client_id == client_id,
                 AWSFinding.resolved == False
             )
-            .group_by(AWSFinding.resource_type)
+            .group_by(AWSFinding.aws_service)
             .all()
         )
 
         return [
             {
-                "service": r.resource_type,
+                "service": r.aws_service,
                 "total": r.total or 0,
                 "high": r.high or 0,
                 "medium": r.medium or 0,
