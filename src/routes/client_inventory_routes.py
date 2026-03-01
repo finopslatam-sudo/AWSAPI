@@ -198,7 +198,6 @@ def get_inventory():
             "last_seen_at": item.last_seen_at
         })
 
-
     return jsonify({
         "status": "ok",
         "data": {
