@@ -134,20 +134,32 @@ def get_inventory():
 
     def normalize_state(state):
         if not state:
-            return "Unknown"
+            return {
+                "raw": None,
+                "label": "Desconocido",
+                "category": "unknown"
+            }
 
-        state = state.lower()
+        state_lower = state.lower()
 
         mapping = {
-            "running": "Running",
-            "stopped": "Stopped",
-            "active": "Active",
-            "in-use": "In Use",
-            "available": "Available"
+            "running": ("Operativo", "healthy"),
+            "active": ("Operativo", "healthy"),
+            "in-use": ("En Uso", "healthy"),
+            "available": ("Sin Uso", "waste"),
+            "stopped": ("Detenido", "warning"),
         }
 
-        return mapping.get(state, state.capitalize())
+        label, category = mapping.get(
+            state_lower,
+            (state.capitalize(), "unknown")
+        )
 
+        return {
+            "raw": state,
+            "label": label,
+            "category": category
+        }
 
     # -----------------------------
     # Construcción respuesta
