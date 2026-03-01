@@ -129,6 +129,27 @@ def get_inventory():
     }
 
     # -----------------------------
+    # Normalizador de estado
+    # -----------------------------
+
+    def normalize_state(state):
+        if not state:
+            return "Unknown"
+
+        state = state.lower()
+
+        mapping = {
+            "running": "Running",
+            "stopped": "Stopped",
+            "active": "Active",
+            "in-use": "In Use",
+            "available": "Available"
+        }
+
+        return mapping.get(state, state.capitalize())
+
+
+    # -----------------------------
     # Construcción respuesta
     # -----------------------------
 
@@ -138,19 +159,33 @@ def get_inventory():
 
         finding_data = findings_map.get(item.resource_id)
 
+        if finding_data:
+            severity = finding_data["max_severity"]
+
+            if severity == "HIGH":
+                risk_label = "High Risk"
+            elif severity == "MEDIUM":
+                risk_label = "Medium Risk"
+            else:
+                risk_label = "Low Risk"
+        else:
+            severity = None
+            risk_label = "No Issues"
+
         resources.append({
             "resource_id": item.resource_id,
             "service_name": item.service_name,
             "resource_type": item.resource_type,
             "region": item.region,
-            "state": item.state,
-            "has_findings": bool(finding_data),
+            "state": normalize_state(item.state),
+            "severity": severity,
+            "risk_label": risk_label,
             "findings_count": finding_data["count"] if finding_data else 0,
-            "max_severity": finding_data["max_severity"] if finding_data else None,
             "tags": item.tags,
             "detected_at": item.detected_at,
             "last_seen_at": item.last_seen_at
         })
+
 
     return jsonify({
         "status": "ok",
