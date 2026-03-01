@@ -107,6 +107,7 @@ class ClientFindingsService:
                     "id": f.id,
                     "resource_id": f.resource_id,
                     "resource_type": f.resource_type,
+                    "aws_service": f.aws_service,
                     "finding_type": f.finding_type,
                     "severity": f.severity,
                     "message": f.message,
