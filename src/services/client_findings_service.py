@@ -215,7 +215,7 @@ class ClientFindingsService:
         return finding
     
     # =====================================================
-    # SUMMARY BY SERVICE (ENTERPRISE SAFE)
+    # SUMMARY BY AWS SERVICE (ENTERPRISE SAFE)
     # =====================================================
     @staticmethod
     def get_summary_by_service(client_id):
@@ -234,9 +234,17 @@ class ClientFindingsService:
                     case((AWSFinding.severity == "LOW", 1), else_=0)
                 ).label("low"),
             )
+            .join(
+                AWSResourceInventory,
+                and_(
+                    AWSFinding.resource_id == AWSResourceInventory.resource_id,
+                    AWSFinding.client_id == AWSResourceInventory.client_id,
+                )
+            )
             .filter(
                 AWSFinding.client_id == client_id,
-                AWSFinding.resolved == False
+                AWSFinding.resolved.is_(False),
+                AWSResourceInventory.is_active.is_(True)
             )
             .group_by(AWSFinding.aws_service)
             .all()
