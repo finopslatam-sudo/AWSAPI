@@ -1,0 +1,69 @@
+import boto3
+from datetime import datetime, timedelta, timezone
+from src.models.aws_account import AWSAccount
+from src.aws.sts_service import STSService
+
+
+class SavingsPlansService:
+
+    @staticmethod
+    def get_sp_coverage(client_id: int):
+
+        aws_account = AWSAccount.query.filter_by(
+            client_id=client_id,
+            is_active=True
+        ).first()
+
+        if not aws_account:
+            return {
+                "services": [],
+                "period_days": 30
+            }
+
+        sts = STSService()
+
+        credentials = sts.assume_role(
+            role_arn=aws_account.role_arn,
+            external_id=aws_account.external_id,
+            session_name="finops-sp-coverage-api"
+        )
+
+        session = boto3.Session(
+            aws_access_key_id=credentials["AccessKeyId"],
+            aws_secret_access_key=credentials["SecretAccessKey"],
+            aws_session_token=credentials["SessionToken"],
+        )
+
+        ce = session.client("ce", region_name="us-east-1")
+
+        end = datetime.now(timezone.utc).date()
+        start = end - timedelta(days=30)
+
+        response = ce.get_savings_plans_coverage(
+            TimePeriod={
+                "Start": str(start),
+                "End": str(end)
+            },
+            GroupBy=[
+                {"Type": "DIMENSION", "Key": "SERVICE"}
+            ]
+        )
+
+        results = []
+
+        for period in response.get("SavingsPlansCoverages", []):
+            for group in period.get("Groups", []):
+                service = group["Attributes"].get("SERVICE")
+                coverage = float(
+                    group["Coverage"].get("CoveragePercentage", 0)
+                )
+
+                results.append({
+                    "service": service,
+                    "coverage_percentage": round(coverage, 2)
+                })
+
+        return {
+            "period_days": 30,
+            "services": results
+        }
