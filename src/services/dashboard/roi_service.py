@@ -42,9 +42,12 @@ class ROIService:
                 func.sum(case((AWSFinding.severity == "MEDIUM", 1), else_=0)).label("medium"),
                 func.sum(case((AWSFinding.severity == "LOW", 1), else_=0)).label("low"),
                 func.sum(
+                    AWSFinding.estimated_monthly_savings
+                ).label("total_savings"),
+                func.sum(
                     case(
                         (AWSFinding.severity == "HIGH",
-                         AWSFinding.estimated_monthly_savings),
+                        AWSFinding.estimated_monthly_savings),
                         else_=0
                     )
                 ).label("high_savings")
@@ -67,6 +70,7 @@ class ROIService:
         high = results.high or 0
         medium = results.medium or 0
         low = results.low or 0
+        total_savings = float(results.total_savings or 0)
         high_savings = float(results.high_savings or 0)
 
         # -----------------------------------------------------
@@ -122,15 +126,22 @@ class ROIService:
         # -----------------------------------------------------
         # FINANCIAL IMPACT
         # -----------------------------------------------------
-        monthly_savings = round(high_savings, 2)
-        annual_savings = round(high_savings * 12, 2)
+        monthly_total_savings = round(total_savings, 2)
+        annual_total_savings = round(total_savings * 12, 2)
+
+        high_monthly_savings = round(high_savings, 2)
+        high_annual_savings = round(high_savings * 12, 2)
 
         return {
             "projected_risk_score": projected_risk_score,
             "projected_risk_level": projected_risk_level,
             "projected_governance": projected_governance,
-            "high_savings_opportunity_monthly": monthly_savings,
-            "high_savings_opportunity_annual": annual_savings
+
+            "monthly_total_savings": monthly_total_savings,
+            "annual_total_savings": annual_total_savings,
+
+            "high_savings_opportunity_monthly": high_monthly_savings,
+            "high_savings_opportunity_annual": high_annual_savings
         }
 
     # =====================================================

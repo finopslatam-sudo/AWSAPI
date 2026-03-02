@@ -161,14 +161,8 @@ class ClientDashboardFacade:
             else float(raw_current_month_cost)
         )
 
-        savings = db.session.query(
-            func.sum(AWSFinding.estimated_monthly_savings)
-        ).filter_by(
-            client_id=client_id,
-            resolved=False
-        ).scalar() or 0
-
-        savings = float(savings)
+        roi_projection = ROIService.get_roi_projection(client_id)
+        savings = roi_projection.get("monthly_total_savings", 0.0)
 
         savings_percentage = (
             0.0 if current_month_cost <= 0
