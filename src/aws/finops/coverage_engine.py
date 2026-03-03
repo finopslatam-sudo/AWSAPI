@@ -74,6 +74,7 @@ class CoverageEngine:
                 aws_account_id=aws_account.id,
                 resource_id="GLOBAL",
                 resource_type="Account",
+                aws_service="EC2",
                 finding_type="LOW_RI_COVERAGE",
                 severity="HIGH",
                 message=f"Global RI coverage last 30 days: {round(coverage_pct, 2)}%",

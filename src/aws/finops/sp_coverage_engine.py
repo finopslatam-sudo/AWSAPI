@@ -74,6 +74,7 @@ class SavingsPlanCoverageEngine:
                         aws_account_id=aws_account.id,
                         resource_id=f"SP_{service_name}",
                         resource_type="SavingsPlanCoverage",
+                        aws_service="SavingsPlans",
                         finding_type=f"LOW_SP_COVERAGE_{service_name.upper().replace(' ', '_')}",
                         severity="HIGH",
                         message=f"Savings Plans coverage for {service_name} last 30 days: {coverage_pct}%",
