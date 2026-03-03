@@ -1,10 +1,10 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from src.models.user import User
 from src.services.aws_connection_service import AWSConnectionService
 
-
+import os
 client_aws_connection_bp = Blueprint(
     "client_aws_connection",
     __name__,
@@ -70,3 +70,17 @@ def validate_connection():
         "status": "connected",
         "account_id": account_id
     }), 200
+
+# ======================================================
+# STEP 3 — YAML para agregar cuenta nueva
+# ======================================================
+@client_aws_connection_bp.route("/template", methods=["GET"])
+def get_cloudformation_template():
+
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    template_path = os.path.abspath(
+        os.path.join(base_dir, "..", "aws", "templates", "finopslatam_role.yaml")
+    )
+
+    return send_file(template_path, mimetype="text/yaml")

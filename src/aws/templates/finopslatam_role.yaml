@@ -1,0 +1,35 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "FinOpsLatam Cross Account Role"
+
+Parameters:
+  ExternalId:
+    Type: String
+    Description: External ID provided by FinOpsLatam
+
+  FinOpsAccountId:
+    Type: String
+    Description: FinOpsLatam AWS Account ID
+
+Resources:
+  FinOpsLatamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: FinOpsLatam-Audit-Role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${FinOpsAccountId}:root"
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+
+Outputs:
+  RoleArn:
+    Description: Role ARN for FinOpsLatam
+    Value: !GetAtt FinOpsLatamRole.Arn

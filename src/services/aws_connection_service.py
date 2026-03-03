@@ -19,8 +19,7 @@ class AWSConnectionService:
         finops_account_id = os.getenv("FINOPS_AWS_ACCOUNT_ID")
 
         template_url = (
-            "https://finopslatam-onboarding.s3.amazonaws.com/"
-            "finopslatam_role.yaml"
+            "https://api.finopslatam.com/api/client/aws/template"
         )
 
         return (
