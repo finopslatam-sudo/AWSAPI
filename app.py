@@ -98,10 +98,12 @@ from src.routes.client_inventory_routes import client_inventory_bp
 from src.routes.client_dashboard_routes import dashboard_bp
 from src.routes.client_snapshot_routes import snapshot_bp
 from src.routes.client_finops_routes import finops_bp
+from src.routes.client_aws_connection_routes import client_aws_connection_bp
 
 app.register_blueprint(snapshot_bp)
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(finops_bp)
+app.register_blueprint(client_aws_connection_bp)
 app.register_blueprint(client_inventory_bp)
 app.register_blueprint(client_audit_bp)
 app.register_blueprint(me_bp)
