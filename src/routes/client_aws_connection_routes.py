@@ -83,4 +83,9 @@ def get_cloudformation_template():
         os.path.join(base_dir, "..", "aws", "templates", "finopslatam_role.yaml")
     )
 
-    return send_file(template_path, mimetype="text/yaml")
+    return send_file(
+        template_path,
+        mimetype="application/x-yaml",
+        as_attachment=True,
+        download_name="finopslatam_role.yaml"
+    )
