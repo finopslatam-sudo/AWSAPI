@@ -3,6 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from src.models.user import User
 from src.services.aws_connection_service import AWSConnectionService
+from src.models.aws_account import AWSAccount
 
 import os
 client_aws_connection_bp = Blueprint(
@@ -89,3 +90,36 @@ def get_cloudformation_template():
         as_attachment=True,
         download_name="finopslatam_role.yaml"
     )
+
+# ======================================================
+# STEP 4 — AWS CONNECTION STATUS
+# ======================================================
+
+@client_aws_connection_bp.route("/status", methods=["GET"])
+@jwt_required()
+def aws_connection_status():
+
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({
+            "status": "disconnected"
+        }), 200
+
+    account = AWSAccount.query.filter_by(
+        client_id=user.client_id,
+        is_active=True
+    ).first()
+
+    if not account:
+        return jsonify({
+            "status": "disconnected"
+        }), 200
+
+    return jsonify({
+        "status": "connected",
+        "account_id": account.account_id,
+        "last_sync": account.last_sync,
+        "audit_status": account.audit_status
+    }), 200

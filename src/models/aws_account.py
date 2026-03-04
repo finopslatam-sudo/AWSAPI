@@ -17,7 +17,11 @@ class AWSAccount(db.Model):
     account_name = db.Column(db.String(100), nullable=False)
 
     role_arn = db.Column(db.String(255), nullable=False)
-    external_id = db.Column(db.String(255))
+    external_id = db.Column(
+    db.String(64),
+    nullable=False,
+    index=True
+    )
 
     is_active = db.Column(db.Boolean, default=True)
 
