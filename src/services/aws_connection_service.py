@@ -47,6 +47,20 @@ class AWSConnectionService:
 
         account_id = identity["Account"]
 
+        # ==========================================
+        # PREVENT DUPLICATE ACCOUNTS
+        # ==========================================
+        existing = AWSAccount.query.filter_by(
+            client_id=client_id,
+            account_id=account_id
+        ).first()
+
+        if existing:
+            return account_id
+        
+        # ==========================================
+        # SAVE NEW ACCOUNT
+        # ==========================================        
         aws_account = AWSAccount(
             client_id=client_id,
             account_id=account_id,

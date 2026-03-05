@@ -6,6 +6,7 @@ from src.services.aws_connection_service import AWSConnectionService
 from src.models.aws_account import AWSAccount
 
 import os
+
 client_aws_connection_bp = Blueprint(
     "client_aws_connection",
     __name__,
@@ -72,9 +73,11 @@ def validate_connection():
         "account_id": account_id
     }), 200
 
+
 # ======================================================
-# STEP 3 — YAML para agregar cuenta nueva
+# STEP 3 — DOWNLOAD CLOUDFORMATION TEMPLATE
 # ======================================================
+
 @client_aws_connection_bp.route("/template", methods=["GET"])
 def get_cloudformation_template():
 
@@ -91,6 +94,7 @@ def get_cloudformation_template():
         download_name="finopslatam_role.yaml"
     )
 
+
 # ======================================================
 # STEP 4 — AWS CONNECTION STATUS
 # ======================================================
@@ -104,22 +108,46 @@ def aws_connection_status():
 
     if not user:
         return jsonify({
-            "status": "disconnected"
+            "status": "disconnected",
+            "accounts": []
         }), 200
 
-    account = AWSAccount.query.filter_by(
+    accounts = AWSAccount.query.filter_by(
         client_id=user.client_id,
         is_active=True
-    ).first()
+    ).all()
 
-    if not account:
+    if not accounts:
         return jsonify({
-            "status": "disconnected"
+            "status": "disconnected",
+            "accounts": []
         }), 200
 
     return jsonify({
         "status": "connected",
-        "account_id": account.account_id,
-        "last_sync": account.last_sync,
-        "audit_status": account.audit_status
+        "accounts": [a.to_dict() for a in accounts]
+    }), 200
+
+
+# ======================================================
+# LIST AWS ACCOUNTS
+# ======================================================
+
+@client_aws_connection_bp.route("/accounts", methods=["GET"])
+@jwt_required()
+def list_accounts():
+
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    accounts = AWSAccount.query.filter_by(
+        client_id=user.client_id,
+        is_active=True
+    ).all()
+
+    return jsonify({
+        "accounts": [a.to_dict() for a in accounts]
     }), 200
