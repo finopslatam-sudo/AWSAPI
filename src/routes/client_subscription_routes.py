@@ -25,7 +25,13 @@ def get_subscription():
 
     user = User.query.get(int(get_jwt_identity()))
 
-    if not user or not user.client_id:
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    if not user.is_active:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    if not user.client_id:
         return jsonify({"error": "Unauthorized"}), 403
 
     subscription = get_client_subscription(user.client_id)

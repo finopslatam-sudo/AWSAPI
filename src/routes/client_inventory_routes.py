@@ -6,6 +6,7 @@ from src.models.database import db
 from src.models.user import User
 from src.models.aws_resource_inventory import AWSResourceInventory
 from src.models.aws_finding import AWSFinding
+from src.auth.plan_permissions import has_feature
 
 client_inventory_bp = Blueprint(
     "client_inventory",
@@ -42,6 +43,13 @@ def get_inventory():
             "status": "error",
             "message": "Invalid user"
         }), 400
+    
+    # PLAN CHECK
+    if not has_feature(user.client_id, "assets"):
+        return jsonify({
+            "status": "error",
+            "message": "Feature not available in current plan"
+        }), 403
 
     client_id = user.client_id
 
@@ -227,6 +235,19 @@ def get_inventory_services():
             "status": "error",
             "message": "Invalid user"
         }), 400
+    
+    if not has_feature(user.client_id, "assets"):
+        return jsonify({
+            "status": "error",
+            "message": "Feature not available in current plan"
+        }), 403
+    
+    # PLAN CHECK
+    if not has_feature(user.client_id, "assets"):
+        return jsonify({
+            "status": "error",
+            "message": "Feature not available in current plan"
+        }), 403
 
     from src.services.inventory.inventory_service import InventoryService
 
@@ -254,6 +275,12 @@ def get_global_health_score():
             "status": "error",
             "message": "Invalid user"
         }), 400
+    
+    if not has_feature(user.client_id, "assets"):
+        return jsonify({
+            "status": "error",
+            "message": "Feature not available in current plan"
+        }), 403
 
     from src.services.inventory.inventory_service import InventoryService
 

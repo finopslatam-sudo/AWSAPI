@@ -9,6 +9,7 @@ from src.services.dashboard.trend_service import TrendService
 from src.services.dashboard.remediation_service import RemediationService
 from src.services.dashboard.roi_service import ROIService
 from src.services.client_dashboard_service import ClientDashboardService
+from src.auth.plan_permissions import has_feature
 
 dashboard_bp = Blueprint(
     "client_dashboard",
@@ -117,6 +118,11 @@ def get_governance():
 
     client_id, error_response, status = require_client_id()
 
+    if not has_feature(client_id, "gobernanza"):
+        return jsonify({
+            "error": "Governance requires Professional plan"
+        }), 403
+
     if error_response:
         return error_response, status
 
@@ -188,6 +194,11 @@ def get_remediation():
 def get_cost():
 
     client_id, error_response, status = require_client_id()
+
+    if not has_feature(client_id, "costos"):
+        return jsonify({
+            "error": "Cost module not available"
+        }), 403
 
     if error_response:
         return error_response, status

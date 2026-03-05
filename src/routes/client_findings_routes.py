@@ -4,7 +4,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from src.models.user import User
 from src.services.client_findings_service import ClientFindingsService
 from src.services.client_dashboard_service import ClientDashboardService
-
+from src.auth.plan_permissions import has_feature
 
 
 client_findings_bp = Blueprint(
@@ -25,6 +25,10 @@ def get_client_findings():
 
     if user.client_role not in ["owner", "finops_admin", "viewer"]:
         return jsonify({"error": "Unauthorized"}), 403
+    
+    # PLAN CHECK
+    if not has_feature(user.client_id, "findings"):
+        return jsonify({"error": "Feature not available in current plan"}), 403
 
     # ---------------- QUERY PARAMS ----------------
     status = request.args.get("status")
@@ -70,6 +74,10 @@ def get_client_findings_stats():
 
     if user.client_role not in ["owner", "finops_admin", "viewer"]:
         return jsonify({"error": "Unauthorized"}), 403
+    
+    # PLAN CHECK
+    if not has_feature(user.client_id, "findings"):
+        return jsonify({"error": "Feature not available in current plan"}), 403
 
     stats = ClientFindingsService.get_stats(user.client_id)
 
@@ -123,6 +131,9 @@ def get_findings_summary_by_service():
             "status": "error",
             "message": "Invalid user"
         }), 400
+    
+    if not has_feature(user.client_id, "findings"):
+        return jsonify({"error": "Feature not available in current plan"}), 403
 
     data = ClientFindingsService.get_summary_by_service(
         client_id=user.client_id

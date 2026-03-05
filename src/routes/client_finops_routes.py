@@ -5,6 +5,7 @@ from src.models.user import User
 from src.services.finops.rightsizing_service import RightsizingService
 from src.services.finops.ri_service import RIService
 from src.services.finops.sp_service import SavingsPlansService
+from src.auth.plan_permissions import has_feature
 
 finops_bp = Blueprint(
     "client_finops",
@@ -28,6 +29,11 @@ def get_rightsizing():
 
     client_id = get_client_id()
 
+    if not has_feature(client_id, "optimization"):
+        return jsonify({
+            "error": "Optimization requires Professional plan"
+        }), 403
+
     data = RightsizingService.get_rightsizing_recommendations(client_id)
 
     return jsonify(data), 200
@@ -41,6 +47,11 @@ def get_ri_coverage():
 
     client_id = get_client_id()
 
+    if not has_feature(client_id, "optimization"):
+        return jsonify({
+            "error": "Optimization requires Professional plan"
+        }), 403
+
     data = RIService.get_ri_coverage(client_id)
 
     return jsonify(data), 200
@@ -53,6 +64,11 @@ def get_ri_coverage():
 def get_sp_coverage():
 
     client_id = get_client_id()
+
+    if not has_feature(client_id, "optimization"):
+        return jsonify({
+            "error": "Optimization requires Professional plan"
+        }), 403
 
     data = SavingsPlansService.get_sp_coverage(client_id)
 
