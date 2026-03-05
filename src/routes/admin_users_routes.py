@@ -678,6 +678,3 @@ def create_user_with_password():
             "force_password_change": user.force_password_change,
         }
     }), 201
-
-
-

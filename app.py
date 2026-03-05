@@ -99,6 +99,9 @@ from src.routes.client_dashboard_routes import dashboard_bp
 from src.routes.client_snapshot_routes import snapshot_bp
 from src.routes.client_finops_routes import finops_bp
 from src.routes.client_aws_connection_routes import client_aws_connection_bp
+from src.routes.client_user_routes import client_users_bp
+from src.routes.client_subscription_routes import client_subscription_bp
+from src.routes.client_info_routes import client_info_bp
 
 app.register_blueprint(snapshot_bp)
 app.register_blueprint(dashboard_bp)
@@ -112,6 +115,9 @@ app.register_blueprint(contact_bp)
 app.register_blueprint(admin_stats_bp)
 app.register_blueprint(admin_users_bp)
 app.register_blueprint(aws_test_bp)
+app.register_blueprint(client_users_bp)
+app.register_blueprint(client_subscription_bp)
+app.register_blueprint(client_info_bp)
 
 register_admin_clients_routes(app)
 register_admin_report_routes(app)
