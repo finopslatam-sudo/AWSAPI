@@ -90,7 +90,7 @@ def build_password_changed_email(name: str) -> str:
     return f"""
 Hola {name or "Usuario"},
 
-Te confirmamos que tu contraseña fue cambiada correctamente.
+Te confirmamos que tu contraseña fue cambiada correctamente. 🎉
 
 Si no realizaste este cambio, contáctanos de inmediato:
 {SUPPORT_EMAIL}
@@ -198,6 +198,36 @@ en el primer inicio de sesión.
 
 Accede aquí:
 {BASE_URL}
+
+Saludos,
+Equipo FinOpsLatam
+"""
+# ================================
+# UPGRADE de plan
+# ================================
+def build_internal_plan_upgrade_alert(
+    name: str,
+    client_id: int,
+    email: str,
+    old_plan: str,
+    new_plan: str
+) -> str:
+
+    return f"""
+Hola {name or "Usuario"},
+
+Realizaste un Upgrade de plan, estamos muy contento por eso.🎉
+
+Cliente ID: {client_id}
+Usuario: {email}
+
+📦 Cambio de plan:
+Plan anterior: {old_plan}
+Nuevo plan: {new_plan}
+
+Los cambios se aplican de inmediato.
+
+Acción realizada desde la plataforma FinOpsLatam.
 
 Saludos,
 Equipo FinOpsLatam
