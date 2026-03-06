@@ -77,7 +77,6 @@ def get_client_plan(client_id: int):
 # =====================================================
 # FEATURE CHECK
 # =====================================================
-
 def has_feature(client_id: int, feature: str) -> bool:
 
     plan_code = get_client_plan(client_id)
@@ -87,8 +86,11 @@ def has_feature(client_id: int, feature: str) -> bool:
 
     features = PLAN_FEATURES.get(plan_code, {})
 
-    return features.get(feature, False) is True
+    print("PLAN:", plan_code)
+    print("FEATURE:", feature)
+    print("AVAILABLE:", features)
 
+    return features.get(feature, False) is True
 # =====================================================
 # PLAN LIMITS
 # =====================================================
