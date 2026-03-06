@@ -58,27 +58,17 @@ def list_upgrade_requests():
 
     for r in requests:
 
-        # =========================
         # CLIENTE
-        # =========================
         client = Client.query.get(r.client_id)
 
-        company_name = None
-        if client:
-            company_name = client.company_name
+        company_name = client.company_name if client else None
 
-        # =========================
         # USUARIO QUE SOLICITÓ
-        # =========================
-        requested_user = User.query.get(r.requested_by_user_id)
+        user = User.query.get(r.requested_by_user_id)
 
-        email = None
-        if requested_user:
-            email = requested_user.email
+        email = user.email if user else None
 
-        # =========================
         # PLAN ACTUAL
-        # =========================
         current_plan = None
 
         subscription = (
@@ -94,21 +84,11 @@ def list_upgrade_requests():
             if plan:
                 current_plan = plan.name
 
-        # =========================
         # PLAN SOLICITADO
-        # =========================
-        requested_plan = None
-
         plan_requested = Plan.query.filter_by(code=r.requested_plan).first()
 
-        if plan_requested:
-            requested_plan = plan_requested.name
-        else:
-            requested_plan = r.requested_plan
+        requested_plan = plan_requested.name if plan_requested else r.requested_plan
 
-        # =========================
-        # RESPONSE
-        # =========================
         data.append({
             "id": r.id,
             "client_id": r.client_id,
@@ -119,11 +99,7 @@ def list_upgrade_requests():
             "created_at": r.created_at.isoformat()
         })
 
-    return jsonify({
-        "data": data
-    }), 200
-
-
+    return jsonify({"data": data}), 200
 # =====================================================
 # POST /api/admin/upgrades/{id}/approve
 # APRUEBA UPGRADE
