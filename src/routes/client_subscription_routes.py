@@ -144,11 +144,13 @@ def upgrade_subscription():
 
     Cliente ID: {user.client_id}
     Usuario: {user.email}
+    Nombre: {user.name}
 
     Plan actual: {current_plan.name}
     Plan solicitado: {new_plan.name}
 
     Estado: PENDING
+
     """
 
     send_email(

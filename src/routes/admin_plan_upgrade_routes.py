@@ -23,6 +23,8 @@ from src.models.database import db
 from src.services.email_service import send_email
 from src.services.email_templates import build_plan_changed_email
 
+from src.models.client import Client
+
 
 admin_plan_upgrade_bp = Blueprint(
     "admin_plan_upgrades",
@@ -35,7 +37,6 @@ admin_plan_upgrade_bp = Blueprint(
 # GET /api/admin/upgrades
 # LISTAR SOLICITUDES PENDIENTES
 # =====================================================
-
 @admin_plan_upgrade_bp.route("", methods=["GET"])
 @jwt_required()
 def list_upgrade_requests():
@@ -56,11 +57,36 @@ def list_upgrade_requests():
 
     for r in requests:
 
+        # CLIENTE
+        client = Client.query.get(r.client_id)
+
+        # USUARIO QUE SOLICITÓ
+        user = User.query.get(r.requested_by_user_id)
+
+        # SUSCRIPCIÓN ACTUAL
+        subscription = (
+            ClientSubscription.query
+            .filter_by(client_id=r.client_id, is_active=True)
+            .first()
+        )
+
+        current_plan = None
+
+        if subscription:
+            plan = Plan.query.get(subscription.plan_id)
+            if plan:
+                current_plan = plan.name
+
+        # PLAN SOLICITADO
+        requested_plan = Plan.query.filter_by(code=r.requested_plan).first()
+
         data.append({
             "id": r.id,
             "client_id": r.client_id,
-            "requested_plan": r.requested_plan,
-            "requested_by_user_id": r.requested_by_user_id,
+            "company_name": client.company_name if client else None,
+            "email": user.email if user else None,
+            "current_plan": current_plan,
+            "requested_plan": requested_plan.name if requested_plan else r.requested_plan,
             "created_at": r.created_at.isoformat()
         })
 
