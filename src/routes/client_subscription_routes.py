@@ -21,6 +21,7 @@ from src.services.email_templates import (
     build_plan_changed_email,
     build_internal_plan_upgrade_alert
 )
+from src.models.plan_change_event import PlanChangeEvent
 
 
 client_subscription_bp = Blueprint(
@@ -115,6 +116,20 @@ def upgrade_subscription():
     # =====================================
 
     subscription.plan_id = new_plan.id
+
+    # =====================================
+    # REGISTRAR EVENTO DE CAMBIO DE PLAN
+    # =====================================
+
+    event = PlanChangeEvent(
+        client_id=user.client_id,
+        old_plan=current_plan.code,
+        new_plan=new_plan.code,
+        changed_by_user_id=user.id
+    )
+
+    db.session.add(event)
+
     db.session.commit()
 
     # =====================================
