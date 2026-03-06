@@ -3,6 +3,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from src.models.user import User
 from src.models.database import db
+from src.models.subscription import ClientSubscription
+from src.models.plan import Plan
 
 me_bp = Blueprint("me", __name__, url_prefix="/api/me")
 
@@ -14,7 +16,32 @@ me_bp = Blueprint("me", __name__, url_prefix="/api/me")
 @me_bp.route("", methods=["GET"])
 @jwt_required()
 def get_me():
+
     user = User.query.get_or_404(get_jwt_identity())
+    
+    # ==========================================
+    # RESOLVE CLIENT PLAN
+    # ==========================================
+
+    plan_code = None
+
+    if user.client_id:
+
+        subscription = (
+            ClientSubscription.query
+            .filter_by(
+                client_id=user.client_id,
+                is_active=True
+            )
+            .first()
+        )
+
+        if subscription:
+
+            plan = Plan.query.get(subscription.plan_id)
+
+            if plan:
+                plan_code = plan.code
 
     return jsonify({
         "id": user.id,
@@ -24,8 +51,10 @@ def get_me():
         "client_id": user.client_id,
         "is_active": user.is_active,
         "force_password_change": user.force_password_change,
-        "contact_name": user.contact_name 
+        "contact_name": user.contact_name,
+        "plan_code": plan_code
     }), 200
+
 # =====================================================
 # PUT /api/me
 # ACTUALIZA DATOS EDITABLES DEL PERFIL
