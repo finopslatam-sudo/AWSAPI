@@ -164,7 +164,7 @@ Hola {name or "Usuario"},
 
 Te informamos que tu plan en FinOpsLatam ha sido actualizado.
 
-📦 Cambio de plan:
+🚀 Cambio de plan:
 Anterior: {old_plan_name}
 Nuevo: {new_plan_name}
 
@@ -221,7 +221,7 @@ Realizaste un Upgrade de plan, estamos muy contento por eso.🎉
 Cliente ID: {client_id}
 Usuario: {email}
 
-📦 Cambio de plan:
+🚀 Cambio de plan:
 Plan anterior: {old_plan}
 Nuevo plan: {new_plan}
 
