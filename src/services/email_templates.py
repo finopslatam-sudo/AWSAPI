@@ -216,18 +216,15 @@ def build_internal_plan_upgrade_alert(
     return f"""
 Hola {name or "Usuario"},
 
-Realizaste un Upgrade de plan, estamos muy contento por eso.🎉
+Tu solicitud de upgrade de plan fue recibida correctamente.
 
 Cliente ID: {client_id}
 Usuario: {email}
 
-🚀 Cambio de plan:
-Plan anterior: {old_plan}
-Nuevo plan: {new_plan}
+🚀 Plan solicitado: {new_plan.name}
 
-El cambio esta sujeto a la aprobacion de un Admin.
-
-Cuando un Admin apruebe tu Upgrade, podras ver los cambios.
+Un administrador revisará tu solicitud y te notificaremos
+cuando el cambio sea aprobado.
 
 Acción realizada desde la plataforma FinOpsLatam.
 

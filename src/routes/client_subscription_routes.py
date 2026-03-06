@@ -14,14 +14,9 @@ from src.models.subscription import ClientSubscription
 from src.models.plan import Plan
 from src.models.database import db
 
-from src.services.client_subscription_service import get_client_subscription
-
 from src.services.email_service import send_email
-from src.services.email_templates import (
-    build_plan_changed_email,
-    build_internal_plan_upgrade_alert
-)
-from src.models.plan_change_event import PlanChangeEvent
+
+from src.models.plan_upgrade_request import PlanUpgradeRequest
 
 
 client_subscription_bp = Blueprint(
@@ -97,6 +92,20 @@ def upgrade_subscription():
 
     if not new_plan:
         return jsonify({"error": "Invalid plan"}), 400
+    
+    # =====================================
+    # PREVENIR SOLICITUD DUPLICADA
+    # =====================================
+
+    existing_request = PlanUpgradeRequest.query.filter_by(
+        client_id=user.client_id,
+        status="PENDING"
+    ).first()
+
+    if existing_request:
+        return jsonify({
+            "error": "Upgrade request already pending"
+        }), 400
 
     # =====================================
     # PREVENIR DOWNGRADE
@@ -112,65 +121,47 @@ def upgrade_subscription():
         return jsonify({"error": "Downgrade not allowed"}), 400
 
     # =====================================
-    # ACTUALIZAR PLAN
+    # CREAR SOLICITUD DE UPGRADE
     # =====================================
 
-    subscription.plan_id = new_plan.id
-
-    # =====================================
-    # REGISTRAR EVENTO DE CAMBIO DE PLAN
-    # =====================================
-
-    event = PlanChangeEvent(
+    upgrade_request = PlanUpgradeRequest(
         client_id=user.client_id,
-        old_plan=current_plan.code,
-        new_plan=new_plan.code,
-        changed_by_user_id=user.id
+        requested_plan=new_plan.code,
+        requested_by_user_id=user.id,
+        status="PENDING"
     )
 
-    db.session.add(event)
+    db.session.add(upgrade_request)
 
     db.session.commit()
-
-    # =====================================
-    # EMAIL CLIENTE
-    # =====================================
-
-    client_email_body = build_plan_changed_email(
-        name=user.contact_name,
-        old_plan_name=current_plan.name,
-        new_plan_name=new_plan.name
-    )
-
-    send_email(
-        to=user.email,
-        subject="FinOpsLatam — Cambio de plan",
-        body=client_email_body
-    )
 
     # =====================================
     # EMAIL ALERTA INTERNA
     # =====================================
 
-    internal_body = build_internal_plan_upgrade_alert(
-        name=user.contact_name,
-        client_id=user.client_id,
-        email=user.email,
-        old_plan=current_plan.name,
-        new_plan=new_plan.name
-    )
+    internal_body = f"""
+    Nueva solicitud de upgrade de plan.
+
+    Cliente ID: {user.client_id}
+    Usuario: {user.email}
+
+    Plan actual: {current_plan.name}
+    Plan solicitado: {new_plan.name}
+
+    Estado: PENDING
+    """
 
     send_email(
         to="contacto@finopslatam.com",
-        subject="FinOpsLatam — Upgrade de plan realizado",
+        subject="FinOpsLatam — Nueva solicitud de upgrade",
         body=internal_body
     )
 
     # =====================================
     # RESPUESTA
     # =====================================
-
     return jsonify({
-        "status": "ok",
-        "new_plan": new_plan.name
+        "status": "pending",
+        "requested_plan": new_plan.name,
+        "message": "Upgrade request created"
     }), 200
