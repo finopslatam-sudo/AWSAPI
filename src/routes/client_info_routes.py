@@ -92,6 +92,13 @@ def get_client_info():
 
     return jsonify({
 
+        # ---- compatibilidad con frontend actual ----
+        "company_name": client.company_name,
+        "email": client.email,
+        "contact_name": client.contact_name,
+        "phone": client.phone,
+
+        # ---- datos estructurados enterprise ----
         "data": {
 
             "client": {
