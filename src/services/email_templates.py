@@ -225,7 +225,9 @@ Usuario: {email}
 Plan anterior: {old_plan}
 Nuevo plan: {new_plan}
 
-Los cambios se aplican de inmediato.
+El cambio esta sujeto a la aprobacion de un Admin.
+
+Cuando un Admin apruebe tu Upgrade, podras ver los cambios.
 
 Acción realizada desde la plataforma FinOpsLatam.
 
