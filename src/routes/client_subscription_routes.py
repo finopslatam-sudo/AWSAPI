@@ -145,8 +145,11 @@ def upgrade_subscription():
 
     owner_email_body = build_plan_upgrade_request_received_email(
         name=user.contact_name,
+        client_id=user.client_id,
+        email=user.email,
         old_plan_name=current_plan.name,
-        new_plan_name=new_plan.name
+        new_plan_name=new_plan.name,
+        new_plan=new_plan.name
     )
 
     send_email(

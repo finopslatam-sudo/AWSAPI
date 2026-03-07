@@ -224,7 +224,6 @@ Usuario: {email}
 
 🚀 Plan actual: {old_plan_name}
 🚀 Plan solicitado: {new_plan.name}
-🚀 Plan solicitado: {new_plan}
 
 Tu solicitud será revisada por un administrador.
 Te notificaremos cuando el cambio sea aprobado o rechazado.

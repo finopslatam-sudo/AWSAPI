@@ -195,8 +195,10 @@ def approve_upgrade(request_id):
 
 
     return jsonify({
-        "status": "approved",
-        "new_plan": new_plan.name
+        "data": {
+            "status": "approved",
+            "new_plan": new_plan.name
+        }
     }), 200
 
 
@@ -224,7 +226,8 @@ def reject_upgrade(request_id):
 
 
     request_upgrade.status = "REJECTED"
-    request_upgrade.reviewed_by_user_id = actor.id
+    request_upgrade.approved_by = actor.id
+    request_upgrade.approved_at = datetime.utcnow()
 
     db.session.commit()
 
