@@ -268,7 +268,7 @@ def build_internal_plan_upgrade_alert(
     client_id: int,
     email: str,
     old_plan: str,
-    new_plan: str
+    new_plan_name: str
 ) -> str:
 
     return f"""
@@ -279,7 +279,7 @@ Usuario: {email}
 Nombre: {name or "Usuario"}
 
 Plan actual: {old_plan}
-Plan solicitado: {new_plan}
+Plan solicitado: {new_plan_name}
 
 Estado: PENDING
 
