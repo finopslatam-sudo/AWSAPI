@@ -172,12 +172,14 @@ def upgrade_subscription():
         subject="FinOpsLatam — Nueva solicitud de upgrade",
         body=admin_body
     )
-    
+
     # =====================================
     # RESPUESTA
     # =====================================
     return jsonify({
-        "status": "pending",
-        "requested_plan": new_plan.name,
-        "message": "Upgrade request created"
+        "data": {
+            "status": "pending",
+            "requested_plan": new_plan.name,
+            "message": "Upgrade request created"
+        }
     }), 200
