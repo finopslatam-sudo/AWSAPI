@@ -261,3 +261,34 @@ Si necesitas más información puedes escribir a:
 Saludos,
 Equipo FinOpsLatam
 """
+# ================================
+# ALERTA INTERNA UPGRADE PLAN
+# ================================
+def build_internal_plan_upgrade_alert(
+    name: str,
+    client_id: int,
+    email: str,
+    old_plan: str,
+    new_plan: str
+) -> str:
+
+    return f"""
+Nueva solicitud de upgrade de plan en FinOpsLatam.
+
+Cliente ID: {client_id}
+Usuario: {email}
+Nombre: {name or "Usuario"}
+
+Plan actual: {old_plan}
+Plan solicitado: {new_plan}
+
+Estado: PENDING
+
+Un administrador debe revisar esta solicitud.
+
+Panel admin:
+https://www.finopslatam.com/dashboard/admin/upgrades
+
+Saludos,
+FinOpsLatam System
+"""
