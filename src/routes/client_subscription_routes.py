@@ -15,6 +15,10 @@ from src.models.plan import Plan
 from src.models.database import db
 
 from src.services.email_service import send_email
+from src.services.email_templates import (
+    build_internal_plan_upgrade_alert,
+    build_plan_upgrade_request_received_email
+)
 
 from src.models.plan_upgrade_request import PlanUpgradeRequest
 
@@ -136,29 +140,39 @@ def upgrade_subscription():
     db.session.commit()
 
     # =====================================
-    # EMAIL ALERTA INTERNA
+    # EMAIL AL OWNER CONFIRMANDO SOLICITUD
     # =====================================
 
-    internal_body = f"""
-    Nueva solicitud de upgrade de plan.
+    owner_email_body = build_plan_upgrade_request_received_email(
+        name=user.contact_name,
+        old_plan_name=current_plan.name,
+        new_plan_name=new_plan.name
+    )
 
-    Cliente ID: {user.client_id}
-    Usuario: {user.email}
-    Nombre: {user.name}
+    send_email(
+        to=user.email,
+        subject="FinOpsLatam — Solicitud de upgrade recibida",
+        body=owner_email_body
+    )
 
-    Plan actual: {current_plan.name}
-    Plan solicitado: {new_plan.name}
+    # =====================================
+    # EMAIL ALERTA INTERNA A ADMIN
+    # =====================================
 
-    Estado: PENDING
-
-    """
+    admin_body = build_internal_plan_upgrade_alert(
+        name=user.contact_name,
+        client_id=user.client_id,
+        email=user.email,
+        old_plan=current_plan.name,
+        new_plan=new_plan.name
+    )
 
     send_email(
         to="contacto@finopslatam.com",
         subject="FinOpsLatam — Nueva solicitud de upgrade",
-        body=internal_body
+        body=admin_body
     )
-
+    
     # =====================================
     # RESPUESTA
     # =====================================

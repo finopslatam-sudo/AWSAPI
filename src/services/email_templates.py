@@ -205,28 +205,58 @@ Equipo FinOpsLatam
 # ================================
 # UPGRADE de plan
 # ================================
-def build_internal_plan_upgrade_alert(
+def build_plan_upgrade_request_received_email(
     name: str,
     client_id: int,
     email: str,
-    old_plan: str,
+    old_plan_name: str,
+    new_plan_name: str,
     new_plan: str
 ) -> str:
 
     return f"""
 Hola {name or "Usuario"},
 
-Tu solicitud de upgrade de plan fue recibida correctamente.
+Hemos recibido correctamente tu solicitud de cambio de plan en FinOpsLatam.
 
 Cliente ID: {client_id}
 Usuario: {email}
 
+🚀 Plan actual: {old_plan_name}
 🚀 Plan solicitado: {new_plan.name}
+🚀 Plan solicitado: {new_plan}
 
-Un administrador revisará tu solicitud y te notificaremos
-cuando el cambio sea aprobado.
+Tu solicitud será revisada por un administrador.
+Te notificaremos cuando el cambio sea aprobado o rechazado.
 
-Acción realizada desde la plataforma FinOpsLatam.
+Puedes seguir accediendo normalmente a la plataforma.
+
+{BASE_URL}
+
+Saludos,
+Equipo FinOpsLatam
+"""
+
+# ================================
+# PLAN UPGRADE REJECTED
+# ================================
+def build_plan_upgrade_rejected_email(
+    name: str,
+    plan_name: str
+) -> str:
+
+    return f"""
+Hola {name or "Usuario"},
+
+Tu solicitud de upgrade al plan:
+
+{plan_name}
+
+no ha sido aprobada por el administrador.
+
+Si necesitas más información puedes escribir a:
+
+{SUPPORT_EMAIL}
 
 Saludos,
 Equipo FinOpsLatam

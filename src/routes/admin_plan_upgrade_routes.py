@@ -21,9 +21,13 @@ from src.models.plan import Plan
 from src.models.database import db
 
 from src.services.email_service import send_email
-from src.services.email_templates import build_plan_changed_email
+from src.services.email_templates import (
+    build_plan_changed_email,
+    build_plan_upgrade_rejected_email
+)
 
 from src.models.client import Client
+from datetime import datetime
 
 
 admin_plan_upgrade_bp = Blueprint(
@@ -162,7 +166,8 @@ def approve_upgrade(request_id):
     # =====================================
 
     request_upgrade.status = "APPROVED"
-    request_upgrade.reviewed_by_user_id = actor.id
+    request_upgrade.approved_by = actor.id
+    request_upgrade.approved_at = datetime.utcnow()
 
 
     db.session.commit()
@@ -222,6 +227,21 @@ def reject_upgrade(request_id):
     request_upgrade.reviewed_by_user_id = actor.id
 
     db.session.commit()
+
+    user = User.query.get(request_upgrade.requested_by_user_id)
+
+    if user:
+
+        email_body = build_plan_upgrade_rejected_email(
+            name=user.contact_name,
+            plan_name=request_upgrade.requested_plan
+        )
+
+        send_email(
+            to=user.email,
+            subject="FinOpsLatam — Solicitud de upgrade rechazada",
+            body=email_body
+        )
 
 
     return jsonify({
