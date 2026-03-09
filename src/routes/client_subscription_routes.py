@@ -151,7 +151,6 @@ def upgrade_subscription():
             email=user.email,
             old_plan_name=current_plan.name,
             new_plan_name=new_plan.name,
-            new_plan=new_plan.name
         )
 
         send_email(

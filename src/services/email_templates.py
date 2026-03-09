@@ -211,7 +211,6 @@ def build_plan_upgrade_request_received_email(
     email: str,
     old_plan_name: str,
     new_plan_name: str,
-    new_plan: str
 ) -> str:
 
     return f"""
@@ -223,7 +222,7 @@ Cliente ID: {client_id}
 Usuario: {email}
 
 🚀 Plan actual: {old_plan_name}
-🚀 Plan solicitado: {new_plan.name}
+🚀 Plan solicitado: {new_plan_name}
 
 Tu solicitud será revisada por un administrador.
 Te notificaremos cuando el cambio sea aprobado o rechazado.
