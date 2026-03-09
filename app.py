@@ -25,16 +25,42 @@ app = Flask(__name__)
 # =====================================================
 #   CORS (CONTROLADO)
 # =====================================================
+from flask_cors import CORS
+
 CORS(
     app,
-    resources={r"/api/*": {"origins": [
+    origins=[
         "https://finopslatam.com",
         "https://www.finopslatam.com"
-    ]}},
+    ],
     supports_credentials=True,
-    allow_headers=["Content-Type", "Authorization"],
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+    allow_headers=[
+        "Content-Type",
+        "Authorization"
+    ],
+    methods=[
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "OPTIONS"
+    ],
+    expose_headers=[
+        "Content-Type",
+        "Authorization"
+    ]
 )
+
+@app.after_request
+def add_cors_headers(response):
+
+    response.headers["Access-Control-Allow-Origin"] = "https://www.finopslatam.com"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+
+    return response
 
 # =====================================================
 #   DATABASE
@@ -130,6 +156,10 @@ def health():
         "service": "FinOps Latam API",
         "timestamp": datetime.utcnow().isoformat()
     })
+
+@app.route("/up")
+def up():
+    return "ok", 200
 
 # =====================================================
 #   DEBUG (SOLO DEV)
