@@ -6,15 +6,26 @@ Gestión de usuarios dentro de una organización cliente.
 Solo el OWNER puede administrar usuarios.
 """
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from src.models.user import User
+from src.services.password_service import (
+    generate_temp_password,
+    get_temp_password_expiration
+)
+
+from src.services.user_events_service import (
+    on_admin_reset_password,
+    on_user_deactivated,
+    on_user_reactivated
+)
 from src.services.client_users_service import get_client_users
 from src.auth.plan_permissions import get_plan_limit
 from src.models.database import db
 from src.services.email_service import send_email
 from src.services.email_templates import build_user_welcome_email
+
 
 client_users_bp = Blueprint(
     "client_users",
@@ -240,6 +251,78 @@ def delete_client_user(user_id):
 
     db.session.commit()
 
-    return jsonify({
-        "message": "User deactivated"
-    }), 200
+    try:
+        on_user_deactivated(user)
+    except Exception:
+        current_app.logger.exception(
+            "[CLIENT_USER_DEACTIVATED_EMAIL_FAILED] user_id=%s",
+            user.id,
+        )
+
+    return jsonify({"ok": True}), 200
+
+# =====================================================
+# CLIENT — RESET USER PASSWORD
+# =====================================================
+@client_users_bp.route("/<int:user_id>/reset-password", methods=["POST"])
+@jwt_required()
+def client_reset_password(user_id):
+
+    actor = User.query.get(get_jwt_identity())
+
+    if not actor or actor.client_role != "owner":
+        return jsonify({"error": "Unauthorized"}), 403
+
+    user = User.query.get_or_404(user_id)
+
+    if user.client_id != actor.client_id:
+        return jsonify({"error": "No pertenece a tu organización"}), 403
+
+    temp_password = generate_temp_password()
+
+    user.set_password(temp_password)
+    user.force_password_change = True
+    user.password_expires_at = get_temp_password_expiration()
+
+    db.session.commit()
+
+    try:
+        on_admin_reset_password(user, temp_password)
+    except Exception:
+        current_app.logger.exception(
+            "[CLIENT_RESET_PASSWORD_EMAIL_FAILED] user_id=%s",
+            user.id,
+        )
+
+    return jsonify({"ok": True}), 200
+
+# =====================================================
+# CLIENT — ACTIVATE USER
+# =====================================================
+@client_users_bp.route("/<int:user_id>/activate", methods=["PATCH"])
+@jwt_required()
+def activate_user(user_id):
+
+    actor = User.query.get(get_jwt_identity())
+
+    if not actor or actor.client_role != "owner":
+        return jsonify({"error": "Unauthorized"}), 403
+
+    user = User.query.get_or_404(user_id)
+
+    if user.client_id != actor.client_id:
+        return jsonify({"error": "No pertenece a tu organización"}), 403
+
+    user.is_active = True
+
+    db.session.commit()
+
+    try:
+        on_user_reactivated(user)
+    except Exception:
+        current_app.logger.exception(
+            "[CLIENT_USER_REACTIVATED_EMAIL_FAILED] user_id=%s",
+            user.id,
+        )
+
+    return jsonify({"ok": True}), 200
