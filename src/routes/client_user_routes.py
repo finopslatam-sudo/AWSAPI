@@ -96,10 +96,36 @@ def create_client_user():
     if not all([name, email, role, password]):
         return jsonify({"error": "Missing fields"}), 400
 
+    # ==========================
+    # VALIDAR LIMITE DE PLAN
+    # ==========================
+
+    current_users = User.query.filter(
+        User.client_id == actor.client_id,
+        User.global_role.is_(None)
+    ).count()
+
+    user_limit = get_plan_limit(actor.client_id, "users")
+
+    if current_users >= user_limit:
+
+        return jsonify({
+            "error": "User limit reached",
+            "limit": user_limit
+        }), 400
+
+    # ==========================
+    # VALIDAR EMAIL
+    # ==========================
+
     existing = User.query.filter_by(email=email).first()
 
     if existing:
         return jsonify({"error": "Email already exists"}), 400
+
+    # ==========================
+    # CREAR USUARIO
+    # ==========================
 
     new_user = User(
         contact_name=name,
@@ -116,7 +142,10 @@ def create_client_user():
     db.session.add(new_user)
     db.session.commit()
 
-    # correo bienvenida
+    # ==========================
+    # EMAIL BIENVENIDA
+    # ==========================
+
     try:
 
         email_body = build_user_welcome_email(
@@ -157,8 +186,12 @@ def update_client_user(user_id):
 
     user = User.query.get(user_id)
 
-    if not user or user.client_id != actor.client_id:
+    if not user:
         return jsonify({"error": "User not found"}), 404
+
+    # evitar editar usuarios de otro cliente
+    if user.client_id != actor.client_id:
+        return jsonify({"error": "Forbidden"}), 403
 
     data = request.get_json() or {}
 
@@ -169,5 +202,10 @@ def update_client_user(user_id):
     db.session.commit()
 
     return jsonify({
-        "data": "updated"
+        "data": {
+            "id": user.id,
+            "email": user.email,
+            "contact_name": user.contact_name,
+            "client_role": user.client_role
+        }
     }), 200
