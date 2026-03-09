@@ -118,13 +118,17 @@ def get_governance():
 
     client_id, error_response, status = require_client_id()
 
+    if error_response:
+        return error_response, status
+
+    # ==========================
+    # PLAN FEATURE CHECK
+    # ==========================
+
     if not has_feature(client_id, "gobernanza"):
         return jsonify({
             "error": "Governance requires Professional plan"
         }), 403
-
-    if error_response:
-        return error_response, status
 
     data = GovernanceService.get_governance_score(client_id)
 
