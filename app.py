@@ -27,19 +27,13 @@ app = Flask(__name__)
 # =====================================================
 CORS(
     app,
-    resources={
-        r"/api/*": {
-            "origins": [
-                "https://www.finopslatam.com",
-                "https://finopslatam.com"
-            ],
-            "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-            "allow_headers": [
-                "Content-Type",
-                "Authorization"
-            ],
-        }
-    }
+    resources={r"/api/*": {"origins": [
+        "https://finopslatam.com",
+        "https://www.finopslatam.com"
+    ]}},
+    supports_credentials=True,
+    allow_headers=["Content-Type", "Authorization"],
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 )
 
 # =====================================================
