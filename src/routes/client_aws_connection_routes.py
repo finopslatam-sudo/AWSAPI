@@ -4,6 +4,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from src.models.user import User
 from src.services.aws_connection_service import AWSConnectionService
 from src.models.aws_account import AWSAccount
+from src.auth.plan_permissions import get_plan_limit
 
 import os
 
@@ -61,7 +62,25 @@ def validate_connection():
 
     if not role_arn or not external_id:
         return jsonify({"error": "Missing data"}), 400
+    
+    # ==========================
+    # PLAN LIMIT AWS ACCOUNTS
+    # ==========================
 
+    current_accounts = AWSAccount.query.filter_by(
+        client_id=user.client_id,
+        is_active=True
+    ).count()
+
+    limit = get_plan_limit(user.client_id, "aws_accounts")
+
+    if current_accounts >= limit:
+
+        return jsonify({
+            "error": "AWS account limit reached",
+            "limit": limit
+        }), 400
+    
     account_id = AWSConnectionService.validate_and_save_account(
         client_id=user.client_id,
         role_arn=role_arn,
