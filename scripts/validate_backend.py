@@ -6,6 +6,7 @@ Valida backend antes de deploy
 import sys
 import os
 import traceback
+from sqlalchemy import text
 
 # ---------------------------------------------------
 # ADD PROJECT ROOT
@@ -110,10 +111,11 @@ print("\n🔍 Checking database connection...")
 try:
 
     from src.models.database import db
+    from sqlalchemy import text
 
     with app.app_context():
 
-        db.session.execute("SELECT 1")
+        db.session.execute(text("SELECT 1"))
 
     print("✅ Database connection OK")
 
