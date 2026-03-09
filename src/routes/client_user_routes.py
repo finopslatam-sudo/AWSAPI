@@ -208,3 +208,38 @@ def update_client_user(user_id):
             "client_role": user.client_role
         }
     }), 200
+
+# =====================================================
+# ELIMINAR USUARIO (SOFT DELETE)
+# =====================================================
+@client_users_bp.route("/<int:user_id>", methods=["DELETE"])
+@jwt_required()
+def delete_client_user(user_id):
+
+    actor = require_owner(int(get_jwt_identity()))
+
+    if not actor:
+        return jsonify({"error": "Forbidden"}), 403
+
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    # evitar borrar usuarios de otro cliente
+    if user.client_id != actor.client_id:
+        return jsonify({"error": "Forbidden"}), 403
+
+    # evitar que el owner se elimine a sí mismo
+    if user.id == actor.id:
+        return jsonify({
+            "error": "Owner cannot delete itself"
+        }), 400
+
+    user.is_active = False
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "User deactivated"
+    }), 200
