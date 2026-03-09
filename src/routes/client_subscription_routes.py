@@ -143,38 +143,47 @@ def upgrade_subscription():
     # EMAIL AL OWNER CONFIRMANDO SOLICITUD
     # =====================================
 
-    owner_email_body = build_plan_upgrade_request_received_email(
-        name=user.contact_name,
-        client_id=user.client_id,
-        email=user.email,
-        old_plan_name=current_plan.name,
-        new_plan_name=new_plan.name
+    try:
 
-    ) 
+        owner_email_body = build_plan_upgrade_request_received_email(
+            name=user.contact_name,
+            client_id=user.client_id,
+            email=user.email,
+            old_plan_name=current_plan.name,
+            new_plan_name=new_plan.name,
+            new_plan=new_plan.name
+        )
 
-    send_email(
-        to=user.email,
-        subject="FinOpsLatam — Solicitud de upgrade recibida",
-        body=owner_email_body
-    )
+        send_email(
+            to=user.email,
+            subject="FinOpsLatam — Solicitud de upgrade recibida",
+            body=owner_email_body
+        )
+
+    except Exception as e:
+        print("Error sending owner email:", e)
 
     # =====================================
     # EMAIL ALERTA INTERNA A ADMIN
     # =====================================
+    try:
 
-    admin_body = build_internal_plan_upgrade_alert(
-        name=user.contact_name,
-        client_id=user.client_id,
-        email=user.email,
-        old_plan=current_plan.name,
-        new_plan=new_plan.name
-    )
+        admin_body = build_internal_plan_upgrade_alert(
+            name=user.contact_name,
+            client_id=user.client_id,
+            email=user.email,
+            old_plan=current_plan.name,
+            new_plan=new_plan.name
+        )
 
-    send_email(
-        to="contacto@finopslatam.com",
-        subject="FinOpsLatam — Nueva solicitud de upgrade",
-        body=admin_body
-    )
+        send_email(
+            to="contacto@finopslatam.com",
+            subject="FinOpsLatam — Nueva solicitud de upgrade",
+            body=admin_body
+        )
+
+    except Exception as e:
+        print("Error sending admin email:", e)
 
     # =====================================
     # RESPUESTA
