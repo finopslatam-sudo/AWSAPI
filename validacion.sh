@@ -27,7 +27,7 @@ echo "🐍 Activating Python virtual environment..."
 source venv/bin/activate
 
 # =====================================================
-# 3. TRAER CAMBIOS
+# 3. TRAER CAMBIOS (FORMA SEGURA PARA SERVIDOR)
 # =====================================================
 
 echo ""
@@ -36,13 +36,12 @@ echo "📥 Fetching latest code..."
 git fetch origin
 
 echo ""
-echo "🔄 Resetting to origin/main..."
+echo "🔄 Resetting local code to origin/main..."
 
 git reset --hard origin/main
 
 echo ""
 echo "📊 Git status:"
-
 git status
 
 # =====================================================
