@@ -96,7 +96,6 @@ def create_client_user():
     if not all([name, email, role, password]):
         return jsonify({"error": "Missing fields"}), 400
 
-    # verificar email existente
     existing = User.query.filter_by(email=email).first()
 
     if existing:
@@ -105,17 +104,19 @@ def create_client_user():
     new_user = User(
         contact_name=name,
         email=email,
-        password_hash=hash_password(password),
         client_id=actor.client_id,
         client_role=role,
+        global_role=None,
         is_active=True,
         force_password_change=True
     )
 
+    new_user.set_password(password)
+
     db.session.add(new_user)
     db.session.commit()
 
-    # email bienvenida
+    # correo bienvenida
     try:
 
         email_body = build_user_welcome_email(
@@ -137,7 +138,8 @@ def create_client_user():
         "data": {
             "id": new_user.id,
             "email": new_user.email,
-            "role": new_user.client_role
+            "contact_name": new_user.contact_name,
+            "client_role": new_user.client_role
         }
     }), 201
 
