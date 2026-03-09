@@ -80,7 +80,7 @@ def validate_connection():
             "error": "AWS account limit reached",
             "limit": limit
         }), 400
-    
+     
     account_id = AWSConnectionService.validate_and_save_account(
         client_id=user.client_id,
         role_arn=role_arn,
