@@ -162,7 +162,7 @@ def build_plan_changed_email(
     return f"""
 Hola {name or "Usuario"},
 
-Te informamos que tu plan en FinOpsLatam ha sido actualizado.
+Te informamos que tu plan en FinOpsLatam ha sido actualizado. 🎉
 
 🚀 Cambio de plan:
 Anterior: {old_plan_name}
