@@ -172,7 +172,7 @@ def upgrade_subscription():
             client_id=user.client_id,
             email=user.email,
             old_plan=current_plan.name,
-            new_plan=new_plan.name
+            new_plan_name=new_plan.name
         )
 
         send_email(
@@ -182,7 +182,7 @@ def upgrade_subscription():
         )
 
     except Exception as e:
-        print("Error sending admin email:", e)
+        print("Error sending admin upgrade email:", e)
 
     # =====================================
     # RESPUESTA
