@@ -13,7 +13,6 @@ from src.models.user import User
 from src.services.client_users_service import get_client_users
 from src.auth.plan_permissions import get_plan_limit
 from src.models.database import db
-from src.services.password_service import hash_password
 from src.services.email_service import send_email
 from src.services.email_templates import build_user_welcome_email
 
