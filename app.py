@@ -12,7 +12,7 @@ else:
 # =====================================================
 #   CORE IMPORTS
 # =====================================================
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from flask_cors import CORS
@@ -25,14 +25,12 @@ app = Flask(__name__)
 # =====================================================
 #   CORS (CONTROLADO)
 # =====================================================
-from flask_cors import CORS
-
 CORS(
     app,
-    origins=[
+    resources={r"/api/*": {"origins": [
         "https://finopslatam.com",
         "https://www.finopslatam.com"
-    ],
+    ]}},
     supports_credentials=True,
     allow_headers=[
         "Content-Type",
@@ -55,7 +53,13 @@ CORS(
 @app.after_request
 def add_cors_headers(response):
 
-    response.headers["Access-Control-Allow-Origin"] = "https://www.finopslatam.com"
+    origin = request.headers.get("Origin")
+
+    if origin in [
+        "https://finopslatam.com",
+        "https://www.finopslatam.com"
+    ]:
+        response.headers["Access-Control-Allow-Origin"] = origin
     response.headers["Access-Control-Allow-Credentials"] = "true"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
@@ -160,6 +164,21 @@ def health():
 @app.route("/up")
 def up():
     return "ok", 200
+
+# =====================================================
+#   GLOBAL OPTIONS HANDLER (CORS PREFLIGHT)
+# =====================================================
+@app.route("/api/<path:path>", methods=["OPTIONS"])
+def handle_options(path):
+
+    response = jsonify({"status": "ok"})
+
+    response.headers["Access-Control-Allow-Origin"] = "https://www.finopslatam.com"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+
+    return response, 200
 
 # =====================================================
 #   DEBUG (SOLO DEV)
