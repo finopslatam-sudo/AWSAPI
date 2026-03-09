@@ -9,7 +9,7 @@ echo "========================================="
 echo ""
 
 # =====================================================
-# 1. IR AL PROYECTO
+# IR AL PROYECTO
 # =====================================================
 
 cd /opt/finops-api/AWSAPI
@@ -18,7 +18,7 @@ echo "📂 Project directory:"
 pwd
 
 # =====================================================
-# 2. ACTIVAR VENV
+# ACTIVAR VENV
 # =====================================================
 
 echo ""
@@ -27,7 +27,7 @@ echo "🐍 Activating Python virtual environment..."
 source venv/bin/activate
 
 # =====================================================
-# 3. TRAER CAMBIOS (tu flujo real)
+# TRAER CAMBIOS (SIN git pull)
 # =====================================================
 
 echo ""
@@ -36,17 +36,17 @@ echo "📥 Fetching latest code..."
 git fetch origin
 
 echo ""
-echo "🔄 Resetting to origin/main..."
+echo "🔄 Resetting working tree to origin/main..."
 
 git reset --hard origin/main
 
 echo ""
-echo "📊 Git status:"
+echo "📊 Current commit deployed:"
 
-git status
+git log -1 --oneline
 
 # =====================================================
-# 4. VALIDAR BACKEND
+# VALIDAR BACKEND
 # =====================================================
 
 echo ""
@@ -58,7 +58,7 @@ echo ""
 echo "✅ Backend validation passed"
 
 # =====================================================
-# 5. RESTART API
+# RESTART API
 # =====================================================
 
 echo ""
@@ -74,7 +74,7 @@ echo "📊 Service status:"
 sudo systemctl status finops-api --no-pager
 
 # =====================================================
-# 6. HEALTHCHECK
+# HEALTHCHECK
 # =====================================================
 
 echo ""
