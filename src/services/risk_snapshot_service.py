@@ -97,3 +97,21 @@ class RiskSnapshotService:
         db.session.commit()
 
         return snapshot
+    
+    # =====================================================
+    # GET LAST SCAN
+    # =====================================================
+    @staticmethod
+    def get_last_scan(client_id: int):
+
+        last_snapshot = (
+            RiskSnapshot.query
+            .filter(RiskSnapshot.client_id == client_id)
+            .order_by(RiskSnapshot.created_at.desc())
+            .first()
+        )
+
+        if not last_snapshot:
+            return None
+
+        return last_snapshot.created_at

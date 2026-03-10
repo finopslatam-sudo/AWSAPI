@@ -10,6 +10,7 @@ from src.services.dashboard.remediation_service import RemediationService
 from src.services.dashboard.roi_service import ROIService
 from src.services.client_dashboard_service import ClientDashboardService
 from src.auth.plan_permissions import has_feature
+from src.services.risk_snapshot_service import RiskSnapshotService
 
 dashboard_bp = Blueprint(
     "client_dashboard",
@@ -228,3 +229,22 @@ def get_inventory():
     data = ClientDashboardService.get_inventory_summary(client_id)
 
     return jsonify(data), 200
+
+# =====================================================
+# LAST SCAN
+# =====================================================
+
+@dashboard_bp.route("/last-scan", methods=["GET"])
+@jwt_required()
+def get_last_scan():
+
+    client_id, error_response, status = require_client_id()
+
+    if error_response:
+        return error_response, status
+
+    last_scan = RiskSnapshotService.get_last_scan(client_id)
+
+    return jsonify({
+        "last_scan": last_scan.isoformat() if last_scan else None
+    }), 200
