@@ -46,7 +46,7 @@ class TagRules:
                             aws_account_id=resource.aws_account_id,
                             resource_id=resource.resource_id,
                             resource_type=resource.resource_type,
-                            aws_service="Tag",
+                            aws_service=resource.aws_service,
                             finding_type=finding_type,
                             severity="LOW",
                             message=f"Missing required tag: {required_tag}",
