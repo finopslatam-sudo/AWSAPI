@@ -117,7 +117,6 @@ def get_cloudformation_template():
 # ======================================================
 # STEP 4 — AWS CONNECTION STATUS
 # ======================================================
-
 @client_aws_connection_bp.route("/status", methods=["GET"])
 @jwt_required()
 def aws_connection_status():
@@ -128,7 +127,9 @@ def aws_connection_status():
     if not user:
         return jsonify({
             "status": "disconnected",
-            "accounts": []
+            "accounts": [],
+            "accounts_limit": 0,
+            "accounts_used": 0
         }), 200
 
     accounts = AWSAccount.query.filter_by(
@@ -136,17 +137,22 @@ def aws_connection_status():
         is_active=True
     ).all()
 
-    if not accounts:
-        return jsonify({
-            "status": "disconnected",
-            "accounts": []
-        }), 200
+    accounts_used = len(accounts)
+
+    # ==========================
+    # PLAN LIMIT
+    # ==========================
+
+    accounts_limit = get_plan_limit(user.client_id, "aws_accounts")
+
+    status = "connected" if accounts_used > 0 else "disconnected"
 
     return jsonify({
-        "status": "connected",
-        "accounts": [a.to_dict() for a in accounts]
+        "status": status,
+        "accounts": [a.to_dict() for a in accounts],
+        "accounts_used": accounts_used,
+        "accounts_limit": accounts_limit
     }), 200
-
 
 # ======================================================
 # LIST AWS ACCOUNTS
