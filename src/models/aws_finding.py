@@ -124,5 +124,6 @@ class AWSFinding(db.Model):
 
         result = db.session.execute(stmt)
 
-        # 🔥 IMPORTANTE: retornar si se afectó alguna fila
-        return result.rowcount > 0
+        db.session.flush()
+
+        return True
