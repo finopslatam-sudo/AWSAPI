@@ -20,6 +20,9 @@ client_audit_bp = Blueprint(
 logger = logging.getLogger(__name__)
 
 
+# =====================================================
+# RUN AUDIT
+# =====================================================
 @client_audit_bp.route("/run", methods=["POST"])
 @jwt_required()
 def run_client_audit():
@@ -33,6 +36,7 @@ def run_client_audit():
     if user.client_role not in ["owner", "finops_admin"]:
         return jsonify({"error": "Unauthorized"}), 403
 
+    # Obtener cuenta AWS activa
     aws_account = AWSAccount.query.filter_by(
         client_id=user.client_id,
         is_active=True
@@ -41,52 +45,68 @@ def run_client_audit():
     if not aws_account:
         return jsonify({"error": "No active AWS account found"}), 404
 
-    # 🔥 Evitar doble ejecución simultánea
+    # Evitar ejecución simultánea
     if aws_account.audit_status == "running":
         return jsonify({"status": "already_running"}), 200
 
-    # 🔹 Marcar como running
+    # Marcar auditoría como running
     aws_account.audit_status = "running"
     aws_account.audit_started_at = datetime.utcnow()
     aws_account.audit_finished_at = None
     db.session.commit()
 
-    # ==========================================
+    # =====================================================
     # BACKGROUND TASK
-    # ==========================================
+    # =====================================================
     def background_audit(app, client_id, aws_account_id):
 
-        # 🔥 Crear application context explícito
         with app.app_context():
 
             try:
+
                 auditor = FinOpsAuditor()
-                auditor.run_comprehensive_audit(client_id, aws_account_id)
+
+                auditor.run_comprehensive_audit(
+                    client_id,
+                    aws_account_id
+                )
 
                 account = AWSAccount.query.get(aws_account_id)
+
                 account.audit_status = "completed"
                 account.audit_finished_at = datetime.utcnow()
 
                 db.session.commit()
                 db.session.remove()
 
-                logger.info(f"AUDIT COMPLETED | client_id={client_id}")
+                logger.info(
+                    f"AUDIT COMPLETED | client_id={client_id}"
+                )
 
             except Exception:
-                logger.exception(f"AUDIT FAILED | client_id={client_id}")
+
+                logger.exception(
+                    f"AUDIT FAILED | client_id={client_id}"
+                )
 
                 account = AWSAccount.query.get(aws_account_id)
+
                 account.audit_status = "failed"
                 account.audit_finished_at = datetime.utcnow()
 
                 db.session.commit()
                 db.session.remove()
 
-
-    # 🔥 Pasamos la app explícitamente al thread
+    # =====================================================
+    # RUN THREAD
+    # =====================================================
     thread = threading.Thread(
         target=background_audit,
-        args=(current_app._get_current_object(), user.client_id, aws_account.id),
+        args=(
+            current_app._get_current_object(),
+            user.client_id,
+            aws_account.id
+        ),
         daemon=True
     )
 
@@ -94,12 +114,19 @@ def run_client_audit():
 
     return jsonify({"status": "started"}), 202
 
+
+# =====================================================
+# AUDIT STATUS
+# =====================================================
 @client_audit_bp.route("/status", methods=["GET"])
 @jwt_required()
 def audit_status():
 
     identity = get_jwt_identity()
     user = User.query.get(identity)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
 
     aws_account = AWSAccount.query.filter_by(
         client_id=user.client_id,
