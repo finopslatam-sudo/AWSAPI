@@ -51,6 +51,7 @@ class AWSConnectionService:
             f"&param_FinOpsAccountId={finops_account_id}"
         )
 
+  
     # =====================================================
     # VALIDATE ROLE ARN
     # =====================================================
@@ -62,6 +63,30 @@ class AWSConnectionService:
 
         if not re.match(pattern, role_arn):
             raise ValueError("Invalid AWS Role ARN")
+
+
+    # =====================================================
+    # VALIDATE ACCOUNT ID
+    # =====================================================
+
+    @staticmethod
+    def validate_account_id(account_id: str):
+
+        pattern = r"^\d{12}$"
+
+        if not re.match(pattern, account_id):
+            raise ValueError("Invalid AWS Account ID")
+        
+    # =====================================================
+    # BUILD ROLE ARN
+    # =====================================================
+
+    @staticmethod
+    def build_role_arn(account_id: str):
+
+        role_name = "FinOpsLatam-Audit-Role"
+
+        return f"arn:aws:iam::{account_id}:role/{role_name}"
 
     # =====================================================
     # CHECK PLAN LIMIT
@@ -88,23 +113,39 @@ class AWSConnectionService:
     # =====================================================
 
     @staticmethod
-    def validate_and_save_account(client_id, role_arn, external_id):
+    def validate_and_save_account(client_id, account_id, external_id):
 
         # -----------------------------------------
-        # Validate ARN
+        # Validate AWS Account ID
+        # -----------------------------------------
+
+        AWSConnectionService.validate_account_id(account_id)
+
+        # -----------------------------------------
+        # Build Role ARN automatically
+        # -----------------------------------------
+
+        role_arn = AWSConnectionService.build_role_arn(account_id)
+
+        # -----------------------------------------
+        # Validate generated ARN
         # -----------------------------------------
 
         AWSConnectionService.validate_role_arn(role_arn)
 
         # -----------------------------------------
-        # Plan limit
+        # Check plan limit
         # -----------------------------------------
 
         AWSConnectionService.check_account_limit(client_id)
 
         # -----------------------------------------
-        # Assume Role
+        # Assume Role via STS
         # -----------------------------------------
+
+        print("Attempting STS AssumeRole")
+        print("Role ARN:", role_arn)
+        print("External ID:", external_id)
 
         try:
 
@@ -112,12 +153,19 @@ class AWSConnectionService:
 
         except ClientError as e:
 
+            error_code = e.response["Error"]["Code"]
+
+            if error_code == "AccessDenied":
+                raise RuntimeError(
+                    "AccessDenied: FinOpsLatam No puede asumir el rol. Verificar External ID y la política de confianza.."
+                )
+
             raise RuntimeError(
-                f"AWS STS AssumeRole failed: {str(e)}"
+                f"AWS STS error: {str(e)}"
             )
 
         # -----------------------------------------
-        # Create AWS session
+        # Create AWS session with temporary creds
         # -----------------------------------------
 
         session = boto3.Session(
@@ -128,9 +176,17 @@ class AWSConnectionService:
 
         sts = session.client("sts")
 
+        # -----------------------------------------
+        # Verify AWS identity
+        # -----------------------------------------
+
         try:
 
             identity = sts.get_caller_identity()
+
+            verified_account_id = identity["Account"]
+
+            print("Connected AWS account:", verified_account_id)
 
         except ClientError as e:
 
@@ -138,7 +194,18 @@ class AWSConnectionService:
                 f"Failed to verify AWS identity: {str(e)}"
             )
 
-        account_id = identity["Account"]
+        verified_account_id = identity["Account"]
+
+        # -----------------------------------------
+        # Extra safety check
+        # Ensure role actually belongs to account
+        # -----------------------------------------
+
+        if verified_account_id != account_id:
+
+            raise RuntimeError(
+                "Account ID mismatch after STS validation"
+            )
 
         # -----------------------------------------
         # Prevent duplicate accounts
@@ -146,19 +213,20 @@ class AWSConnectionService:
 
         existing = AWSAccount.query.filter_by(
             client_id=client_id,
-            account_id=account_id
+            account_id=verified_account_id
         ).first()
 
         if existing:
-            return account_id
+
+            return verified_account_id
 
         # -----------------------------------------
-        # Save account
+        # Save account in database
         # -----------------------------------------
 
         aws_account = AWSAccount(
             client_id=client_id,
-            account_id=account_id,
+            account_id=verified_account_id,
             account_name="Primary",
             role_arn=role_arn,
             external_id=external_id,
@@ -178,4 +246,5 @@ class AWSConnectionService:
                 "Database error while saving AWS account"
             )
 
-        return account_id
+        return verified_account_id
+    

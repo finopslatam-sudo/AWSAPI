@@ -1,12 +1,15 @@
 from flask import Blueprint, jsonify, request, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from src.models.user import User
-from src.services.aws_connection_service import AWSConnectionService
-from src.models.aws_account import AWSAccount
-from src.auth.plan_permissions import get_plan_limit
-
 import os
+import boto3
+from botocore.exceptions import ClientError
+
+from src.models.user import User
+from src.models.aws_account import AWSAccount
+from src.services.aws_connection_service import AWSConnectionService
+from src.aws.sts_service import STSService
+from src.auth.plan_permissions import get_plan_limit
 
 client_aws_connection_bp = Blueprint(
     "client_aws_connection",
@@ -57,10 +60,10 @@ def validate_connection():
 
     data = request.json
 
-    role_arn = data.get("role_arn")
+    account_id = data.get("account_id")
     external_id = data.get("external_id")
 
-    if not role_arn or not external_id:
+    if not account_id or not external_id:
         return jsonify({"error": "Missing data"}), 400
     
     # ==========================
@@ -83,7 +86,7 @@ def validate_connection():
      
     account_id = AWSConnectionService.validate_and_save_account(
         client_id=user.client_id,
-        role_arn=role_arn,
+        account_id=account_id,
         external_id=external_id
     )
 
@@ -175,4 +178,83 @@ def list_accounts():
 
     return jsonify({
         "accounts": [a.to_dict() for a in accounts]
+    }), 200
+
+# ======================================================
+# DEBUG AWS CONNECTION
+# ======================================================
+
+@client_aws_connection_bp.route("/debug", methods=["POST"])
+@jwt_required()
+def debug_connection():
+
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user or user.client_role != "owner":
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.json
+
+    account_id = data.get("account_id")
+    external_id = data.get("external_id")
+
+    if not account_id or not external_id:
+        return jsonify({
+            "status": "failed",
+            "step": "input_validation",
+            "error": "Missing account_id or external_id"
+        }), 400
+
+    try:
+
+        role_arn = AWSConnectionService.build_role_arn(account_id)
+
+    except Exception as e:
+
+        return jsonify({
+            "status": "failed",
+            "step": "build_role_arn",
+            "error": str(e)
+        }), 400
+
+    try:
+
+        creds = STSService.assume_role(role_arn, external_id)
+
+    except ClientError as e:
+
+        return jsonify({
+            "status": "failed",
+            "step": "assume_role",
+            "error": e.response["Error"]["Code"],
+            "message": e.response["Error"]["Message"]
+        }), 400
+
+    try:
+
+        session = boto3.Session(
+            aws_access_key_id=creds["AccessKeyId"],
+            aws_secret_access_key=creds["SecretAccessKey"],
+            aws_session_token=creds["SessionToken"]
+        )
+
+        sts = session.client("sts")
+
+        identity = sts.get_caller_identity()
+
+    except ClientError as e:
+
+        return jsonify({
+            "status": "failed",
+            "step": "get_caller_identity",
+            "error": e.response["Error"]["Code"],
+            "message": e.response["Error"]["Message"]
+        }), 400
+
+    return jsonify({
+        "status": "success",
+        "account_id": identity["Account"],
+        "arn": identity["Arn"],
+        "message": "STS AssumeRole successful"
     }), 200

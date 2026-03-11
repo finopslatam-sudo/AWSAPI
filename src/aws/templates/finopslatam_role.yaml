@@ -15,12 +15,15 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: FinOpsLatam-Audit-Role
+      Path: /
+      Description: Rol utilizado por la plataforma FinOpsLatam para realizar auditorías de FinOps a través de STS AssumeRole
+      MaxSessionDuration: 3600
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
-              AWS: !Sub "arn:aws:iam::${FinOpsAccountId}:root"
+              AWS: !Sub "arn:aws:iam::${FinOpsAccountId}:role/FinOpsPlatformRole"
             Action: sts:AssumeRole
             Condition:
               StringEquals:
