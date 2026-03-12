@@ -81,6 +81,7 @@ class DynamoDBRules:
                         aws_account_id=resource.aws_account_id,
                         resource_id=resource.resource_id,
                         resource_type=resource.resource_type,
+                        region=resource.region,
                         aws_service="DynamoDB",
                         finding_type=finding_type,
                         severity=severity,

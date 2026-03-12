@@ -27,6 +27,7 @@ class EBSRules:
                 aws_account_id=volume.aws_account_id,
                 resource_id=volume.resource_id,
                 resource_type="Volume",
+                region=volume.region,
                 aws_service=volume.service_name,
                 finding_type="UNATTACHED_VOLUME",
                 severity="HIGH",

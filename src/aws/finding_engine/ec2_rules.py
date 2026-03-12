@@ -28,6 +28,7 @@ class EC2Rules:
                 aws_account_id=instance.aws_account_id,
                 resource_id=instance.resource_id,
                 resource_type="Instance",
+                region=instance.region,
                 aws_service=instance.service_name,
                 finding_type="STOPPED_INSTANCE",
                 severity="MEDIUM",
