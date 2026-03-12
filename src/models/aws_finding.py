@@ -24,6 +24,7 @@ class AWSFinding(db.Model):
     # ---------------- RESOURCE INFO ----------------
     resource_id = db.Column(db.String(100), nullable=False)
     resource_type = db.Column(db.String(50), nullable=False)
+    region = db.Column(db.String(32), nullable=True)
 
     # ✅ NUEVO CAMPO ENTERPRISE
     aws_service = db.Column(
@@ -89,7 +90,8 @@ class AWSFinding(db.Model):
         finding_type,
         severity,
         message,
-        estimated_monthly_savings=None
+        estimated_monthly_savings=None,
+        region=None
     ):
 
         now = datetime.utcnow()
@@ -99,6 +101,7 @@ class AWSFinding(db.Model):
             aws_account_id=aws_account_id,
             resource_id=resource_id,
             resource_type=resource_type,
+            region=region,
             aws_service=aws_service,
             finding_type=finding_type,
             severity=severity,
@@ -119,6 +122,7 @@ class AWSFinding(db.Model):
                 "detected_at": now,
                 "resource_type": resource_type,
                 "aws_service": aws_service,
+                "region": region,
             }
         )
 
