@@ -3,7 +3,7 @@ import os
 import boto3
 import re
 
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, BotoCoreError
 
 from src.models.aws_account import AWSAccount
 from src.models.database import db
@@ -23,6 +23,72 @@ class AWSConnectionService:
         Generate secure ExternalId for cross-account access.
         """
         return str(uuid.uuid4())
+    
+    # =====================================================
+    # RESOLVE AWS ACCOUNT NAME (ENTERPRISE)
+    # Priority:
+    # 1. AWS Organizations
+    # 2. IAM Account Alias
+    # 3. Fallback -> Account ID
+    # =====================================================
+
+    @staticmethod
+    def resolve_account_name(session, account_id: str):
+
+        # -----------------------------------------
+        # 1️⃣ Try AWS Organizations
+        # -----------------------------------------
+
+        try:
+
+            org = session.client("organizations")
+
+            response = org.describe_account(
+                AccountId=account_id
+            )
+
+            name = response["Account"]["Name"]
+
+            if name:
+                print("AWS Organization account name:", name)
+                return name
+
+        except (ClientError, BotoCoreError) as e:
+
+            # Organizations usually fails if
+            # the account is not a management account
+            print("Organizations lookup skipped:", str(e))
+
+        # -----------------------------------------
+        # 2️⃣ Try IAM Account Alias
+        # -----------------------------------------
+
+        try:
+
+            iam = session.client("iam")
+
+            response = iam.list_account_aliases()
+
+            aliases = response.get("AccountAliases", [])
+
+            if aliases:
+                alias = aliases[0]
+
+                print("IAM Account alias:", alias)
+
+                return alias
+
+        except (ClientError, BotoCoreError) as e:
+
+            print("IAM alias lookup skipped:", str(e))
+
+        # -----------------------------------------
+        # 3️⃣ Fallback -> Account ID
+        # -----------------------------------------
+
+        print("Using fallback account name:", account_id)
+
+        return account_id
 
     # =====================================================
     # BUILD CLOUDFORMATION URL
@@ -221,13 +287,22 @@ class AWSConnectionService:
             return verified_account_id
 
         # -----------------------------------------
+        # Resolve real AWS account name
+        # -----------------------------------------
+
+        account_name = AWSConnectionService.resolve_account_name(
+            session,
+            verified_account_id
+        )
+
+        # -----------------------------------------
         # Save account in database
         # -----------------------------------------
 
         aws_account = AWSAccount(
             client_id=client_id,
             account_id=verified_account_id,
-            account_name="Primary",
+            account_name=account_name,
             role_arn=role_arn,
             external_id=external_id,
             is_active=True
