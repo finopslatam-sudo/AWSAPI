@@ -30,13 +30,12 @@ class FindingEngine:
         try:
 
             # =====================================================
-            # 1️⃣ MARCAR TODOS LOS FINDINGS COMO POTENCIALMENTE RESUELTOS
+            # 1️⃣ ENTERPRISE SAFE MODE
             # =====================================================
-            AWSFinding.query.filter_by(
-                client_id=client_id
-            ).update({
-                "resolved": True
-            })
+            # No marcamos findings como resolved automáticamente.
+            # Los findings existentes se mantienen hasta que
+            # una regla determine explícitamente que se resolvieron.
+            pass
 
             # =====================================================
             # 2️⃣ EJECUTAR REGLAS BASE
