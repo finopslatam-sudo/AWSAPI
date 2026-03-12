@@ -13,6 +13,8 @@ client_findings_bp = Blueprint(
     url_prefix="/api/client/findings"
 )
 
+client_findings_bp.strict_slashes = False
+
 @client_findings_bp.route("/", methods=["GET"])
 @jwt_required()
 def get_client_findings():
