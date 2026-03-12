@@ -125,6 +125,7 @@ class ClientFindingsService:
 
                     "resource_id": f.resource_id,
                     "resource_type": f.resource_type,
+                    "region": f.region,
                     "aws_service": f.aws_service,
                     "finding_type": f.finding_type,
                     "severity": f.severity,
@@ -279,4 +280,3 @@ class ClientFindingsService:
             }
             for r in results
         ]
-    
