@@ -276,13 +276,41 @@ class AWSConnectionService:
         # -----------------------------------------
         # Prevent duplicate accounts
         # -----------------------------------------
-
         existing = AWSAccount.query.filter_by(
             client_id=client_id,
             account_id=verified_account_id
         ).first()
 
+        # -----------------------------------------
+        # Resolve real AWS account name
+        # -----------------------------------------
+
+        account_name = AWSConnectionService.resolve_account_name(
+            session,
+            verified_account_id
+        )
+
+        # -----------------------------------------
+        # If account exists -> UPDATE name
+        # -----------------------------------------
+
         if existing:
+
+            print("Updating existing AWS account name:", account_name)
+
+            existing.account_name = account_name
+
+            try:
+
+                db.session.commit()
+
+            except Exception:
+
+                db.session.rollback()
+
+                raise RuntimeError(
+                    "Database error while updating AWS account"
+                )
 
             return verified_account_id
 
