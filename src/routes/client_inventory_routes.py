@@ -58,6 +58,7 @@ def get_inventory():
     # -----------------------------
 
     service_filter = request.args.get("service")
+    aws_account_id = request.args.get("aws_account_id", type=int)
 
     page = safe_int(request.args.get("page"), 1)
     per_page = safe_int(request.args.get("per_page"), 50)
@@ -74,6 +75,11 @@ def get_inventory():
         is_active=True
     )
 
+    if aws_account_id:
+        base_query = base_query.filter(
+            AWSResourceInventory.aws_account_id == aws_account_id
+        )
+
     if service_filter:
         base_query = base_query.filter(
             AWSResourceInventory.service_name == service_filter
@@ -82,14 +88,20 @@ def get_inventory():
     # -----------------------------
     # Summary por servicio (CORRECTO)
     # -----------------------------
-
     summary_query = db.session.query(
         AWSResourceInventory.service_name,
         func.count(AWSResourceInventory.id)
-    ).filter_by(
-        client_id=client_id,
-        is_active=True
-    ).group_by(
+    ).filter(
+        AWSResourceInventory.client_id == client_id,
+        AWSResourceInventory.is_active == True
+    )
+
+    if aws_account_id:
+        summary_query = summary_query.filter(
+            AWSResourceInventory.aws_account_id == aws_account_id
+        )
+
+    summary_query = summary_query.group_by(
         AWSResourceInventory.service_name
     ).all()
 
@@ -116,7 +128,6 @@ def get_inventory():
     # -----------------------------
     # Findings agregados (UNA sola query)
     # -----------------------------
-
     findings_agg = db.session.query(
         AWSFinding.resource_id,
         func.count(AWSFinding.id).label("count"),
@@ -124,7 +135,14 @@ def get_inventory():
     ).filter_by(
         client_id=client_id,
         resolved=False
-    ).group_by(
+    )
+
+    if aws_account_id:
+        findings_agg = findings_agg.filter(
+            AWSFinding.aws_account_id == aws_account_id
+        )
+
+    findings_agg = findings_agg.group_by(
         AWSFinding.resource_id
     ).all()
 

@@ -35,6 +35,7 @@ def get_client_findings():
     severity = request.args.get("severity")
     finding_type = request.args.get("finding_type")
     service = request.args.get("service")
+    aws_account_id = request.args.get("aws_account_id", type=int)
     search = request.args.get("search")
 
     page = request.args.get("page", 1, type=int)
@@ -45,6 +46,7 @@ def get_client_findings():
 
     result = ClientFindingsService.list_findings(
         client_id=user.client_id,
+        aws_account_id=aws_account_id,
         status=status,
         severity=severity,
         finding_type=finding_type,

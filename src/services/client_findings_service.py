@@ -4,7 +4,7 @@ from datetime import datetime
 from src.models.database import db
 from src.models.aws_finding import AWSFinding
 from src.models.aws_resource_inventory import AWSResourceInventory
-
+from src.models.aws_account import AWSAccount
 
 class ClientFindingsService:
 
@@ -14,6 +14,7 @@ class ClientFindingsService:
     @staticmethod
     def list_findings(
         client_id,
+        aws_account_id=None,
         status=None,
         severity=None,
         finding_type=None,
@@ -27,7 +28,11 @@ class ClientFindingsService:
 
         # ---------------- BASE QUERY (JOIN INVENTORY ACTIVO) ----------------
         query = (
-            db.session.query(AWSFinding)
+            db.session.query(
+                AWSFinding,
+                AWSAccount.account_name,
+                AWSAccount.account_id
+            )
             .join(
                 AWSResourceInventory,
                 and_(
@@ -35,12 +40,19 @@ class ClientFindingsService:
                     AWSFinding.client_id == AWSResourceInventory.client_id
                 )
             )
+            .join(
+                AWSAccount,
+                AWSFinding.aws_account_id == AWSAccount.id
+            )
             .filter(
                 AWSFinding.client_id == client_id,
                 AWSResourceInventory.is_active.is_(True)
             )
         )
-
+        if aws_account_id:
+            query = query.filter(
+                AWSFinding.aws_account_id == aws_account_id
+            )
         # ---------------- STATUS FILTER ----------------
         if status == "active":
             query = query.filter(AWSFinding.resolved.is_(False))
@@ -107,18 +119,25 @@ class ClientFindingsService:
             "data": [
                 {
                     "id": f.id,
+                    "aws_account_id": f.aws_account_id,
+                    "aws_account_name": account_name,
+                    "aws_account_number": account_number,
+
                     "resource_id": f.resource_id,
                     "resource_type": f.resource_type,
                     "aws_service": f.aws_service,
                     "finding_type": f.finding_type,
                     "severity": f.severity,
                     "message": f.message,
+
                     "estimated_monthly_savings": float(f.estimated_monthly_savings or 0),
+
                     "resolved": f.resolved,
+
                     "detected_at": f.detected_at.isoformat() if f.detected_at else None,
                     "created_at": f.created_at.isoformat() if f.created_at else None
                 }
-                for f in findings
+                for f, account_name, account_number in findings
             ]
         }
 
