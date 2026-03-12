@@ -47,18 +47,6 @@ class InventoryScanner:
         logger.info(f"Inventory started | client_id={self.client_id}")
         now = datetime.utcnow()
 
-        # 1️⃣ Desactivar recursos anteriores
-        AWSResourceInventory.query.filter_by(
-            client_id=self.client_id,
-            aws_account_id=self.aws_account_id
-        ).update({
-            "is_active": False,
-            "updated_at": now
-        })
-
-        db.session.commit()
-        db.session.expunge_all()
-
         # 2️⃣ Obtener regiones
         regions = self.get_enabled_regions()
 
@@ -111,6 +99,21 @@ class InventoryScanner:
         db.session.expunge_all()
 
         logger.info("Inventory completed")
+
+        # =====================================================
+        # 5️⃣ CLEANUP RESOURCES NOT SEEN IN THIS SCAN
+        # =====================================================
+
+        AWSResourceInventory.query.filter(
+            AWSResourceInventory.client_id == self.client_id,
+            AWSResourceInventory.aws_account_id == self.aws_account_id,
+            AWSResourceInventory.last_seen_at < now
+        ).update({
+            "is_active": False,
+            "updated_at": now
+        })
+
+        db.session.commit()
 
     # =====================================================
     def get_enabled_regions(self):
