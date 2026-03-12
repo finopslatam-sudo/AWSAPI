@@ -1,38 +1,137 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "FinOpsLatam Cross Account Role"
+Description: "FinOpsLatam Cross Account Role (Enterprise FinOps Access)"
 
 Parameters:
+
   ExternalId:
     Type: String
-    Description: External ID provided by FinOpsLatam
+    Description: External ID provided by FinOpsLatam platform
 
   FinOpsAccountId:
     Type: String
     Description: FinOpsLatam AWS Account ID
 
 Resources:
-  FinOpsLatamRole:
+
+  FinOpsLatamAuditRole:
     Type: AWS::IAM::Role
     Properties:
+
       RoleName: FinOpsLatam-Audit-Role
       Path: /
-      Description: Rol utilizado por la plataforma FinOpsLatam para realizar auditorías de FinOps a través de STS AssumeRole
+
+      Description: >
+        Cross-account role used by the FinOpsLatam platform
+        to perform FinOps audits, inventory scans,
+        cost analysis and optimization recommendations.
+
       MaxSessionDuration: 3600
+
       AssumeRolePolicyDocument:
+
         Version: "2012-10-17"
+
         Statement:
+
           - Effect: Allow
+
             Principal:
-              AWS: !Sub "arn:aws:iam::${FinOpsAccountId}:role/FinOpsPlatformRole"
+              AWS: !Sub "arn:aws:iam::${FinOpsAccountId}:root"
+
             Action: sts:AssumeRole
+
             Condition:
               StringEquals:
                 sts:ExternalId: !Ref ExternalId
 
       ManagedPolicyArns:
+
         - arn:aws:iam::aws:policy/ReadOnlyAccess
 
+      Policies:
+
+        - PolicyName: FinOpsLatamAdditionalPermissions
+
+          PolicyDocument:
+
+            Version: "2012-10-17"
+
+            Statement:
+
+              # =========================================
+              # COST EXPLORER
+              # =========================================
+
+              - Effect: Allow
+                Action:
+                  - ce:GetCostAndUsage
+                  - ce:GetCostAndUsageWithResources
+                  - ce:GetDimensionValues
+                  - ce:GetReservationCoverage
+                  - ce:GetReservationUtilization
+                  - ce:GetSavingsPlansCoverage
+                  - ce:GetSavingsPlansUtilization
+                  - ce:GetSavingsPlansPurchaseRecommendation
+                  - ce:GetReservationPurchaseRecommendation
+                  - ce:GetRightsizingRecommendation
+                Resource: "*"
+
+              # =========================================
+              # SAVINGS PLANS
+              # =========================================
+
+              - Effect: Allow
+                Action:
+                  - savingsplans:DescribeSavingsPlans
+                  - savingsplans:DescribeSavingsPlansUtilization
+                  - savingsplans:DescribeSavingsPlansCoverage
+                Resource: "*"
+
+              # =========================================
+              # RESERVED INSTANCES
+              # =========================================
+
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeReservedInstances
+                  - ec2:DescribeReservedInstancesOfferings
+                Resource: "*"
+
+              # =========================================
+              # CLOUDWATCH METRICS (RIGHTSIZING)
+              # =========================================
+
+              - Effect: Allow
+                Action:
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:GetMetricData
+                  - cloudwatch:ListMetrics
+                Resource: "*"
+
+              # =========================================
+              # ORGANIZATIONS (multi-account visibility)
+              # =========================================
+
+              - Effect: Allow
+                Action:
+                  - organizations:DescribeOrganization
+                  - organizations:ListAccounts
+                  - organizations:ListAccountsForParent
+                Resource: "*"
+
+              # =========================================
+              # RESOURCE DISCOVERY
+              # =========================================
+
+              - Effect: Allow
+                Action:
+                  - tag:GetResources
+                  - resource-explorer-2:Search
+                  - resource-explorer-2:GetView
+                Resource: "*"
+
 Outputs:
+
   RoleArn:
-    Description: Role ARN for FinOpsLatam
-    Value: !GetAtt FinOpsLatamRole.Arn
+    Description: FinOpsLatam Audit Role ARN
+    Value: !GetAtt FinOpsLatamAuditRole.Arn
