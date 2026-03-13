@@ -73,7 +73,10 @@ def run_client_audit():
 
                 account = AWSAccount.query.get(aws_account_id)
 
-                account.audit_status = "completed"
+                if account:
+                    account.audit_status = "completed"
+                    account.audit_finished_at = datetime.utcnow()
+                    db.session.commit()
                 account.audit_finished_at = datetime.utcnow()
 
                 db.session.commit()
@@ -91,7 +94,10 @@ def run_client_audit():
 
                 account = AWSAccount.query.get(aws_account_id)
 
-                account.audit_status = "failed"
+                if account:
+                    account.audit_status = "failed"
+                    account.audit_finished_at = datetime.utcnow()
+                    db.session.commit()
                 account.audit_finished_at = datetime.utcnow()
 
                 db.session.commit()

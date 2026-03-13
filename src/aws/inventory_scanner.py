@@ -78,7 +78,6 @@ class InventoryScanner:
                     )
 
             db.session.commit()
-            db.session.expunge_all()
 
         # 4️⃣ Servicios globales
         try:
@@ -96,7 +95,6 @@ class InventoryScanner:
             )
 
         db.session.commit()
-        db.session.expunge_all()
 
         logger.info("Inventory completed")
 
