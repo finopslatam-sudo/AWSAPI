@@ -37,22 +37,24 @@ def run_client_audit():
         return jsonify({"error": "Unauthorized"}), 403
 
     # Obtener cuenta AWS activa
-    aws_account = AWSAccount.query.filter_by(
+    aws_accounts = AWSAccount.query.filter_by(
         client_id=user.client_id,
         is_active=True
-    ).order_by(AWSAccount.id.desc()).first()
+    ).all()
 
-    if not aws_account:
-        return jsonify({"error": "No active AWS account found"}), 404
+    if not aws_accounts:
+        return jsonify({"error": "No active AWS accounts found"}), 404
 
     # Evitar ejecución simultánea
-    if aws_account.audit_status == "running":
-        return jsonify({"status": "already_running"}), 200
+    for account in aws_accounts:
 
-    # Marcar auditoría como running
-    aws_account.audit_status = "running"
-    aws_account.audit_started_at = datetime.utcnow()
-    aws_account.audit_finished_at = None
+        if account.audit_status == "running":
+            continue
+
+        account.audit_status = "running"
+        account.audit_started_at = datetime.utcnow()
+        account.audit_finished_at = None
+
     db.session.commit()
 
     # =====================================================
@@ -104,19 +106,24 @@ def run_client_audit():
     # =====================================================
     # RUN THREAD
     # =====================================================
-    thread = threading.Thread(
-        target=background_audit,
-        args=(
-            current_app._get_current_object(),
-            user.client_id,
-            aws_account.id
-        ),
-        daemon=True
-    )
+    for account in aws_accounts:
 
-    thread.start()
+        thread = threading.Thread(
+            target=background_audit,
+            args=(
+                current_app._get_current_object(),
+                user.client_id,
+                account.id
+            ),
+            daemon=True
+        )
 
-    return jsonify({"status": "started"}), 202
+        thread.start()
+
+    return jsonify({
+        "status": "started",
+        "accounts_scanning": len(aws_accounts)
+    }), 202
 
 
 # =====================================================
@@ -132,16 +139,23 @@ def audit_status():
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    aws_account = AWSAccount.query.filter_by(
+    aws_accounts = AWSAccount.query.filter_by(
         client_id=user.client_id,
         is_active=True
-    ).order_by(AWSAccount.id.desc()).first()
+    ).all()
 
-    if not aws_account:
-        return jsonify({"error": "No AWS account"}), 404
+    if not aws_accounts:
+        return jsonify({"error": "No AWS accounts"}), 404
 
-    return jsonify({
-        "status": aws_account.audit_status,
-        "started_at": aws_account.audit_started_at,
-        "finished_at": aws_account.audit_finished_at
-    }), 200
+    result = []
+
+    for account in aws_accounts:
+        result.append({
+            "account_id": account.id,
+            "account_name": account.account_name,
+            "status": account.audit_status,
+            "started_at": account.audit_started_at,
+            "finished_at": account.audit_finished_at
+        })
+
+    return jsonify(result), 200
