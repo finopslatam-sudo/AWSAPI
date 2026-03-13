@@ -166,7 +166,19 @@ class InventoryScanner:
             }
         )
 
-        db.session.execute(stmt)
+        try:
+
+            db.session.execute(stmt)
+
+        except Exception:
+
+            logger.exception(
+                f"Inventory upsert failed | resource={resource_id}"
+            )
+
+            db.session.rollback()
+
+            raise
 
     # =====================================================
     # EC2

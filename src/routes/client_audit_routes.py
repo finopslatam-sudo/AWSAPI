@@ -77,20 +77,20 @@ def run_client_audit():
                     account.audit_status = "completed"
                     account.audit_finished_at = datetime.utcnow()
                     db.session.commit()
-                account.audit_finished_at = datetime.utcnow()
 
-                db.session.commit()
                 db.session.remove()
 
                 logger.info(
                     f"AUDIT COMPLETED | client_id={client_id}"
                 )
 
-            except Exception:
+            except Exception as e:
 
                 logger.exception(
                     f"AUDIT FAILED | client_id={client_id}"
                 )
+
+                db.session.rollback()
 
                 account = AWSAccount.query.get(aws_account_id)
 
@@ -98,9 +98,7 @@ def run_client_audit():
                     account.audit_status = "failed"
                     account.audit_finished_at = datetime.utcnow()
                     db.session.commit()
-                account.audit_finished_at = datetime.utcnow()
 
-                db.session.commit()
                 db.session.remove()
 
     # =====================================================
