@@ -40,7 +40,7 @@ def run_client_audit():
     aws_account = AWSAccount.query.filter_by(
         client_id=user.client_id,
         is_active=True
-    ).first()
+    ).order_by(AWSAccount.id.desc()).first()
 
     if not aws_account:
         return jsonify({"error": "No active AWS account found"}), 404
@@ -135,7 +135,7 @@ def audit_status():
     aws_account = AWSAccount.query.filter_by(
         client_id=user.client_id,
         is_active=True
-    ).first()
+    ).order_by(AWSAccount.id.desc()).first()
 
     if not aws_account:
         return jsonify({"error": "No AWS account"}), 404
