@@ -11,7 +11,7 @@ from src.services.dashboard.roi_service import ROIService
 from src.services.dashboard.trend_service import TrendService
 from src.services.dashboard.remediation_service import RemediationService
 from src.services.client_findings_service import ClientFindingsService
-from src.services.client_dashboard_service import ClientDashboardService
+from src.aws.cost_explorer_service import CostExplorerService
 
 class ClientDashboardFacade:
 
@@ -102,9 +102,7 @@ class ClientDashboardFacade:
         roi_projection = ROIService.get_roi_projection(client_id)
         trend = TrendService.get_risk_trend(client_id, 30)
         remediation = RemediationService.get_remediation_metrics(client_id, 30)
-
-
-        cost_data = ClientDashboardService.get_cost_data(client_id)
+        cost_data = ClientDashboardFacade._get_cost_data(client_id) #este
 
         return {
             "findings": findings_stats,
