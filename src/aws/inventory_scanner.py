@@ -134,6 +134,10 @@ class InventoryScanner:
 
         now = datetime.utcnow()
 
+        # Normalizar región (evitar AZ como us-east-1a)
+        if region and len(region) > 9 and region[-1].isalpha():
+            region = region[:-1]
+
         stmt = insert(AWSResourceInventory).values(
             client_id=self.client_id,
             aws_account_id=self.aws_account_id,

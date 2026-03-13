@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-import threading
+from concurrent.futures import ThreadPoolExecutor
 import logging
 from datetime import datetime
 
@@ -18,6 +18,8 @@ client_audit_bp = Blueprint(
 )
 
 logger = logging.getLogger(__name__)
+
+audit_executor = ThreadPoolExecutor(max_workers=5)
 
 
 # =====================================================
@@ -46,7 +48,9 @@ def run_client_audit():
         return jsonify({"error": "No active AWS accounts found"}), 404
 
     # Evitar ejecución simultánea
-    for account in aws_accounts:
+    accounts_to_scan = []
+
+    for account in accounts_to_scan:
 
         if account.audit_status == "running":
             continue
@@ -54,6 +58,8 @@ def run_client_audit():
         account.audit_status = "running"
         account.audit_started_at = datetime.utcnow()
         account.audit_finished_at = None
+
+        accounts_to_scan.append(account)
 
     db.session.commit()
 
@@ -108,21 +114,16 @@ def run_client_audit():
     # =====================================================
     for account in aws_accounts:
 
-        thread = threading.Thread(
-            target=background_audit,
-            args=(
-                current_app._get_current_object(),
-                user.client_id,
-                account.id
-            ),
-            daemon=True
+        audit_executor.submit(
+            background_audit,
+            current_app._get_current_object(),
+            user.client_id,
+            account.id
         )
-
-        thread.start()
 
     return jsonify({
         "status": "started",
-        "accounts_scanning": len(aws_accounts)
+        "accounts_scanning": len(accounts_to_scan)
     }), 202
 
 

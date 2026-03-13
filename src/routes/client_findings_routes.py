@@ -62,7 +62,9 @@ def get_client_findings():
 
     return jsonify({
         "status": "ok",
-        **result
+        "data": result.get("data", []),
+        "total": result.get("total", 0),
+        "pages": result.get("pages", 1)
     })
 
 
