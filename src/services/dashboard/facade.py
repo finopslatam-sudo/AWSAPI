@@ -12,6 +12,7 @@ from src.services.dashboard.trend_service import TrendService
 from src.services.dashboard.remediation_service import RemediationService
 from src.services.client_findings_service import ClientFindingsService
 from src.aws.cost_explorer_service import CostExplorerService
+from src.services.client_dashboard_service import ClientDashboardService
 
 class ClientDashboardFacade:
 
@@ -102,7 +103,7 @@ class ClientDashboardFacade:
         roi_projection = ROIService.get_roi_projection(client_id)
         trend = TrendService.get_risk_trend(client_id, 30)
         remediation = RemediationService.get_remediation_metrics(client_id, 30)
-        cost_data = ClientDashboardFacade._get_cost_data(client_id) #este
+        cost_data = ClientDashboardService.get_cost_data(client_id)
 
         return {
             "findings": findings_stats,
@@ -121,85 +122,3 @@ class ClientDashboardFacade:
             "cost": cost_data,
             
         }
-    @staticmethod
-    def _get_cost_data(client_id: int):
-
-        try:
-
-            aws_account = AWSAccount.query.filter_by(
-                client_id=client_id,
-                is_active=True
-            ).first()
-
-            # -----------------------------------------------------
-            # No AWS account connected
-            # -----------------------------------------------------
-            if not aws_account:
-                return {
-                    "monthly_cost": [],
-                    "service_breakdown": [],
-                    "current_month_cost": 0.0,
-                    "potential_savings": 0.0,
-                    "savings_percentage": 0.0
-                }
-
-            # -----------------------------------------------------
-            # Initialize Cost Explorer
-            # -----------------------------------------------------
-            ce = CostExplorerService(aws_account)
-
-            monthly_cost_raw = ce.get_last_6_months_cost()
-
-            monthly_cost = []
-            for item in monthly_cost_raw:
-
-                amount = float(item["amount"])
-
-                if abs(amount) < 0.01:
-                    amount = 0.0
-
-                monthly_cost.append({
-                    "month": item["month"],
-                    "amount": amount
-                })
-
-            service_breakdown = ce.get_service_breakdown_current_month()
-
-            raw_current_month_cost = monthly_cost[-1]["amount"] if monthly_cost else 0
-
-            current_month_cost = (
-                0.0 if abs(raw_current_month_cost) < 0.01
-                else float(raw_current_month_cost)
-            )
-
-            roi_projection = ROIService.get_roi_projection(client_id)
-            savings = roi_projection.get("monthly_total_savings", 0.0)
-
-            savings_percentage = (
-                0.0 if current_month_cost <= 0
-                else round((savings / current_month_cost) * 100, 2)
-            )
-
-            return {
-                "monthly_cost": monthly_cost,
-                "service_breakdown": service_breakdown,
-                "current_month_cost": float(current_month_cost),
-                "potential_savings": float(savings),
-                "savings_percentage": float(savings_percentage)
-            }
-
-        # ---------------------------------------------------------
-        # CRITICAL: AWS FAILURE SHOULD NOT BREAK DASHBOARD
-        # ---------------------------------------------------------
-        except Exception as e:
-
-            print(f"⚠️ Cost Explorer error: {str(e)}")
-
-            return {
-                "monthly_cost": [],
-                "service_breakdown": [],
-                "current_month_cost": 0.0,
-                "potential_savings": 0.0,
-                "savings_percentage": 0.0
-            }
-    
