@@ -5,18 +5,8 @@ from src.models.aws_account import AWSAccount
 from src.models.database import db
 from src.aws.cost_explorer_service import CostExplorerService
 
-# 👇 IMPORTANTE: usar la nueva fachada
-from src.services.dashboard.facade import ClientDashboardFacade
-
 
 class ClientDashboardService:
-
-    # =====================================================
-    # SUMMARY GENERAL (Delegado al Facade)
-    # =====================================================
-    @staticmethod
-    def get_summary(client_id: int):
-        return ClientDashboardFacade.get_summary(client_id)
 
     # =====================================================
     # COST DATA (MULTI ACCOUNT SAFE)
