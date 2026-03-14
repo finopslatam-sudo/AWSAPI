@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from src.models.user import User
@@ -48,7 +48,6 @@ def require_client_id():
 # =====================================================
 # FULL DASHBOARD (Single Call Enterprise)
 # =====================================================
-
 @dashboard_bp.route("/", methods=["GET"])
 @jwt_required()
 def get_full_dashboard():
@@ -58,10 +57,18 @@ def get_full_dashboard():
     if error_response:
         return error_response, status
 
-    data = ClientDashboardFacade.get_summary(client_id)
+    # =====================================================
+    # OPTIONAL ACCOUNT FILTER
+    # =====================================================
+
+    aws_account_id = request.args.get("aws_account_id", type=int)
+
+    data = ClientDashboardFacade.get_summary(
+        client_id,
+        aws_account_id
+    )
 
     return jsonify(data), 200
-
 
 # =====================================================
 # RISK

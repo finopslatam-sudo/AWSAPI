@@ -17,7 +17,7 @@ from src.services.client_dashboard_service import ClientDashboardService
 class ClientDashboardFacade:
 
     @staticmethod
-    def get_summary(client_id: int):
+    def get_summary(client_id: int, aws_account_id: int | None = None):
 
         # =====================================================
         # FINDINGS STATS (Delegado al servicio optimizado)
@@ -49,7 +49,7 @@ class ClientDashboardFacade:
         # =====================================================
         # RESOURCES AFFECTED (solo inventory activo)
         # =====================================================
-        resources_affected = (
+        resources_query = (
             db.session.query(
                 func.count(func.distinct(AWSFinding.resource_id))
             )
@@ -65,21 +65,42 @@ class ClientDashboardFacade:
                 AWSFinding.resolved.is_(False),
                 AWSResourceInventory.is_active.is_(True)
             )
-            .scalar() or 0
         )
+
+        # =====================================================
+        # ACCOUNT FILTER
+        # =====================================================
+
+        if aws_account_id:
+            resources_query = resources_query.filter(
+                AWSFinding.aws_account_id == aws_account_id
+            )
+
+        resources_affected = resources_query.scalar() or 0
 
         # =====================================================
         # SERVICES SCANNED (Inventory real activo)
         # =====================================================
+
+        inventory_query = db.session.query(
+            AWSResourceInventory.service_name,
+            func.count(AWSResourceInventory.id).label("total_resources")
+        ).filter(
+            AWSResourceInventory.client_id == client_id,
+            AWSResourceInventory.is_active.is_(True)
+        )
+
+        # =====================================================
+        # ACCOUNT FILTER
+        # =====================================================
+
+        if aws_account_id:
+            inventory_query = inventory_query.filter(
+                AWSResourceInventory.aws_account_id == aws_account_id
+            )
+
         services_scanned_raw = (
-            db.session.query(
-                AWSResourceInventory.service_name,
-                func.count(AWSResourceInventory.id).label("total_resources")
-            )
-            .filter(
-                AWSResourceInventory.client_id == client_id,
-                AWSResourceInventory.is_active.is_(True)
-            )
+            inventory_query
             .group_by(AWSResourceInventory.service_name)
             .all()
         )
@@ -103,7 +124,10 @@ class ClientDashboardFacade:
         roi_projection = ROIService.get_roi_projection(client_id)
         trend = TrendService.get_risk_trend(client_id, 30)
         remediation = RemediationService.get_remediation_metrics(client_id, 30)
-        cost_data = ClientDashboardService.get_cost_data(client_id)
+        cost_data = ClientDashboardService.get_cost_data(
+            client_id,
+            aws_account_id
+        )
 
         return {
             "findings": findings_stats,

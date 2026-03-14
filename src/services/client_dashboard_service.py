@@ -12,12 +12,23 @@ class ClientDashboardService:
     # COST DATA (MULTI ACCOUNT SAFE)
     # =====================================================
     @staticmethod
-    def get_cost_data(client_id: int):
+    def get_cost_data(client_id: int, aws_account_id: int | None = None):
 
-        aws_accounts = AWSAccount.query.filter_by(
+        query = AWSAccount.query.filter_by(
             client_id=client_id,
             is_active=True
-        ).all()
+        )
+
+        # =====================================================
+        # ACCOUNT FILTER
+        # =====================================================
+
+        if aws_account_id:
+            query = query.filter(
+                AWSAccount.id == aws_account_id
+            )
+
+        aws_accounts = query.all()
 
         if not aws_accounts:
             return {
