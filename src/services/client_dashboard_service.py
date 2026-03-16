@@ -128,34 +128,28 @@ class ClientDashboardService:
         # POTENTIAL SAVINGS
         # =====================================================
 
-        savings_query = db.session.query(
+        savings = db.session.query(
             func.sum(AWSFinding.estimated_monthly_savings)
-        ).filter(
-            AWSFinding.client_id == client_id,
-            AWSFinding.resolved.is_(False)
-        )
+        ).filter_by(
+            client_id=client_id,
+            resolved=False
+        ).scalar() or 0
 
-        # aplicar filtro de cuenta si existe
-        if aws_account_id:
-            savings_query = savings_query.filter(
-                AWSFinding.aws_account_id == aws_account_id
-            )
-
-        savings = savings_query.scalar() or 0
-
-        # =====================================================
-        # OPTIMIZATION PERCENTAGE (FinOps Correct Formula)
-        # =====================================================
-
-        total_possible_spend = current_month_cost + float(savings)
-
-        if total_possible_spend <= 0:
+        if current_month_cost <= 0:
             savings_percentage = 0
         else:
             savings_percentage = round(
-                (float(savings) / total_possible_spend) * 100,
+                (float(savings) / current_month_cost) * 100,
                 2
             )
+
+        return {
+            "monthly_cost": monthly_cost,
+            "service_breakdown": service_breakdown,
+            "current_month_cost": float(current_month_cost),
+            "potential_savings": float(savings),
+            "savings_percentage": round(savings_percentage, 2)
+        }
 
     # =====================================================
     # INVENTORY SUMMARY (se mantiene aquí por ahora)
