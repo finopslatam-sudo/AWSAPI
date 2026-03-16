@@ -237,3 +237,97 @@ class ClientDashboardService:
         ]
 
         return services
+
+    @staticmethod
+    def get_savings_breakdown(
+        client_id: int,
+        aws_account_id: int | None = None
+    ):
+
+        findings_query = db.session.query(
+            AWSFinding.id,
+            AWSFinding.aws_account_id,
+            AWSAccount.account_name,
+            AWSFinding.resource_id,
+            AWSFinding.resource_type,
+            AWSFinding.aws_service,
+            AWSFinding.finding_type,
+            AWSFinding.severity,
+            func.coalesce(
+                AWSFinding.estimated_monthly_savings,
+                0
+            ).label("estimated_monthly_savings"),
+            AWSFinding.detected_at
+        ).join(
+            AWSAccount,
+            AWSFinding.aws_account_id == AWSAccount.id
+        ).filter(
+            AWSFinding.client_id == client_id,
+            AWSFinding.resolved.is_(False)
+        )
+
+        if aws_account_id is not None:
+            findings_query = findings_query.filter(
+                AWSFinding.aws_account_id == aws_account_id
+            )
+
+        findings = findings_query.order_by(
+            func.coalesce(
+                AWSFinding.estimated_monthly_savings,
+                0
+            ).desc(),
+            AWSFinding.detected_at.desc()
+        ).all()
+
+        dedup_subquery = ClientDashboardService._get_active_savings_subquery(
+            client_id,
+            aws_account_id
+        )
+
+        dedup_total = db.session.query(
+            func.sum(dedup_subquery.c.estimated_monthly_savings)
+        ).scalar() or 0
+
+        raw_total = sum(
+            float(item.estimated_monthly_savings or 0)
+            for item in findings
+        )
+
+        grouped = {}
+
+        for item in findings:
+            account_key = str(item.aws_account_id)
+
+            if account_key not in grouped:
+                grouped[account_key] = {
+                    "aws_account_id": item.aws_account_id,
+                    "account_name": item.account_name,
+                    "raw_total_savings": 0.0,
+                    "findings_count": 0,
+                    "items": []
+                }
+
+            savings = float(item.estimated_monthly_savings or 0)
+
+            grouped[account_key]["raw_total_savings"] += savings
+            grouped[account_key]["findings_count"] += 1
+            grouped[account_key]["items"].append({
+                "finding_id": item.id,
+                "resource_id": item.resource_id,
+                "resource_type": item.resource_type,
+                "aws_service": item.aws_service,
+                "finding_type": item.finding_type,
+                "severity": item.severity,
+                "estimated_monthly_savings": savings,
+                "detected_at": (
+                    item.detected_at.isoformat()
+                    if item.detected_at else None
+                )
+            })
+
+        return {
+            "aws_account_id": aws_account_id,
+            "raw_total_savings": round(float(raw_total), 2),
+            "deduplicated_total_savings": round(float(dedup_total), 2),
+            "accounts": list(grouped.values())
+        }

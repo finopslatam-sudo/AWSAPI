@@ -27,7 +27,7 @@ class CloudWatchRules:
             finding_type="CLOUDWATCH_NO_RETENTION",
             severity="HIGH",
             message="Log group has unlimited retention.",
-            savings=5
+            savings=0
         )
 
     # =====================================================
@@ -42,7 +42,7 @@ class CloudWatchRules:
             finding_type="CLOUDWATCH_HIGH_RETENTION",
             severity="MEDIUM",
             message="Log retention is higher than 90 days.",
-            savings=3
+            savings=0
         )
 
     # =====================================================

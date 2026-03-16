@@ -22,7 +22,7 @@ class LambdaRules:
             finding_type="LAMBDA_HIGH_MEMORY",
             severity="MEDIUM",
             message="Lambda memory allocation is high (>1024MB). Consider rightsizing.",
-            savings=5
+            savings=0
         )
 
     @staticmethod

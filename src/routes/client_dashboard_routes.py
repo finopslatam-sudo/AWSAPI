@@ -266,6 +266,25 @@ def get_inventory():
 
     return jsonify(data), 200
 
+
+@dashboard_bp.route("/savings-breakdown", methods=["GET"])
+@jwt_required()
+def get_savings_breakdown():
+
+    client_id, error_response, status = require_client_id()
+
+    if error_response:
+        return error_response, status
+
+    aws_account_id = request.args.get("aws_account_id", type=int)
+
+    data = ClientDashboardService.get_savings_breakdown(
+        client_id,
+        aws_account_id
+    )
+
+    return jsonify(data), 200
+
 # =====================================================
 # LAST SCAN
 # =====================================================

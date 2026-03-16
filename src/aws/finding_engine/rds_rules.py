@@ -77,7 +77,7 @@ class RDSRules:
             finding_type="RDS_GP2_STORAGE",
             severity="MEDIUM",
             message="RDS instance uses gp2 storage. Consider migrating to gp3.",
-            savings=10
+            savings=0
         )
 
     # =====================================================

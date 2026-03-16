@@ -27,7 +27,7 @@ class DynamoDBRules:
             finding_type="DYNAMODB_PROVISIONED_MODE",
             severity="MEDIUM",
             message="DynamoDB table is using provisioned mode. Consider On-Demand.",
-            savings=8
+            savings=0
         )
 
     # =====================================================
@@ -42,7 +42,7 @@ class DynamoDBRules:
             finding_type="DYNAMODB_EMPTY_TABLE",
             severity="LOW",
             message="DynamoDB table has zero items.",
-            savings=2
+            savings=0
         )
 
     # =====================================================
