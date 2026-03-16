@@ -127,7 +127,13 @@ class ClientDashboardFacade:
         cost_data = ClientDashboardService.get_cost_data(
             client_id,
             aws_account_id
-        )
+        ) or {
+            "monthly_cost": [],
+            "service_breakdown": [],
+            "current_month_cost": 0,
+            "potential_savings": 0,
+            "savings_percentage": 0
+        }
 
         return {
             "findings": findings_stats,
