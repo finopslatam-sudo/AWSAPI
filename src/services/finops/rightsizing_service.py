@@ -4,14 +4,18 @@ from src.models.aws_finding import AWSFinding
 class RightsizingService:
 
     SUPPORTED_TYPES = [
+        "RIGHTSIZING_OPPORTUNITY",
         "EC2_UNDERUTILIZED",
         "RDS_UNDERUTILIZED"
     ]
 
     @staticmethod
-    def get_rightsizing_recommendations(client_id: int):
+    def get_rightsizing_recommendations(
+        client_id: int,
+        aws_account_id: int | None = None
+    ):
 
-        findings = (
+        query = (
             AWSFinding.query
             .filter(
                 AWSFinding.client_id == client_id,
@@ -20,9 +24,14 @@ class RightsizingService:
                     RightsizingService.SUPPORTED_TYPES
                 )
             )
-            .order_by(AWSFinding.created_at.desc())
-            .all()
         )
+
+        if aws_account_id is not None:
+            query = query.filter(
+                AWSFinding.aws_account_id == aws_account_id
+            )
+
+        findings = query.order_by(AWSFinding.created_at.desc()).all()
 
         results = []
         total_savings = 0.0
@@ -36,6 +45,7 @@ class RightsizingService:
                 "id": f.id,
                 "resource_id": f.resource_id,
                 "resource_type": f.resource_type,
+                "aws_account_id": f.aws_account_id,
                 "finding_type": f.finding_type,
                 "severity": f.severity,
                 "message": f.message,

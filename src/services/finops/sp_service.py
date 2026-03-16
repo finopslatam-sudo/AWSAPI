@@ -11,12 +11,20 @@ class SavingsPlansService:
     PERIOD_DAYS = 30
 
     @staticmethod
-    def get_sp_coverage(client_id: int):
+    def get_sp_coverage(
+        client_id: int,
+        aws_account_id: int | None = None
+    ):
 
-        aws_account = AWSAccount.query.filter_by(
+        account_query = AWSAccount.query.filter_by(
             client_id=client_id,
             is_active=True
-        ).first()
+        )
+
+        if aws_account_id is not None:
+            account_query = account_query.filter_by(id=aws_account_id)
+
+        aws_account = account_query.first()
 
         if not aws_account:
             return {

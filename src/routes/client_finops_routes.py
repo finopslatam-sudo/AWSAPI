@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from src.models.user import User
@@ -28,13 +28,17 @@ def get_client_id():
 def get_rightsizing():
 
     client_id = get_client_id()
+    aws_account_id = request.args.get("aws_account_id", type=int)
 
     if not has_feature(client_id, "optimization"):
         return jsonify({
             "error": "Optimization requires Professional plan"
         }), 403
 
-    data = RightsizingService.get_rightsizing_recommendations(client_id)
+    data = RightsizingService.get_rightsizing_recommendations(
+        client_id,
+        aws_account_id
+    )
 
     return jsonify(data), 200
 
@@ -46,13 +50,14 @@ def get_rightsizing():
 def get_ri_coverage():
 
     client_id = get_client_id()
+    aws_account_id = request.args.get("aws_account_id", type=int)
 
     if not has_feature(client_id, "optimization"):
         return jsonify({
             "error": "Optimization requires Professional plan"
         }), 403
 
-    data = RIService.get_ri_coverage(client_id)
+    data = RIService.get_ri_coverage(client_id, aws_account_id)
 
     return jsonify(data), 200
 
@@ -64,12 +69,16 @@ def get_ri_coverage():
 def get_sp_coverage():
 
     client_id = get_client_id()
+    aws_account_id = request.args.get("aws_account_id", type=int)
 
     if not has_feature(client_id, "optimization"):
         return jsonify({
             "error": "Optimization requires Professional plan"
         }), 403
 
-    data = SavingsPlansService.get_sp_coverage(client_id)
+    data = SavingsPlansService.get_sp_coverage(
+        client_id,
+        aws_account_id
+    )
 
     return jsonify(data), 200
