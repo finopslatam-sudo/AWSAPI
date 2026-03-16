@@ -11,6 +11,9 @@ class RightsizingService:
         "LAMBDA_MEMORY_RIGHTSIZING",
         "DYNAMODB_PROVISIONED_RIGHTSIZING",
         "CLOUDWATCH_STORAGE_RIGHTSIZING",
+        "S3_STORAGE_RIGHTSIZING_REVIEW",
+        "ECS_SERVICE_RIGHTSIZING_REVIEW",
+        "EKS_NODEGROUP_RIGHTSIZING_REVIEW",
         "NAT_IDLE_GATEWAY",
         "REDSHIFT_UNDERUTILIZED"
     ]
@@ -68,6 +71,9 @@ class RightsizingService:
                 "Lambda",
                 "DynamoDB",
                 "CloudWatch",
+                "S3",
+                "ECS",
+                "EKS",
                 "NAT",
                 "Redshift"
             ],

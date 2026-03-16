@@ -14,6 +14,8 @@ class RightsizingEngine:
     LAMBDA_LOW_INVOCATIONS_THRESHOLD = 100
     NAT_LOW_TRAFFIC_BYTES = 1_000_000_000
     CLOUDWATCH_MIN_STORED_BYTES = 1_000_000_000
+    S3_MIN_BUCKET_SIZE_BYTES = 10 * 1024 * 1024 * 1024
+    S3_MIN_BUCKET_AGE_DAYS = 90
 
     @staticmethod
     def run(client_id, aws_account_id=None):
@@ -71,6 +73,19 @@ class RightsizingEngine:
                 aws_account.id
             )
             total += RightsizingEngine.evaluate_cloudwatch(
+                client_id,
+                aws_account.id
+            )
+            total += RightsizingEngine.evaluate_s3(
+                session,
+                client_id,
+                aws_account.id
+            )
+            total += RightsizingEngine.evaluate_ecs(
+                client_id,
+                aws_account.id
+            )
+            total += RightsizingEngine.evaluate_eks(
                 client_id,
                 aws_account.id
             )
@@ -576,6 +591,192 @@ class RightsizingEngine:
                     client_id,
                     aws_account_id,
                     log_group.resource_id,
+                    finding_type
+                )
+
+        return count
+
+    # =====================================================
+    # S3 OPTIMIZATION REVIEW
+    # =====================================================
+    @staticmethod
+    def evaluate_s3(session, client_id, aws_account_id):
+
+        count = 0
+
+        buckets = AWSResourceInventory.query.filter_by(
+            client_id=client_id,
+            aws_account_id=aws_account_id,
+            service_name="S3",
+            resource_type="Bucket",
+            is_active=True
+        ).all()
+
+        finding_type = "S3_STORAGE_RIGHTSIZING_REVIEW"
+        end = datetime.utcnow()
+        start = end - timedelta(days=7)
+
+        for bucket in buckets:
+            created_at = (bucket.resource_metadata or {}).get("creation_date")
+            try:
+                created_dt = datetime.fromisoformat(
+                    str(created_at).replace("Z", "+00:00")
+                )
+            except Exception:
+                created_dt = None
+
+            bucket_age_days = (
+                (end - created_dt.replace(tzinfo=None)).days
+                if created_dt is not None else 0
+            )
+
+            try:
+                cloudwatch = session.client("cloudwatch", region_name="us-east-1")
+                bucket_size = RightsizingEngine._get_metric_average(
+                    cloudwatch=cloudwatch,
+                    namespace="AWS/S3",
+                    metric_name="BucketSizeBytes",
+                    dimensions=[
+                        {"Name": "BucketName", "Value": bucket.resource_id},
+                        {"Name": "StorageType", "Value": "StandardStorage"}
+                    ],
+                    start=start,
+                    end=end
+                )
+            except Exception as e:
+                print(f"[S3 RIGHTSIZING ERROR]: {str(e)}")
+                bucket_size = None
+
+            qualifies = (
+                bucket_size is not None and
+                bucket_size >= RightsizingEngine.S3_MIN_BUCKET_SIZE_BYTES and
+                bucket_age_days >= RightsizingEngine.S3_MIN_BUCKET_AGE_DAYS
+            )
+
+            if qualifies:
+                size_gb = bucket_size / (1024 ** 3)
+                RightsizingEngine._upsert_recommendation(
+                    client_id=client_id,
+                    aws_account_id=aws_account_id,
+                    resource_id=bucket.resource_id,
+                    resource_type=bucket.resource_type,
+                    region=bucket.region,
+                    aws_service="S3",
+                    finding_type=finding_type,
+                    severity="LOW",
+                    message=f"El bucket almacena aproximadamente {size_gb:.2f} GB y tiene mas de {bucket_age_days} dias. Conviene revisar lifecycle o Intelligent-Tiering.",
+                    estimated_monthly_savings=0
+                )
+                count += 1
+            else:
+                RightsizingEngine._resolve_finding(
+                    client_id,
+                    aws_account_id,
+                    bucket.resource_id,
+                    finding_type
+                )
+
+        return count
+
+    # =====================================================
+    # ECS OPTIMIZATION REVIEW
+    # =====================================================
+    @staticmethod
+    def evaluate_ecs(client_id, aws_account_id):
+
+        count = 0
+
+        services = AWSResourceInventory.query.filter_by(
+            client_id=client_id,
+            aws_account_id=aws_account_id,
+            service_name="ECS",
+            resource_type="Service",
+            is_active=True
+        ).all()
+
+        finding_type = "ECS_SERVICE_RIGHTSIZING_REVIEW"
+
+        for service in services:
+            metadata = service.resource_metadata or {}
+            desired_count = int(metadata.get("desired_count") or 0)
+            running_count = int(metadata.get("running_count") or 0)
+            pending_count = int(metadata.get("pending_count") or 0)
+
+            qualifies = desired_count == 0 or (
+                desired_count > 0 and running_count == 0 and pending_count == 0
+            )
+
+            if qualifies:
+                RightsizingEngine._upsert_recommendation(
+                    client_id=client_id,
+                    aws_account_id=aws_account_id,
+                    resource_id=service.resource_id,
+                    resource_type=service.resource_type,
+                    region=service.region,
+                    aws_service="ECS",
+                    finding_type=finding_type,
+                    severity="LOW",
+                    message=f"El servicio ECS tiene desired={desired_count}, running={running_count}, pending={pending_count}. Conviene revisar su capacidad o necesidad operativa.",
+                    estimated_monthly_savings=0
+                )
+                count += 1
+            else:
+                RightsizingEngine._resolve_finding(
+                    client_id,
+                    aws_account_id,
+                    service.resource_id,
+                    finding_type
+                )
+
+        return count
+
+    # =====================================================
+    # EKS OPTIMIZATION REVIEW
+    # =====================================================
+    @staticmethod
+    def evaluate_eks(client_id, aws_account_id):
+
+        count = 0
+
+        nodegroups = AWSResourceInventory.query.filter_by(
+            client_id=client_id,
+            aws_account_id=aws_account_id,
+            service_name="EKS",
+            resource_type="NodeGroup",
+            is_active=True
+        ).all()
+
+        finding_type = "EKS_NODEGROUP_RIGHTSIZING_REVIEW"
+
+        for nodegroup in nodegroups:
+            metadata = nodegroup.resource_metadata or {}
+            min_size = int(metadata.get("min_size") or 0)
+            max_size = int(metadata.get("max_size") or 0)
+            desired_size = int(metadata.get("desired_size") or 0)
+
+            qualifies = desired_size == 0 or (
+                desired_size > 0 and max_size >= max(desired_size * 3, desired_size + 3)
+            )
+
+            if qualifies:
+                RightsizingEngine._upsert_recommendation(
+                    client_id=client_id,
+                    aws_account_id=aws_account_id,
+                    resource_id=nodegroup.resource_id,
+                    resource_type=nodegroup.resource_type,
+                    region=nodegroup.region,
+                    aws_service="EKS",
+                    finding_type=finding_type,
+                    severity="LOW",
+                    message=f"El node group tiene min={min_size}, desired={desired_size}, max={max_size}. Conviene revisar su escalado para evitar capacidad ociosa.",
+                    estimated_monthly_savings=0
+                )
+                count += 1
+            else:
+                RightsizingEngine._resolve_finding(
+                    client_id,
+                    aws_account_id,
+                    nodegroup.resource_id,
                     finding_type
                 )
 
