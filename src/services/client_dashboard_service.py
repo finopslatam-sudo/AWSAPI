@@ -136,8 +136,7 @@ class ClientDashboardService:
             )
             .join(
                 AWSResourceInventory,
-                (AWSFinding.resource_id == AWSResourceInventory.resource_id) &
-                (AWSFinding.client_id == AWSResourceInventory.client_id)
+                AWSFinding.resource_id == AWSResourceInventory.resource_id
             )
             .filter(
                 AWSFinding.client_id == client_id,
