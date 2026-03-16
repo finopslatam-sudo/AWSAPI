@@ -83,7 +83,9 @@ def get_risk():
     if error_response:
         return error_response, status
 
-    data = RiskService.get_risk_score(client_id)
+    aws_account_id = request.args.get("aws_account_id", type=int)
+
+    data = RiskService.get_risk_score(client_id, aws_account_id)
 
     return jsonify(data), 200
 
@@ -97,7 +99,12 @@ def get_risk_breakdown():
     if error_response:
         return error_response, status
 
-    data = RiskService.get_risk_breakdown_by_service(client_id)
+    aws_account_id = request.args.get("aws_account_id", type=int)
+
+    data = RiskService.get_risk_breakdown_by_service(
+        client_id,
+        aws_account_id
+    )
 
     return jsonify(data), 200
 
@@ -111,7 +118,9 @@ def get_priority_services():
     if error_response:
         return error_response, status
 
-    data = RiskService.get_priority_services(client_id)
+    aws_account_id = request.args.get("aws_account_id", type=int)
+
+    data = RiskService.get_priority_services(client_id, aws_account_id)
 
     return jsonify(data), 200
 
@@ -138,7 +147,12 @@ def get_governance():
             "error": "Governance requires Professional plan"
         }), 403
 
-    data = GovernanceService.get_governance_score(client_id)
+    aws_account_id = request.args.get("aws_account_id", type=int)
+
+    data = GovernanceService.get_governance_score(
+        client_id,
+        aws_account_id
+    )
 
     return jsonify(data), 200
 
@@ -156,7 +170,9 @@ def get_roi():
     if error_response:
         return error_response, status
 
-    data = ROIService.get_roi_projection(client_id)
+    aws_account_id = request.args.get("aws_account_id", type=int)
+
+    data = ROIService.get_roi_projection(client_id, aws_account_id)
 
     return jsonify(data), 200
 
@@ -192,7 +208,13 @@ def get_remediation():
     if error_response:
         return error_response, status
 
-    data = RemediationService.get_remediation_metrics(client_id, 30)
+    aws_account_id = request.args.get("aws_account_id", type=int)
+
+    data = RemediationService.get_remediation_metrics(
+        client_id,
+        30,
+        aws_account_id
+    )
 
     return jsonify(data), 200
 
@@ -215,7 +237,9 @@ def get_cost():
     if error_response:
         return error_response, status
 
-    data = ClientDashboardService.get_cost_data(client_id)
+    aws_account_id = request.args.get("aws_account_id", type=int)
+
+    data = ClientDashboardService.get_cost_data(client_id, aws_account_id)
 
     return jsonify(data), 200
 
@@ -233,7 +257,12 @@ def get_inventory():
     if error_response:
         return error_response, status
 
-    data = ClientDashboardService.get_inventory_summary(client_id)
+    aws_account_id = request.args.get("aws_account_id", type=int)
+
+    data = ClientDashboardService.get_inventory_summary(
+        client_id,
+        aws_account_id
+    )
 
     return jsonify(data), 200
 

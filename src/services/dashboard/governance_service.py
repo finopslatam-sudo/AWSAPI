@@ -10,19 +10,27 @@ class GovernanceService:
     # GOVERNANCE SCORE (ENTERPRISE READY)
     # =====================================================
     @staticmethod
-    def get_governance_score(client_id: int):
+    def get_governance_score(
+        client_id: int,
+        aws_account_id: int | None = None
+    ):
 
         # -----------------------------------------------------
         # TOTAL ACTIVE RESOURCES
         # -----------------------------------------------------
-        total_resources = (
-            db.session.query(func.count(AWSResourceInventory.id))
-            .filter(
-                AWSResourceInventory.client_id == client_id,
-                AWSResourceInventory.is_active.is_(True)
-            )
-            .scalar() or 0
+        total_resources_query = db.session.query(
+            func.count(AWSResourceInventory.id)
+        ).filter(
+            AWSResourceInventory.client_id == client_id,
+            AWSResourceInventory.is_active.is_(True)
         )
+
+        if aws_account_id is not None:
+            total_resources_query = total_resources_query.filter(
+                AWSResourceInventory.aws_account_id == aws_account_id
+            )
+
+        total_resources = total_resources_query.scalar() or 0
 
         if total_resources == 0:
             return {
@@ -36,7 +44,7 @@ class GovernanceService:
         # NON-COMPLIANT RESOURCES
         # (Governance-related unresolved findings)
         # -----------------------------------------------------
-        non_compliant_resources = (
+        non_compliant_resources_query = (
             db.session.query(
                 func.count(func.distinct(AWSResourceInventory.id))
             )
@@ -53,7 +61,16 @@ class GovernanceService:
                 AWSResourceInventory.client_id == client_id,
                 AWSResourceInventory.is_active.is_(True)
             )
-            .scalar() or 0
+        )
+
+        if aws_account_id is not None:
+            non_compliant_resources_query = non_compliant_resources_query.filter(
+                AWSResourceInventory.aws_account_id == aws_account_id,
+                AWSFinding.aws_account_id == aws_account_id
+            )
+
+        non_compliant_resources = (
+            non_compliant_resources_query.scalar() or 0
         )
 
         compliant_resources = max(

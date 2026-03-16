@@ -10,19 +10,27 @@ class RiskService:
     # GLOBAL RISK SCORE (ENTERPRISE OPTIMIZED)
     # =====================================================
     @staticmethod
-    def get_risk_score(client_id: int):
+    def get_risk_score(
+        client_id: int,
+        aws_account_id: int | None = None
+    ):
 
         # ---------------------------------
         # 1️⃣ Total active resources
         # ---------------------------------
-        total_resources = (
-            db.session.query(func.count(AWSResourceInventory.id))
-            .filter(
-                AWSResourceInventory.client_id == client_id,
-                AWSResourceInventory.is_active.is_(True)
-            )
-            .scalar() or 0
+        total_resources_query = db.session.query(
+            func.count(AWSResourceInventory.id)
+        ).filter(
+            AWSResourceInventory.client_id == client_id,
+            AWSResourceInventory.is_active.is_(True)
         )
+
+        if aws_account_id is not None:
+            total_resources_query = total_resources_query.filter(
+                AWSResourceInventory.aws_account_id == aws_account_id
+            )
+
+        total_resources = total_resources_query.scalar() or 0
 
         if total_resources == 0:
             return {
@@ -37,7 +45,7 @@ class RiskService:
         # ---------------------------------
         # 2️⃣ Aggregate severities in single query
         # ---------------------------------
-        results = (
+        results_query = (
             db.session.query(
                 func.sum(case((AWSFinding.severity == "HIGH", 1), else_=0)).label("high"),
                 func.sum(case((AWSFinding.severity == "MEDIUM", 1), else_=0)).label("medium"),
@@ -55,8 +63,15 @@ class RiskService:
                 AWSFinding.resolved.is_(False),
                 AWSResourceInventory.is_active.is_(True)
             )
-            .first()
         )
+
+        if aws_account_id is not None:
+            results_query = results_query.filter(
+                AWSFinding.aws_account_id == aws_account_id,
+                AWSResourceInventory.aws_account_id == aws_account_id
+            )
+
+        results = results_query.first()
 
         high = results.high or 0
         medium = results.medium or 0
@@ -87,9 +102,12 @@ class RiskService:
     # RISK BREAKDOWN BY SERVICE (NO N+1)
     # =====================================================
     @staticmethod
-    def get_risk_breakdown_by_service(client_id: int):
+    def get_risk_breakdown_by_service(
+        client_id: int,
+        aws_account_id: int | None = None
+    ):
 
-        results = (
+        results_query = (
             db.session.query(
                 AWSResourceInventory.service_name,
                 func.count(AWSResourceInventory.id).label("total_resources"),
@@ -109,6 +127,15 @@ class RiskService:
                 AWSResourceInventory.client_id == client_id,
                 AWSResourceInventory.is_active.is_(True)
             )
+        )
+
+        if aws_account_id is not None:
+            results_query = results_query.filter(
+                AWSResourceInventory.aws_account_id == aws_account_id
+            )
+
+        results = (
+            results_query
             .group_by(AWSResourceInventory.service_name)
             .all()
         )
@@ -147,9 +174,15 @@ class RiskService:
     # PRIORITIZATION ENGINE
     # =====================================================
     @staticmethod
-    def get_priority_services(client_id: int):
+    def get_priority_services(
+        client_id: int,
+        aws_account_id: int | None = None
+    ):
 
-        breakdown = RiskService.get_risk_breakdown_by_service(client_id)
+        breakdown = RiskService.get_risk_breakdown_by_service(
+            client_id,
+            aws_account_id
+        )
 
         services_list = [
             {

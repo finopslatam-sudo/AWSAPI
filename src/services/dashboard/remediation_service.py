@@ -11,14 +11,18 @@ class RemediationService:
     # REMEDIATION TRACKING (ENTERPRISE READY)
     # =====================================================
     @staticmethod
-    def get_remediation_metrics(client_id: int, days: int = 30):
+    def get_remediation_metrics(
+        client_id: int,
+        days: int = 30,
+        aws_account_id: int | None = None
+    ):
 
         cutoff = datetime.utcnow() - timedelta(days=days)
 
         # -----------------------------------------------------
         # AGGREGATED RESOLUTION METRICS (JOIN INVENTORY ACTIVO)
         # -----------------------------------------------------
-        results = (
+        results_query = (
             db.session.query(
                 func.count(AWSFinding.id).label("total_resolved"),
                 func.sum(
@@ -45,8 +49,15 @@ class RemediationService:
                 AWSFinding.resolved_at >= cutoff,
                 AWSResourceInventory.is_active.is_(True)
             )
-            .first()
         )
+
+        if aws_account_id is not None:
+            results_query = results_query.filter(
+                AWSFinding.aws_account_id == aws_account_id,
+                AWSResourceInventory.aws_account_id == aws_account_id
+            )
+
+        results = results_query.first()
 
         total_resolved = results.total_resolved or 0
         high = results.high or 0

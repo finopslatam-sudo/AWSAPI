@@ -146,9 +146,9 @@ class ClientFindingsService:
     # GLOBAL STATS (1 QUERY - ENTERPRISE)
     # =====================================================
     @staticmethod
-    def get_stats(client_id):
+    def get_stats(client_id, aws_account_id=None):
 
-        results = (
+        query = (
             db.session.query(
                 func.count(AWSFinding.id).label("total"),
 
@@ -191,8 +191,14 @@ class ClientFindingsService:
                 AWSFinding.client_id == client_id,
                 AWSResourceInventory.is_active.is_(True)
             )
-            .first()
         )
+
+        if aws_account_id is not None:
+            query = query.filter(
+                AWSFinding.aws_account_id == aws_account_id
+            )
+
+        results = query.first()
 
         return {
             "total": results.total or 0,

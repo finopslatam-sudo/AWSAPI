@@ -23,7 +23,7 @@ class ClientDashboardService:
         # ACCOUNT FILTER
         # =====================================================
 
-        if aws_account_id:
+        if aws_account_id is not None:
             query = query.filter(
                 AWSAccount.id == aws_account_id
             )
@@ -133,7 +133,14 @@ class ClientDashboardService:
         ).filter_by(
             client_id=client_id,
             resolved=False
-        ).scalar() or 0
+        )
+
+        if aws_account_id is not None:
+            savings = savings.filter(
+                AWSFinding.aws_account_id == aws_account_id
+            )
+
+        savings = savings.scalar() or 0
 
         if current_month_cost <= 0:
             savings_percentage = 0
@@ -155,15 +162,25 @@ class ClientDashboardService:
     # INVENTORY SUMMARY (se mantiene aquí por ahora)
     # =====================================================
     @staticmethod
-    def get_inventory_summary(client_id: int):
+    def get_inventory_summary(
+        client_id: int,
+        aws_account_id: int | None = None
+    ):
 
-        findings = db.session.query(
+        findings_query = db.session.query(
             AWSFinding.resource_type,
             func.count(AWSFinding.id)
         ).filter_by(
             client_id=client_id,
             resolved=False
-        ).group_by(
+        )
+
+        if aws_account_id is not None:
+            findings_query = findings_query.filter(
+                AWSFinding.aws_account_id == aws_account_id
+            )
+
+        findings = findings_query.group_by(
             AWSFinding.resource_type
         ).all()
 

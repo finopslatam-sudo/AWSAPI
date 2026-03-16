@@ -14,15 +14,24 @@ class ExecutiveService:
     # EXECUTIVE SUMMARY ENGINE (ENTERPRISE READY)
     # =====================================================
     @staticmethod
-    def get_executive_summary(client_id: int):
+    def get_executive_summary(
+        client_id: int,
+        aws_account_id: int | None = None
+    ):
 
         # -----------------------------------------------------
         # CORE METRICS
         # -----------------------------------------------------
-        risk = RiskService.get_risk_score(client_id)
-        governance = GovernanceService.get_governance_score(client_id)
-        roi = ROIService.get_roi_projection(client_id)
-        priority = RiskService.get_priority_services(client_id)
+        risk = RiskService.get_risk_score(client_id, aws_account_id)
+        governance = GovernanceService.get_governance_score(
+            client_id,
+            aws_account_id
+        )
+        roi = ROIService.get_roi_projection(client_id, aws_account_id)
+        priority = RiskService.get_priority_services(
+            client_id,
+            aws_account_id
+        )
 
         # -----------------------------------------------------
         # PRIMARY RISK DRIVER
@@ -32,7 +41,7 @@ class ExecutiveService:
         # -----------------------------------------------------
         # FINANCIAL EXPOSURE (ACTIVE FINDINGS ONLY + INVENTORY ACTIVE)
         # -----------------------------------------------------
-        monthly_exposure = (
+        monthly_exposure_query = (
             db.session.query(
                 func.sum(AWSFinding.estimated_monthly_savings)
             )
@@ -48,8 +57,15 @@ class ExecutiveService:
                 AWSFinding.resolved.is_(False),
                 AWSResourceInventory.is_active.is_(True)
             )
-            .scalar() or 0
         )
+
+        if aws_account_id is not None:
+            monthly_exposure_query = monthly_exposure_query.filter(
+                AWSFinding.aws_account_id == aws_account_id,
+                AWSResourceInventory.aws_account_id == aws_account_id
+            )
+
+        monthly_exposure = monthly_exposure_query.scalar() or 0
 
         monthly_exposure = float(monthly_exposure)
         annual_exposure = round(monthly_exposure * 12, 2)
@@ -78,12 +94,17 @@ class ExecutiveService:
         # -----------------------------------------------------
         # ACCOUNT FOOTPRINT
         # -----------------------------------------------------
-        accounts_count = (
-            AWSAccount.query.filter_by(
-                client_id=client_id,
-                is_active=True
-            ).count()
+        accounts_query = AWSAccount.query.filter_by(
+            client_id=client_id,
+            is_active=True
         )
+
+        if aws_account_id is not None:
+            accounts_query = accounts_query.filter(
+                AWSAccount.id == aws_account_id
+            )
+
+        accounts_count = accounts_query.count()
 
         # -----------------------------------------------------
         # NARRATIVE GENERATION

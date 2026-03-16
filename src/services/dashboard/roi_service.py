@@ -10,19 +10,27 @@ class ROIService:
     # ROI PROJECTION ENGINE (ENTERPRISE READY)
     # =====================================================
     @staticmethod
-    def get_roi_projection(client_id: int):
+    def get_roi_projection(
+        client_id: int,
+        aws_account_id: int | None = None
+    ):
 
         # -----------------------------------------------------
         # TOTAL ACTIVE RESOURCES
         # -----------------------------------------------------
-        total_resources = (
-            db.session.query(func.count(AWSResourceInventory.id))
-            .filter(
-                AWSResourceInventory.client_id == client_id,
-                AWSResourceInventory.is_active.is_(True)
-            )
-            .scalar() or 0
+        total_resources_query = db.session.query(
+            func.count(AWSResourceInventory.id)
+        ).filter(
+            AWSResourceInventory.client_id == client_id,
+            AWSResourceInventory.is_active.is_(True)
         )
+
+        if aws_account_id is not None:
+            total_resources_query = total_resources_query.filter(
+                AWSResourceInventory.aws_account_id == aws_account_id
+            )
+
+        total_resources = total_resources_query.scalar() or 0
 
         if total_resources == 0:
             return {
@@ -36,7 +44,7 @@ class ROIService:
         # -----------------------------------------------------
         # AGGREGATED ACTIVE FINDINGS (JOIN INVENTORY ACTIVO)
         # -----------------------------------------------------
-        results = (
+        results_query = (
             db.session.query(
                 func.sum(case((AWSFinding.severity == "HIGH", 1), else_=0)).label("high"),
                 func.sum(case((AWSFinding.severity == "MEDIUM", 1), else_=0)).label("medium"),
@@ -64,8 +72,15 @@ class ROIService:
                 AWSFinding.resolved.is_(False),
                 AWSResourceInventory.is_active.is_(True)
             )
-            .first()
         )
+
+        if aws_account_id is not None:
+            results_query = results_query.filter(
+                AWSFinding.aws_account_id == aws_account_id,
+                AWSResourceInventory.aws_account_id == aws_account_id
+            )
+
+        results = results_query.first()
 
         high = results.high or 0
         medium = results.medium or 0
@@ -92,7 +107,7 @@ class ROIService:
         # GOVERNANCE PROJECTION
         # Simulamos remediación HIGH governance findings
         # -----------------------------------------------------
-        non_compliant_resources = (
+        non_compliant_resources_query = (
             db.session.query(
                 func.count(func.distinct(AWSResourceInventory.id))
             )
@@ -110,7 +125,16 @@ class ROIService:
                 AWSResourceInventory.client_id == client_id,
                 AWSResourceInventory.is_active.is_(True)
             )
-            .scalar() or 0
+        )
+
+        if aws_account_id is not None:
+            non_compliant_resources_query = non_compliant_resources_query.filter(
+                AWSResourceInventory.aws_account_id == aws_account_id,
+                AWSFinding.aws_account_id == aws_account_id
+            )
+
+        non_compliant_resources = (
+            non_compliant_resources_query.scalar() or 0
         )
 
         compliant_resources = max(

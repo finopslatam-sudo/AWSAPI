@@ -22,7 +22,10 @@ class ClientDashboardFacade:
         # =====================================================
         # FINDINGS STATS (Delegado al servicio optimizado)
         # =====================================================
-        findings_stats = ClientFindingsService.get_stats(client_id)
+        findings_stats = ClientFindingsService.get_stats(
+            client_id,
+            aws_account_id
+        )
 
         # =====================================================
         # ACCOUNTS SUMMARY
@@ -36,8 +39,14 @@ class ClientDashboardFacade:
                 AWSAccount.client_id == client_id,
                 AWSAccount.is_active.is_(True)
             )
-            .first()
         )
+
+        if aws_account_id is not None:
+            accounts_data = accounts_data.filter(
+                AWSAccount.id == aws_account_id
+            )
+
+        accounts_data = accounts_data.first()
 
         accounts_count = accounts_data.accounts_count if accounts_data else 0
         last_sync = (
@@ -71,7 +80,7 @@ class ClientDashboardFacade:
         # ACCOUNT FILTER
         # =====================================================
 
-        if aws_account_id:
+        if aws_account_id is not None:
             resources_query = resources_query.filter(
                 AWSFinding.aws_account_id == aws_account_id
             )
@@ -94,7 +103,7 @@ class ClientDashboardFacade:
         # ACCOUNT FILTER
         # =====================================================
 
-        if aws_account_id:
+        if aws_account_id is not None:
             inventory_query = inventory_query.filter(
                 AWSResourceInventory.aws_account_id == aws_account_id
             )
@@ -116,14 +125,33 @@ class ClientDashboardFacade:
         # =====================================================
         # DELEGATED SERVICES
         # =====================================================
-        governance = GovernanceService.get_governance_score(client_id)
-        risk = RiskService.get_risk_score(client_id)
-        risk_by_service = RiskService.get_risk_breakdown_by_service(client_id)
-        priority_services = RiskService.get_priority_services(client_id)
-        executive_summary = ExecutiveService.get_executive_summary(client_id)
-        roi_projection = ROIService.get_roi_projection(client_id)
+        governance = GovernanceService.get_governance_score(
+            client_id,
+            aws_account_id
+        )
+        risk = RiskService.get_risk_score(client_id, aws_account_id)
+        risk_by_service = RiskService.get_risk_breakdown_by_service(
+            client_id,
+            aws_account_id
+        )
+        priority_services = RiskService.get_priority_services(
+            client_id,
+            aws_account_id
+        )
+        executive_summary = ExecutiveService.get_executive_summary(
+            client_id,
+            aws_account_id
+        )
+        roi_projection = ROIService.get_roi_projection(
+            client_id,
+            aws_account_id
+        )
         trend = TrendService.get_risk_trend(client_id, 30)
-        remediation = RemediationService.get_remediation_metrics(client_id, 30)
+        remediation = RemediationService.get_remediation_metrics(
+            client_id,
+            30,
+            aws_account_id
+        )
         cost_data = ClientDashboardService.get_cost_data(
             client_id,
             aws_account_id
