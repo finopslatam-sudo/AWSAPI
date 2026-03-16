@@ -145,8 +145,11 @@ class ClientDashboardService:
         if current_month_cost <= 0:
             savings_percentage = 0
         else:
+            raw_savings_percentage = (
+                float(savings) / current_month_cost
+            ) * 100
             savings_percentage = round(
-                (float(savings) / current_month_cost) * 100,
+                min(raw_savings_percentage, 100.0),
                 2
             )
 
