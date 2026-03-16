@@ -6,7 +6,13 @@ class RightsizingService:
     SUPPORTED_TYPES = [
         "RIGHTSIZING_OPPORTUNITY",
         "EC2_UNDERUTILIZED",
-        "RDS_UNDERUTILIZED"
+        "RDS_UNDERUTILIZED",
+        "EBS_GP2_TO_GP3",
+        "LAMBDA_MEMORY_RIGHTSIZING",
+        "DYNAMODB_PROVISIONED_RIGHTSIZING",
+        "CLOUDWATCH_STORAGE_RIGHTSIZING",
+        "NAT_IDLE_GATEWAY",
+        "REDSHIFT_UNDERUTILIZED"
     ]
 
     @staticmethod
@@ -46,6 +52,7 @@ class RightsizingService:
                 "resource_id": f.resource_id,
                 "resource_type": f.resource_type,
                 "aws_account_id": f.aws_account_id,
+                "aws_service": f.aws_service,
                 "finding_type": f.finding_type,
                 "severity": f.severity,
                 "message": f.message,
@@ -54,7 +61,16 @@ class RightsizingService:
             })
 
         return {
-            "supported_services": ["EC2", "RDS"],
+            "supported_services": [
+                "EC2",
+                "RDS",
+                "EBS",
+                "Lambda",
+                "DynamoDB",
+                "CloudWatch",
+                "NAT",
+                "Redshift"
+            ],
             "total_recommendations": len(results),
             "total_estimated_monthly_savings": round(total_savings, 2),
             "has_data": len(results) > 0,
