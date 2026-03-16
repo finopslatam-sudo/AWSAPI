@@ -121,11 +121,15 @@ class ExecutiveService:
         )
 
         return {
-            "overall_posture": risk["risk_level"],
+            "overall_posture": ExecutiveService._translate_risk_level(
+                risk["risk_level"]
+            ),
             "risk_score": risk["risk_score"],
             "urgency_level": urgency_level,
             "primary_risk_driver": primary_service,
-            "governance_status": governance_status,
+            "governance_status": ExecutiveService._translate_governance_status(
+                governance_status
+            ),
             "governance_score": compliance,
             "monthly_financial_exposure": round(monthly_exposure, 2),
             "annual_financial_exposure": annual_exposure,
@@ -141,13 +145,37 @@ class ExecutiveService:
     def _calculate_urgency(risk_level: str):
 
         mapping = {
-            "LOW": "MONITOR",
-            "MODERATE": "ATTENTION_REQUIRED",
-            "HIGH": "PRIORITY_ACTION",
-            "CRITICAL": "IMMEDIATE_ACTION"
+            "LOW": "MONITOREAR",
+            "MODERATE": "ATENCION_REQUERIDA",
+            "HIGH": "ACCION_PRIORITARIA",
+            "CRITICAL": "ACCION_INMEDIATA"
         }
 
-        return mapping.get(risk_level, "MONITOR")
+        return mapping.get(risk_level, "MONITOREAR")
+
+    @staticmethod
+    def _translate_risk_level(risk_level: str):
+
+        mapping = {
+            "LOW": "BAJO",
+            "MODERATE": "MODERADO",
+            "HIGH": "ALTO",
+            "CRITICAL": "CRITICO"
+        }
+
+        return mapping.get(risk_level, risk_level)
+
+    @staticmethod
+    def _translate_governance_status(governance_status: str):
+
+        mapping = {
+            "EXCELLENT": "EXCELENTE",
+            "GOOD": "BUENO",
+            "FAIR": "ACEPTABLE",
+            "POOR": "DEFICIENTE"
+        }
+
+        return mapping.get(governance_status, governance_status)
 
     # =====================================================
     # INTERNAL: EXECUTIVE NARRATIVE BUILDER
@@ -164,36 +192,48 @@ class ExecutiveService:
         projected_risk_score
     ):
 
+        risk_level_es = ExecutiveService._translate_risk_level(risk_level)
+        governance_status_es = (
+            ExecutiveService._translate_governance_status(governance_status)
+        )
+        account_label = (
+            "cuenta conectada"
+            if accounts_count == 1 else
+            "cuentas conectadas"
+        )
+
         message = (
-            f"The organization currently operates with a {risk_level} risk posture "
-            f"(score: {risk_score}) across {accounts_count} connected account(s). "
+            f"La organizacion opera actualmente con una postura de riesgo "
+            f"{risk_level_es} (score: {risk_score}) en "
+            f"{accounts_count} {account_label}. "
         )
 
         message += (
-            f"Governance maturity is classified as {governance_status}. "
+            f"La madurez de gobernanza se clasifica como "
+            f"{governance_status_es}. "
         )
 
         if primary_service:
             message += (
-                f"The primary risk driver is {primary_service}, "
-                f"which should be prioritized for remediation. "
+                f"El principal generador de riesgo es {primary_service}, "
+                f"por lo que deberia priorizarse para remediacion. "
             )
 
         if monthly_exposure > 0:
             message += (
-                f"Current financial exposure is estimated at "
-                f"${round(monthly_exposure, 2)} per month "
-                f"(${annual_exposure} annually). "
+                f"La exposicion financiera estimada es de "
+                f"${round(monthly_exposure, 2)} mensuales "
+                f"(${annual_exposure} anuales). "
             )
 
             message += (
-                f"Remediation of high-severity findings alone "
-                f"would improve the risk score to approximately "
+                f"La remediacion de los hallazgos de severidad alta, por si sola, "
+                f"mejoraria el score de riesgo a aproximadamente "
                 f"{projected_risk_score}. "
             )
         else:
             message += (
-                "No significant immediate financial exposure has been identified. "
+                "No se ha identificado una exposicion financiera inmediata significativa. "
             )
 
         return message.strip()
