@@ -39,6 +39,7 @@ def get_client_findings():
     service = request.args.get("service")
     aws_account_id = request.args.get("aws_account_id", type=int)
     search = request.args.get("search")
+    region = request.args.get("region")
 
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
@@ -53,6 +54,7 @@ def get_client_findings():
         severity=severity,
         finding_type=finding_type,
         service=service,
+        region=region,
         page=page,
         per_page=per_page,
         search=search,
@@ -85,11 +87,23 @@ def get_client_findings_stats():
     if not has_feature(user.client_id, "findings"):
         return jsonify({"error": "Feature not available in current plan"}), 403
 
+    status = request.args.get("status")
+    severity = request.args.get("severity")
+    finding_type = request.args.get("finding_type")
+    service = request.args.get("service")
     aws_account_id = request.args.get("aws_account_id", type=int)
+    search = request.args.get("search")
+    region = request.args.get("region")
 
     stats = ClientFindingsService.get_stats(
         user.client_id,
-        aws_account_id
+        aws_account_id,
+        status=status,
+        severity=severity,
+        finding_type=finding_type,
+        service=service,
+        search=search,
+        region=region
     )
 
     return jsonify({
