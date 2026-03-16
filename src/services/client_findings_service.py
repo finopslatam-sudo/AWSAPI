@@ -5,6 +5,7 @@ from src.models.database import db
 from src.models.aws_finding import AWSFinding
 from src.models.aws_resource_inventory import AWSResourceInventory
 from src.models.aws_account import AWSAccount
+from src.services.client_dashboard_service import ClientDashboardService
 
 class ClientFindingsService:
 
@@ -200,6 +201,15 @@ class ClientFindingsService:
 
         results = query.first()
 
+        active_savings = ClientDashboardService._get_active_savings_subquery(
+            client_id,
+            aws_account_id
+        )
+
+        estimated_savings = db.session.query(
+            func.sum(active_savings.c.estimated_monthly_savings)
+        ).scalar() or 0
+
         return {
             "total": results.total or 0,
             "active": results.active or 0,
@@ -207,7 +217,7 @@ class ClientFindingsService:
             "high": results.high or 0,
             "medium": results.medium or 0,
             "low": results.low or 0,
-            "estimated_monthly_savings": float(results.savings or 0)
+            "estimated_monthly_savings": float(estimated_savings)
         }
 
     # =====================================================

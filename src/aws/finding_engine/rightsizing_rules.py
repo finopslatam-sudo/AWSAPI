@@ -1,7 +1,5 @@
 from src.models.aws_resource_inventory import AWSResourceInventory
 from src.models.aws_finding import AWSFinding
-from src.models.database import db
-from datetime import datetime
 
 
 class RightsizingRules:
@@ -34,7 +32,7 @@ class RightsizingRules:
 
             if instance_type in oversized_types:
 
-                finding = AWSFinding(
+                created = AWSFinding.upsert_finding(
                     client_id=client_id,
                     aws_account_id=instance.aws_account_id,
                     resource_id=instance.resource_id,
@@ -44,13 +42,10 @@ class RightsizingRules:
                     finding_type="RIGHTSIZING_OPPORTUNITY",
                     severity="MEDIUM",
                     message=f"Instance {instance.resource_id} may be oversized ({instance_type})",
-                    estimated_monthly_savings=50.0,
-                    resolved=False,
-                    detected_at=datetime.utcnow(),
-                    created_at=datetime.utcnow()
+                    estimated_monthly_savings=50.0
                 )
 
-                db.session.add(finding)
-                count += 1
+                if created:
+                    count += 1
 
         return count

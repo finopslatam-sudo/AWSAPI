@@ -1,3 +1,5 @@
+from datetime import date
+
 from sqlalchemy import func
 
 from src.models.aws_finding import AWSFinding
@@ -7,6 +9,38 @@ from src.aws.cost_explorer_service import CostExplorerService
 
 
 class ClientDashboardService:
+
+    @staticmethod
+    def _get_active_savings_subquery(
+        client_id: int,
+        aws_account_id: int | None = None
+    ):
+
+        savings_query = db.session.query(
+            AWSFinding.aws_account_id.label("aws_account_id"),
+            AWSFinding.resource_id.label("resource_id"),
+            AWSFinding.finding_type.label("finding_type"),
+            func.max(
+                func.coalesce(
+                    AWSFinding.estimated_monthly_savings,
+                    0
+                )
+            ).label("estimated_monthly_savings")
+        ).filter(
+            AWSFinding.client_id == client_id,
+            AWSFinding.resolved.is_(False)
+        )
+
+        if aws_account_id is not None:
+            savings_query = savings_query.filter(
+                AWSFinding.aws_account_id == aws_account_id
+            )
+
+        return savings_query.group_by(
+            AWSFinding.aws_account_id,
+            AWSFinding.resource_id,
+            AWSFinding.finding_type
+        ).subquery()
 
     # =====================================================
     # COST DATA (MULTI ACCOUNT SAFE)
@@ -106,10 +140,22 @@ class ClientDashboardService:
         ]
 
         raw_current_month_cost = monthly_cost[-1]["amount"] if monthly_cost else 0
+        current_month_key = date.today().strftime("%Y-%m")
+
+        # Compare monthly savings against a full-month spend baseline.
+        # If the latest point is the current partial month, we fallback
+        # to the last closed month when available.
+        current_month_cost = float(raw_current_month_cost)
+
+        if monthly_cost:
+            latest_month = monthly_cost[-1]["month"]
+
+            if latest_month == current_month_key and len(monthly_cost) > 1:
+                current_month_cost = float(monthly_cost[-2]["amount"])
 
         current_month_cost = (
-            0 if abs(raw_current_month_cost) < 0.01
-            else float(raw_current_month_cost)
+            0 if abs(current_month_cost) < 0.01
+            else float(current_month_cost)
         )
 
         # =====================================================
@@ -128,19 +174,14 @@ class ClientDashboardService:
         # POTENTIAL SAVINGS
         # =====================================================
 
-        savings = db.session.query(
-            func.sum(AWSFinding.estimated_monthly_savings)
-        ).filter_by(
-            client_id=client_id,
-            resolved=False
+        active_savings = ClientDashboardService._get_active_savings_subquery(
+            client_id,
+            aws_account_id
         )
 
-        if aws_account_id is not None:
-            savings = savings.filter(
-                AWSFinding.aws_account_id == aws_account_id
-            )
-
-        savings = savings.scalar() or 0
+        savings = db.session.query(
+            func.sum(active_savings.c.estimated_monthly_savings)
+        ).scalar() or 0
 
         if current_month_cost <= 0:
             savings_percentage = 0
