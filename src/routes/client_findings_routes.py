@@ -85,7 +85,12 @@ def get_client_findings_stats():
     if not has_feature(user.client_id, "findings"):
         return jsonify({"error": "Feature not available in current plan"}), 403
 
-    stats = ClientFindingsService.get_stats(user.client_id)
+    aws_account_id = request.args.get("aws_account_id", type=int)
+
+    stats = ClientFindingsService.get_stats(
+        user.client_id,
+        aws_account_id
+    )
 
     return jsonify({
         "status": "ok",
