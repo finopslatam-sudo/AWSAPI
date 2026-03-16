@@ -210,14 +210,28 @@ class ClientFindingsService:
             func.sum(active_savings.c.estimated_monthly_savings)
         ).scalar() or 0
 
+        financial_opportunities = db.session.query(
+            func.count()
+        ).select_from(active_savings).filter(
+            active_savings.c.estimated_monthly_savings > 0
+        ).scalar() or 0
+
+        active_findings = results.active or 0
+        review_recommendations = max(
+            active_findings - financial_opportunities,
+            0
+        )
+
         return {
             "total": results.total or 0,
-            "active": results.active or 0,
+            "active": active_findings,
             "resolved": results.resolved or 0,
             "high": results.high or 0,
             "medium": results.medium or 0,
             "low": results.low or 0,
-            "estimated_monthly_savings": float(estimated_savings)
+            "estimated_monthly_savings": float(estimated_savings),
+            "financial_opportunities": financial_opportunities,
+            "review_recommendations": review_recommendations
         }
 
     # =====================================================
