@@ -125,28 +125,17 @@ class ClientDashboardService:
         ]
 
         # =====================================================
-        # POTENTIAL SAVINGS (VALID INVENTORY + ACCOUNT FILTER)
+        # POTENTIAL SAVINGS
         # =====================================================
 
-        from src.models.aws_resource_inventory import AWSResourceInventory
-
-        savings_query = (
-            db.session.query(
-                func.sum(AWSFinding.estimated_monthly_savings)
-            )
-            .join(
-                AWSResourceInventory,
-                AWSFinding.resource_id == AWSResourceInventory.resource_id
-            )
-            .filter(
-                AWSFinding.client_id == client_id,
-                AWSFinding.resolved.is_(False),
-                AWSResourceInventory.is_active.is_(True)
-            )
+        savings_query = db.session.query(
+            func.sum(AWSFinding.estimated_monthly_savings)
+        ).filter(
+            AWSFinding.client_id == client_id,
+            AWSFinding.resolved.is_(False)
         )
 
-        # ================= ACCOUNT FILTER =================
-
+        # aplicar filtro de cuenta si existe
         if aws_account_id:
             savings_query = savings_query.filter(
                 AWSFinding.aws_account_id == aws_account_id
@@ -155,7 +144,7 @@ class ClientDashboardService:
         savings = savings_query.scalar() or 0
 
         # =====================================================
-        # FINOPS OPTIMIZATION FORMULA
+        # OPTIMIZATION PERCENTAGE (FinOps Correct Formula)
         # =====================================================
 
         total_possible_spend = current_month_cost + float(savings)
