@@ -10,6 +10,7 @@ from src.models.aws_account import AWSAccount
 from src.services.aws_connection_service import AWSConnectionService
 from src.aws.sts_service import STSService
 from src.auth.plan_permissions import get_plan_limit
+from src.models.database import db
 
 client_aws_connection_bp = Blueprint(
     "client_aws_connection",
@@ -179,3 +180,27 @@ def list_accounts():
     return jsonify({
         "accounts": [a.to_dict() for a in accounts]
     }), 200
+
+# ======================================================
+# DELETE / DISCONNECT AWS ACCOUNT
+# ======================================================
+
+@client_aws_connection_bp.route("/accounts/<int:account_id>", methods=["DELETE"])
+@jwt_required()
+def delete_account(account_id):
+
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user or user.client_role != "owner":
+        return jsonify({"error": "Unauthorized"}), 403
+
+    account = AWSAccount.query.get(account_id)
+
+    if not account or account.client_id != user.client_id:
+        return jsonify({"error": "Account not found"}), 404
+
+    account.is_active = False
+    db.session.commit()
+
+    return jsonify({"status": "disconnected"}), 200

@@ -74,6 +74,9 @@ Resources:
                   - ce:GetSavingsPlansPurchaseRecommendation
                   - ce:GetReservationPurchaseRecommendation
                   - ce:GetRightsizingRecommendation
+                  - ce:GetAnomalies
+                  - ce:GetAnomalyMonitors
+                  - ce:GetAnomalySubscriptions
                 Resource: "*"
 
               # =========================================
@@ -128,6 +131,43 @@ Resources:
                   - tag:GetResources
                   - resource-explorer-2:Search
                   - resource-explorer-2:GetView
+                Resource: "*"
+
+              # =========================================
+              # COST & USAGE REPORT (CUR) + ATHENA/GLUE (opcional para CURe/Athena)
+              # =========================================
+
+              - Effect: Allow
+                Action:
+                  - cur:DescribeReportDefinitions
+                Resource: "*"
+
+              - Effect: Allow
+                Action:
+                  - s3:GetBucketLocation
+                  - s3:ListBucket
+                  - s3:GetObject
+                Resource: "*"
+
+              - Effect: Allow
+                Action:
+                  - athena:StartQueryExecution
+                  - athena:GetQueryExecution
+                  - athena:GetQueryResults
+                  - athena:ListWorkGroups
+                  - glue:GetDatabase
+                  - glue:GetDatabases
+                  - glue:GetTable
+                  - glue:GetTables
+                Resource: "*"
+
+              # =========================================
+              # PRICING API (tarifas on-demand/RI/SP)
+              # =========================================
+
+              - Effect: Allow
+                Action:
+                  - pricing:GetProducts
                 Resource: "*"
 
 Outputs:
