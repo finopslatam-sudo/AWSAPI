@@ -73,7 +73,6 @@ def build_client_xlsx(stats: dict) -> bytes:
     rows = [
         ("Plan contratado", plan),
         ("Usuarios asociados", stats["user_count"]),
-        ("Servicios activos", stats["active_services"]),
         ("Findings activos", stats.get("findings_summary", {}).get("active", 0)),
         ("Findings resueltos", stats.get("findings_summary", {}).get("resolved", 0)),
         ("Findings high", stats.get("findings_summary", {}).get("high", 0)),
