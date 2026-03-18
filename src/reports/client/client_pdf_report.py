@@ -14,17 +14,27 @@ from datetime import datetime
 from reportlab.platypus import Paragraph, Spacer, Image, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
-from datetime import datetime
 
 from src.reports.exporters.pdf_base import build_pdf
+
+PALETTE = {
+    "ink": colors.HexColor("#0f172a"),
+    "muted": colors.HexColor("#475569"),
+    "border": colors.HexColor("#e2e8f0"),
+    "bg": colors.HexColor("#f8fafc"),
+    "card_rose": colors.HexColor("#fecdd3"),
+    "card_green": colors.HexColor("#bbf7d0"),
+    "card_amber": colors.HexColor("#fde68a"),
+    "card_blue": colors.HexColor("#bfdbfe"),
+}
 
 
 def build_client_pdf(stats: dict) -> bytes:
     styles = getSampleStyleSheet()
-    styles.add(ParagraphStyle(name="CardTitle", fontSize=12, textColor=colors.HexColor("#475569"), leading=14))
-    styles.add(ParagraphStyle(name="CardValue", fontSize=18, textColor=colors.HexColor("#0f172a"), leading=20))
+    styles.add(ParagraphStyle(name="CardTitle", fontSize=11, textColor=PALETTE["muted"], leading=14))
+    styles.add(ParagraphStyle(name="CardValue", fontSize=18, textColor=PALETTE["ink"], leading=20))
     styles.add(ParagraphStyle(name="TableHeader", fontSize=9, textColor=colors.white, leading=11))
-    styles.add(ParagraphStyle(name="TableCell", fontSize=8, textColor=colors.HexColor("#0f172a"), leading=10))
+    styles.add(ParagraphStyle(name="TableCell", fontSize=8, textColor=PALETTE["ink"], leading=10))
 
     elements = []
 
@@ -65,33 +75,47 @@ def build_client_pdf(stats: dict) -> bytes:
         ["Usuarios", str(stats.get("user_count", 0))],
         ["Servicios activos", str(stats.get("active_services", 0))],
     ]
-    gen_table = Table(gen_data, colWidths=[120, 250])
+    gen_table = Table(gen_data, colWidths=[140, 260])
     gen_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
-        ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor("#0f172a")),
+        ("BACKGROUND", (0, 0), (-1, -1), PALETTE["bg"]),
+        ("TEXTCOLOR", (0, 0), (-1, -1), PALETTE["ink"]),
         ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
         ("FONTSIZE", (0, 0), (-1, -1), 10),
-        ("INNERGRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#e2e8f0")),
-        ("BOX", (0, 0), (-1, -1), 0.3, colors.HexColor("#e2e8f0")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.3, PALETTE["border"]),
+        ("BOX", (0, 0), (-1, -1), 0.3, PALETTE["border"]),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
     ]))
     elements.append(gen_table)
     elements.append(Spacer(1, 14))
 
     # Cards de métricas
-    card_data = []
+    card_cells = []
     for title, value, bg, fg in cards:
-        card_data.append([
-            Paragraph(f"<b>{title}</b>", ParagraphStyle(name="cardTitleInline", textColor=colors.HexColor("#475569"), fontSize=11)),
-            Paragraph(str(value), ParagraphStyle(name="cardValueInline", textColor=colors.HexColor(fg), fontSize=18)),
-        ])
-    card_table = Table(card_data, colWidths=[150, 100], hAlign="LEFT")
-    card_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
-        ("BOX", (0, 0), (-1, -1), 0.3, colors.white),
+        inner = Table(
+            [
+                [Paragraph(f"<b>{title}</b>", styles["CardTitle"])],
+                [Paragraph(str(value), ParagraphStyle(name="cardValueInline", textColor=colors.HexColor(fg), fontSize=18))],
+            ],
+            colWidths=[130],
+        )
+        inner.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(bg)),
+            ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor(bg)),
+            ("LEFTPADDING", (0, 0), (-1, -1), 12),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+            ("TOPPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ]))
+        card_cells.append([inner])
+
+    cards_table = Table([card_cells[:2], card_cells[2:]], colWidths=[150, 150], hAlign="LEFT")
+    cards_table.setStyle(TableStyle([
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
     ]))
-    elements.append(card_table)
+    elements.append(cards_table)
     elements.append(Spacer(1, 18))
 
     # Tabla de findings
@@ -111,15 +135,16 @@ def build_client_pdf(stats: dict) -> bytes:
 
         table = Table(data, repeatRows=1, colWidths=[90, 70, 60, 120, 80, 80])
         table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f172a")),
+            ("BACKGROUND", (0, 0), (-1, 0), PALETTE["ink"]),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
             ("ALIGN", (0, 0), (-1, 0), "LEFT"),
             ("FONTSIZE", (0, 0), (-1, 0), 9),
             ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
-            ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8fafc")),
-            ("TEXTCOLOR", (0, 1), (-1, -1), colors.HexColor("#0f172a")),
+            ("BACKGROUND", (0, 1), (-1, -1), PALETTE["bg"]),
+            ("TEXTCOLOR", (0, 1), (-1, -1), PALETTE["ink"]),
             ("FONTSIZE", (0, 1), (-1, -1), 8),
-            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#e2e8f0")),
+            ("GRID", (0, 0), (-1, -1), 0.25, PALETTE["border"]),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [PALETTE["bg"], colors.white]),
         ]))
         elements.append(Paragraph("Findings", styles["Heading2"]))
         elements.append(Spacer(1, 8))
