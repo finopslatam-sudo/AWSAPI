@@ -13,20 +13,9 @@ def build_client_csv(stats: dict) -> bytes:
     findings_summary = stats.get("findings_summary") or {}
     findings = stats.get("findings") or []
 
-    headers = [
-        "section",
-        "metric",
-        "value",
-        "account",
-        "service",
-        "severity",
-        "resource",
-        "monthly_savings",
-        "detected_at",
-    ]
+    headers = ["section", "metric", "value", "account", "service", "severity", "resource", "monthly_savings", "detected_at"]
 
     rows = []
-    # Summary metrics
     rows.append(["summary", "plan", stats.get("plan") or "Sin plan activo", "", "", "", "", "", ""])
     rows.append(["summary", "user_count", stats.get("user_count", 0), "", "", "", "", "", ""])
     rows.append(["summary", "active_services", stats.get("active_services", 0), "", "", "", "", "", ""])
@@ -35,15 +24,12 @@ def build_client_csv(stats: dict) -> bytes:
     rows.append(["summary", "findings_high", findings_summary.get("high", 0), "", "", "", "", "", ""])
     rows.append(["summary", "monthly_savings", findings_summary.get("savings", 0), "", "", "", "", "", ""])
 
-    # Separator row
-    rows.append(["findings", "metric", "value", "account", "service", "severity", "resource", "monthly_savings", "detected_at"])
-
     # Findings detail
     for f in findings:
         rows.append([
             "finding",
-            "",
-            "",
+            f.get("severity", ""),
+            f.get("message", "") or "",
             f.get("aws_account_name") or f.get("aws_account_number") or "",
             f.get("aws_service", ""),
             f.get("severity", ""),
