@@ -122,6 +122,26 @@ def build_client_xlsx(stats: dict) -> bytes:
         ws2.cell(row=r, column=5, value=float(f.get("estimated_monthly_savings") or 0)).border = thin
         ws2.cell(row=r, column=6, value=f.get("created_at", "")[:19]).border = thin
 
+    # También insertar un bloque de findings debajo del resumen en la hoja principal
+    block_start = footer_row + 2
+    findings_headers = ["Servicio", "Cuenta", "Tipo", "Recurso", "Región", "Ahorro mensual", "Estado", "Detalle"]
+    for idx, title in enumerate(findings_headers, start=1):
+        cell = ws.cell(row=block_start, column=idx, value=title)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+        cell.border = thin
+
+    for i, f in enumerate(findings, start=block_start + 1):
+        ws.cell(row=i, column=1, value=f.get("aws_service", "")).border = thin
+        ws.cell(row=i, column=2, value=f.get("aws_account_name") or f.get("aws_account_number") or "").border = thin
+        ws.cell(row=i, column=3, value=f.get("finding_type", "")).border = thin
+        ws.cell(row=i, column=4, value=f.get("resource_id", "")).border = thin
+        ws.cell(row=i, column=5, value=f.get("region", "")).border = thin
+        ws.cell(row=i, column=6, value=float(f.get("estimated_monthly_savings") or 0)).border = thin
+        ws.cell(row=i, column=7, value="Resolved" if f.get("resolved") else "Active").border = thin
+        ws.cell(row=i, column=8, value=f.get("message", "") or "").border = thin
+
     # ============================
     # EXPORT
     # ============================
