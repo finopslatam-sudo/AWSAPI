@@ -25,12 +25,24 @@ app = Flask(__name__)
 # =====================================================
 #   CORS (CONTROLADO)
 # =====================================================
+
+def _get_allowed_origins():
+    """Compute allowed origins from env or default to prod + localhost."""
+    raw = os.getenv("CORS_ALLOWED_ORIGINS")
+    if raw:
+        return [o.strip() for o in raw.split(",") if o.strip()]
+    return [
+        "https://finopslatam.com",
+        "https://www.finopslatam.com",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+
+ALLOWED_ORIGINS = _get_allowed_origins()
+
 CORS(
     app,
-    resources={r"/api/*": {"origins": [
-        "https://finopslatam.com",
-        "https://www.finopslatam.com"
-    ]}},
+    resources={r"/api/*": {"origins": ALLOWED_ORIGINS}},
     supports_credentials=True,
     allow_headers=[
         "Content-Type",
@@ -55,12 +67,7 @@ def add_cors_headers(response):
 
     origin = request.headers.get("Origin")
 
-    allowed_origins = [
-        "https://finopslatam.com",
-        "https://www.finopslatam.com"
-    ]
-
-    if origin in allowed_origins:
+    if origin in ALLOWED_ORIGINS:
         response.headers["Access-Control-Allow-Origin"] = origin
 
     response.headers["Access-Control-Allow-Credentials"] = "true"
@@ -95,7 +102,9 @@ with app.app_context():
     engine_url = str(db.engine.url)
     print(f"🔌 Connected DB: {engine_url}")
 
-    if "finops_prod" not in engine_url:
+    require_prod_check = os.getenv("REQUIRE_PROD_DB_CHECK", "true").lower() == "true"
+
+    if require_prod_check and "finops_prod" not in engine_url:
         raise RuntimeError(
             f"❌ API conectada a BD incorrecta: {engine_url}"
         )
@@ -174,7 +183,9 @@ def handle_options(path):
 
     response = jsonify({"status": "ok"})
 
-    response.headers["Access-Control-Allow-Origin"] = "https://www.finopslatam.com"
+    origin = request.headers.get("Origin")
+    if origin in ALLOWED_ORIGINS:
+        response.headers["Access-Control-Allow-Origin"] = origin
     response.headers["Access-Control-Allow-Credentials"] = "true"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
