@@ -73,7 +73,6 @@ def build_client_pdf(stats: dict) -> bytes:
     gen_data = [
         ["Plan", plan],
         ["Usuarios", str(stats.get("user_count", 0))],
-        ["Servicios activos", str(stats.get("active_services", 0))],
     ]
     gen_table = Table(gen_data, colWidths=[140, 260])
     gen_table.setStyle(TableStyle([
