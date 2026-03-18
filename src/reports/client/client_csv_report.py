@@ -27,6 +27,4 @@ def build_client_csv(stats: dict) -> bytes:
             f.get("message", "") or "",
         ])
 
-    # Primer encabezado con título
-    title_row = ["REPORTE - FINOPSLATAM"]
-    return build_csv(title_row, []) + build_csv(headers, rows)
+    return build_csv(headers, rows)

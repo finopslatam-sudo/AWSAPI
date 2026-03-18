@@ -53,8 +53,8 @@ def build_client_xlsx(stats: dict) -> bytes:
     # ============================
     table_start = 4
 
-    header_fill = PatternFill("solid", fgColor="0f172a")
-    header_font = Font(color="FFFFFF", bold=True)
+    header_fill = PatternFill("solid", fgColor="e5e7eb")  # gris claro
+    header_font = Font(color="0f172a", bold=True)
     thin = Border(left=Side(style="thin", color="e2e8f0"),
                   right=Side(style="thin", color="e2e8f0"),
                   top=Side(style="thin", color="e2e8f0"),
@@ -101,7 +101,7 @@ def build_client_xlsx(stats: dict) -> bytes:
     # SHEET DE FINDINGS
     # ============================
     findings = stats.get("findings") or []
-    ws2 = wb.create_sheet(title="Findings")
+    ws2 = wb.create_sheet(title="REPORTE - FINOPSLATAM")
     columns = ["Cuenta", "Servicio", "Severidad", "Recurso", "Ahorro mensual", "Detectado"]
     widths = [25, 18, 12, 40, 18, 22]
     for idx, width in enumerate(widths, start=1):
