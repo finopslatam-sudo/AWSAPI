@@ -84,7 +84,7 @@ def register_client_report_routes(app):
             mimetype="text/csv",
             headers={
                 "Content-Disposition":
-                "attachment; filename=finopslatam_client_report.csv"
+                "attachment; filename=findings.csv"
             }
         )
 
@@ -106,6 +106,6 @@ def register_client_report_routes(app):
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             headers={
                 "Content-Disposition":
-                "attachment; filename=finopslatam_client_report.xlsx"
+                "attachment; filename=findings.xlsx"
             }
         )
