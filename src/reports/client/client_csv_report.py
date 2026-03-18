@@ -13,7 +13,7 @@ def build_client_csv(stats: dict) -> bytes:
     findings_summary = stats.get("findings_summary") or {}
     findings = stats.get("findings") or []
 
-    headers = ["section", "metric", "value", "account", "service", "severity", "resource", "monthly_savings", "detected_at"]
+    headers = ["Reporte - FinopsLatam", "metric", "value", "account", "service", "severity", "resource", "monthly_savings", "detected_at"]
 
     rows = []
     rows.append(["summary", "plan", stats.get("plan") or "Sin plan activo", "", "", "", "", "", ""])

@@ -39,7 +39,7 @@ def build_client_xlsx(stats: dict) -> bytes:
     generated_at = datetime.now(chile_tz).strftime("%d/%m/%Y %H:%M CLT")
 
     ws.merge_cells("A1:B1")
-    ws["A1"] = "Reporte de Cliente — FinOpsLatam"
+    ws["A1"] = "Reporte - FinOpsLatam"
     ws["A1"].font = Font(size=16, bold=True, color="0f172a")
     ws["A1"].alignment = Alignment(horizontal="center")
 
