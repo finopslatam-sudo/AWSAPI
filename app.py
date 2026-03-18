@@ -117,7 +117,6 @@ from src.routes.admin_plans_routes import register_admin_plans_routes
 from src.routes.client_reports_routes import register_client_report_routes
 from src.routes.admin_stats_routes import admin_stats_bp
 from src.routes.admin_users_routes import admin_users_bp
-from src.routes.aws_test_routes import aws_test_bp
 from src.routes.client_findings_routes import client_findings_bp
 from src.routes.me_routes import me_bp
 from src.routes.client_audit_routes import client_audit_bp
@@ -142,7 +141,6 @@ app.register_blueprint(client_findings_bp)
 app.register_blueprint(contact_bp)
 app.register_blueprint(admin_stats_bp)
 app.register_blueprint(admin_users_bp)
-app.register_blueprint(aws_test_bp)
 app.register_blueprint(client_users_bp)
 app.register_blueprint(client_subscription_bp)
 app.register_blueprint(client_info_bp)
@@ -182,14 +180,6 @@ def handle_options(path):
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
 
     return response, 200
-
-# =====================================================
-#   DEBUG (SOLO DEV)
-# =====================================================
-if os.getenv("FLASK_DEBUG") == "1":
-    @app.route("/debug/db")
-    def debug_db():
-        return {"db_engine": str(db.engine)}
 
 # =====================================================
 #   LEGACY FRONTEND (NO USAR)
