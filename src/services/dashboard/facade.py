@@ -74,6 +74,17 @@ class ClientDashboardFacade:
             accounts_data.last_sync.isoformat()
             if accounts_data and accounts_data.last_sync
             else None
+
+        )
+
+        # Total de cuentas del cliente (sin filtro de cuenta individual)
+        total_accounts_count = (
+            db.session.query(func.count(AWSAccount.id))
+            .filter(
+                AWSAccount.client_id == client_id,
+                AWSAccount.is_active.is_(True)
+            )
+            .scalar() or 0
         )
 
         # =====================================================
@@ -181,6 +192,7 @@ class ClientDashboardFacade:
         result = {
             "findings": findings_stats,
             "accounts": accounts_count,
+            "total_accounts": total_accounts_count,
             "last_sync": last_sync,
             "resources_affected": resources_affected,
             "services_scanned": services_scanned,
