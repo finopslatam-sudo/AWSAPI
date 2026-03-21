@@ -23,8 +23,9 @@ class CostExplorerService:
 
     def get_last_6_months_cost(self):
 
-        end = date.today()
-        start = end - relativedelta(months=6)
+        today = date.today()
+        start = today - relativedelta(months=6)
+        end = today + timedelta(days=1)   # exclusivo → incluye el día de hoy
 
         response = self.client.get_cost_and_usage(
             TimePeriod={
