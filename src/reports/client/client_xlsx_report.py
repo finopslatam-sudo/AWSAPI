@@ -1,7 +1,7 @@
 """
 CLIENT XLSX REPORT
 ==================
-Genera un reporte XLSX visible para el cliente FinOpsLatam.
+Hoja única: resumen arriba + tabla de findings completa abajo.
 """
 
 from openpyxl import Workbook
@@ -44,15 +44,13 @@ RESOLUTION = {
     "RIGHTSIZING_OPPORTUNITY":         "Migrar a tipo/tamanio inferior que cubra la carga real.",
 }
 
-
 def _resolution(finding_type: str) -> str:
     return RESOLUTION.get(
         finding_type,
         "Revisar el recurso en la consola AWS y evaluar optimizacion."
     )
 
-
-def _thin_border():
+def _border():
     s = Side(style="thin", color="CBD5E1")
     return Border(left=s, right=s, top=s, bottom=s)
 
@@ -60,66 +58,86 @@ def _thin_border():
 def build_client_xlsx(stats: dict) -> bytes:
 
     wb = Workbook()
-
-    # ================================================
-    # HOJA 1 — RESUMEN
-    # ================================================
     ws = wb.active
-    ws.title = "Resumen"
+    ws.title = "Findings & Rightsizing"
 
-    chile_tz = pytz.timezone("America/Santiago")
+    chile_tz    = pytz.timezone("America/Santiago")
     generated_at = datetime.now(chile_tz).strftime("%d/%m/%Y %H:%M CLT")
 
-    thin        = _thin_border()
-    hdr_fill    = PatternFill("solid", fgColor="1E293B")
-    hdr_font    = Font(color="FFFFFF", bold=True, size=10)
-    label_font  = Font(bold=True, color="0F172A", size=10)
-    value_font  = Font(color="334155", size=10)
-    title_font  = Font(bold=True, size=15, color="0F172A")
+    thin        = _border()
+    dark_fill   = PatternFill("solid", fgColor="1E293B")
+    alt_fill    = PatternFill("solid", fgColor="F8FAFC")
+    summary_fill= PatternFill("solid", fgColor="EFF6FF")
+    hdr_font    = Font(color="FFFFFF", bold=True, size=9)
+    label_font  = Font(bold=True, color="0F172A", size=9)
+    value_font  = Font(color="334155", size=9)
+    title_font  = Font(bold=True, size=14, color="0F172A")
     sub_font    = Font(size=9, color="64748B")
 
-    # Ancho de columnas del resumen
-    ws.column_dimensions["A"].width = 32
-    ws.column_dimensions["B"].width = 28
+    # ── Anchos de columna (11 columnas de findings) ──────────────────────
+    col_configs = [
+        ("Account",       26),
+        ("Service",       14),
+        ("Type",          26),
+        ("Resource",      36),
+        ("Region",        13),
+        ("Savings (USD)", 14),
+        ("Status",        11),
+        ("Severity",      11),
+        ("Finding",       48),
+        ("How to Fix",    52),
+        ("Detected At",   14),
+    ]
+    for idx, (_, w) in enumerate(col_configs, start=1):
+        ws.column_dimensions[get_column_letter(idx)].width = w
 
-    # Título
-    ws.merge_cells("A1:B1")
+    # ================================================
+    # BLOQUE 1 — TÍTULO
+    # ================================================
+    ws.merge_cells("A1:C1")
     ws["A1"] = "Reporte FinOpsLatam — Findings & Rightsizing"
     ws["A1"].font = title_font
     ws["A1"].alignment = Alignment(horizontal="left", vertical="center")
     ws.row_dimensions[1].height = 24
 
-    ws.merge_cells("A2:B2")
+    ws.merge_cells("A2:C2")
     ws["A2"] = f"Generado el {generated_at}"
     ws["A2"].font = sub_font
     ws["A2"].alignment = Alignment(horizontal="left")
 
-    # Encabezado tabla resumen
-    ws["A4"] = "Métrica"
-    ws["B4"] = "Valor"
-    for cell in (ws["A4"], ws["B4"]):
-        cell.font = hdr_font
-        cell.fill = hdr_fill
-        cell.alignment = Alignment(horizontal="left", vertical="center")
-        cell.border = thin
-
+    # ================================================
+    # BLOQUE 2 — RESUMEN (fila 4 en adelante)
+    # ================================================
     summary = stats.get("findings_summary") or {}
     savings_val = summary.get("estimated_monthly_savings") or summary.get("savings") or 0
 
     summary_rows = [
-        ("Plan contratado",           stats.get("plan") or "Sin plan activo"),
-        ("Cuentas AWS escaneadas",    stats.get("account_count", 0)),
-        ("Usuarios asociados",        stats.get("user_count", 0)),
-        ("Findings activos",          summary.get("active", 0)),
-        ("Findings resueltos",        summary.get("resolved", 0)),
-        ("Findings severidad HIGH",   summary.get("high", 0)),
-        ("Ahorro mensual estimado",   f"USD ${float(savings_val):.2f}"),
+        ("Plan contratado",          stats.get("plan") or "Sin plan activo"),
+        ("Cuentas AWS escaneadas",   stats.get("account_count", 0)),
+        ("Usuarios asociados",       stats.get("user_count", 0)),
+        ("Findings activos",         summary.get("active", 0)),
+        ("Findings resueltos",       summary.get("resolved", 0)),
+        ("Findings severidad HIGH",  summary.get("high", 0)),
+        ("Ahorro mensual estimado",  f"USD ${float(savings_val):.2f}"),
     ]
+
+    # Encabezado resumen
+    ws["A4"] = "Métrica"
+    ws["B4"] = "Valor"
+    ws["A4"].font = hdr_font
+    ws["A4"].fill = dark_fill
+    ws["A4"].border = thin
+    ws["A4"].alignment = Alignment(horizontal="left", vertical="center")
+    ws["B4"].font = hdr_font
+    ws["B4"].fill = dark_fill
+    ws["B4"].border = thin
+    ws["B4"].alignment = Alignment(horizontal="left", vertical="center")
 
     for i, (metric, value) in enumerate(summary_rows, start=5):
         ws[f"A{i}"] = metric
         ws[f"A{i}"].font = label_font
         ws[f"A{i}"].border = thin
+        ws[f"A{i}"].fill = summary_fill
         ws[f"A{i}"].alignment = Alignment(vertical="center")
 
         ws[f"B{i}"] = value
@@ -127,48 +145,35 @@ def build_client_xlsx(stats: dict) -> bytes:
         ws[f"B{i}"].border = thin
         ws[f"B{i}"].alignment = Alignment(vertical="center")
 
-    footer_row = 5 + len(summary_rows) + 2
-    ws.merge_cells(f"A{footer_row}:B{footer_row}")
-    ws[f"A{footer_row}"] = "© 2026 FinOpsLatam — Información confidencial."
-    ws[f"A{footer_row}"].font = Font(size=8, color="94A3B8")
-    ws[f"A{footer_row}"].alignment = Alignment(horizontal="left")
-
     # ================================================
-    # HOJA 2 — FINDINGS & RIGHTSIZING (completa)
+    # BLOQUE 3 — TABLA FINDINGS (debajo del resumen)
     # ================================================
-    ws2 = wb.create_sheet(title="Findings & Rightsizing")
+    findings_header_row = 5 + len(summary_rows) + 2   # fila 14
 
-    columns = [
-        ("Account",        28),
-        ("Service",        16),
-        ("Type",           28),
-        ("Resource",       38),
-        ("Region",         14),
-        ("Savings (USD)",  16),
-        ("Status",         12),
-        ("Severity",       12),
-        ("Finding",        50),
-        ("How to Fix",     55),
-        ("Detected At",    18),
-    ]
+    # Título sección
+    ws.merge_cells(f"A{findings_header_row - 1}:C{findings_header_row - 1}")
+    ws[f"A{findings_header_row - 1}"] = "Detalle de Findings & Rightsizing"
+    ws[f"A{findings_header_row - 1}"].font = Font(bold=True, size=11, color="1E293B")
+    ws[f"A{findings_header_row - 1}"].alignment = Alignment(horizontal="left")
 
-    for idx, (name, width) in enumerate(columns, start=1):
-        ws2.column_dimensions[get_column_letter(idx)].width = width
-        cell = ws2.cell(row=1, column=idx, value=name)
+    # Encabezados de tabla
+    for col_idx, (col_name, _) in enumerate(col_configs, start=1):
+        cell = ws.cell(row=findings_header_row, column=col_idx, value=col_name)
         cell.font = hdr_font
-        cell.fill = hdr_fill
-        cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=False)
+        cell.fill = dark_fill
         cell.border = thin
+        cell.alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[findings_header_row].height = 18
 
-    ws2.row_dimensions[1].height = 18
+    # Freeze header de findings para scroll cómodo
+    ws.freeze_panes = ws.cell(row=findings_header_row + 1, column=1)
 
+    # Filas de datos
     findings = stats.get("findings") or []
-    alt_fill = PatternFill("solid", fgColor="F8FAFC")
-
-    for r, f in enumerate(findings, start=2):
+    for r_offset, f in enumerate(findings):
+        row = findings_header_row + 1 + r_offset
         savings = float(f.get("estimated_monthly_savings") or 0)
         detected = (f.get("created_at") or f.get("detected_at") or "")[:10]
-        row_fill = alt_fill if r % 2 == 0 else None
 
         row_data = [
             f.get("aws_account_name") or f.get("aws_account_number") or "",
@@ -184,21 +189,19 @@ def build_client_xlsx(stats: dict) -> bytes:
             detected,
         ]
 
-        for col, value in enumerate(row_data, start=1):
-            cell = ws2.cell(row=r, column=col, value=value)
+        fill = alt_fill if r_offset % 2 == 0 else None
+        for col_idx, value in enumerate(row_data, start=1):
+            cell = ws.cell(row=row, column=col_idx, value=value)
             cell.font = value_font
             cell.border = thin
             cell.alignment = Alignment(
                 vertical="top",
-                wrap_text=(col in (9, 10)),   # wrap solo en Finding y How to Fix
+                wrap_text=(col_idx in (9, 10)),
             )
-            if row_fill:
-                cell.fill = row_fill
+            if fill:
+                cell.fill = fill
 
-        ws2.row_dimensions[r].height = 30
-
-    # Freeze header row
-    ws2.freeze_panes = "A2"
+        ws.row_dimensions[row].height = 32
 
     # ================================================
     # EXPORT
