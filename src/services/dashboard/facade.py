@@ -1,3 +1,5 @@
+import time
+
 from sqlalchemy import func, and_
 from src.models.aws_finding import AWSFinding
 from src.models.aws_account import AWSAccount
@@ -14,10 +16,29 @@ from src.services.client_findings_service import ClientFindingsService
 from src.aws.cost_explorer_service import CostExplorerService
 from src.services.client_dashboard_service import ClientDashboardService
 
+# =====================================================
+#   IN-MEMORY CACHE (TTL 5 min por client/account)
+# =====================================================
+_cache: dict = {}
+_CACHE_TTL = 300  # segundos
+
+
 class ClientDashboardFacade:
 
     @staticmethod
+    def invalidate_cache(client_id: int, aws_account_id: int | None = None):
+        _cache.pop((client_id, aws_account_id), None)
+
+    @staticmethod
     def get_summary(client_id: int, aws_account_id: int | None = None):
+
+        # =====================================================
+        # CACHE CHECK
+        # =====================================================
+        cache_key = (client_id, aws_account_id)
+        entry = _cache.get(cache_key)
+        if entry and time.time() - entry["ts"] < _CACHE_TTL:
+            return entry["data"]
 
         # =====================================================
         # FINDINGS STATS (Delegado al servicio optimizado)
@@ -157,7 +178,7 @@ class ClientDashboardFacade:
             aws_account_id
         )
 
-        return {
+        result = {
             "findings": findings_stats,
             "accounts": accounts_count,
             "last_sync": last_sync,
@@ -172,5 +193,7 @@ class ClientDashboardFacade:
             "trend": trend,
             "remediation": remediation,
             "cost": cost_data,
-            
         }
+
+        _cache[cache_key] = {"data": result, "ts": time.time()}
+        return result
