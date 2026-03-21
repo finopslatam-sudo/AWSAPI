@@ -16,6 +16,7 @@ from src.services.client_stats_service import (
     get_client_plan,
 )
 from src.services.client_findings_service import ClientFindingsService
+from src.models.aws_account import AWSAccount
 
 
 def get_client_stats(client_id: int) -> dict:
@@ -39,9 +40,14 @@ def get_client_stats(client_id: int) -> dict:
         sort_order="desc"
     ).get("data", [])
 
+    account_count = AWSAccount.query.filter_by(
+        client_id=client_id, is_active=True
+    ).count()
+
     return {
         "client_id": client_id,
         "user_count": get_users_by_client(client_id),
+        "account_count": account_count,
         "active_services": get_active_services_by_client(client_id),
         "plan": get_client_plan(client_id),
         "findings_summary": findings_summary,
