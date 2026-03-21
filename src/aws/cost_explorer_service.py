@@ -58,39 +58,52 @@ class CostExplorerService:
         current_year = today.year
         prev_year = current_year - 1
 
-        prev_year_start = date(prev_year, 1, 1)
-        prev_year_end = date(current_year, 1, 1)   # exclusive (AWS CE)
+        # AWS CE limita el historial a 14 meses por defecto.
+        # Usamos 13 meses como límite seguro para evitar ValidationException.
+        safe_lookback = (today - relativedelta(months=13)).replace(day=1)
+
+        prev_year_start = max(date(prev_year, 1, 1), safe_lookback)
+        prev_year_end   = date(current_year, 1, 1)   # exclusive
         curr_year_start = date(current_year, 1, 1)
-        curr_year_end = today + timedelta(days=1)   # exclusive
+        curr_year_end   = today + timedelta(days=1)   # exclusive
 
         previous_year_cost = 0.0
-        current_year_ytd = 0.0
+        current_year_ytd   = 0.0
 
-        response = self.client.get_cost_and_usage(
-            TimePeriod={
-                "Start": prev_year_start.isoformat(),
-                "End": prev_year_end.isoformat()
-            },
-            Granularity="MONTHLY",
-            Metrics=["UnblendedCost"]
-        )
-        for r in response.get("ResultsByTime", []):
-            amount = float(r["Total"]["UnblendedCost"]["Amount"])
-            if abs(amount) >= 0.01:
-                previous_year_cost += amount
+        # --- Año anterior (puede ser parcial si safe_lookback > Jan 1) ---
+        if prev_year_start < prev_year_end:
+            try:
+                response = self.client.get_cost_and_usage(
+                    TimePeriod={
+                        "Start": prev_year_start.isoformat(),
+                        "End": prev_year_end.isoformat()
+                    },
+                    Granularity="MONTHLY",
+                    Metrics=["UnblendedCost"]
+                )
+                for r in response.get("ResultsByTime", []):
+                    amount = float(r["Total"]["UnblendedCost"]["Amount"])
+                    if abs(amount) >= 0.01:
+                        previous_year_cost += amount
+            except Exception:
+                pass
 
-        response = self.client.get_cost_and_usage(
-            TimePeriod={
-                "Start": curr_year_start.isoformat(),
-                "End": curr_year_end.isoformat()
-            },
-            Granularity="MONTHLY",
-            Metrics=["UnblendedCost"]
-        )
-        for r in response.get("ResultsByTime", []):
-            amount = float(r["Total"]["UnblendedCost"]["Amount"])
-            if abs(amount) >= 0.01:
-                current_year_ytd += amount
+        # --- Año actual YTD (siempre dentro del límite) ---
+        try:
+            response = self.client.get_cost_and_usage(
+                TimePeriod={
+                    "Start": curr_year_start.isoformat(),
+                    "End": curr_year_end.isoformat()
+                },
+                Granularity="MONTHLY",
+                Metrics=["UnblendedCost"]
+            )
+            for r in response.get("ResultsByTime", []):
+                amount = float(r["Total"]["UnblendedCost"]["Amount"])
+                if abs(amount) >= 0.01:
+                    current_year_ytd += amount
+        except Exception:
+            pass
 
         return {
             "previous_year_cost": round(previous_year_cost, 2),
