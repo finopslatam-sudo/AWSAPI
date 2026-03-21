@@ -134,17 +134,24 @@ class ClientDashboardService:
                         service_breakdown_map.get(service, 0) + amount
                     )
 
-                # ===============================
-                # COSTOS ANUALES
-                # ===============================
-
-                annual = ce.get_annual_costs()
-                previous_year_total += annual["previous_year_cost"]
-                current_year_ytd_total += annual["current_year_ytd"]
-
             except Exception:
                 # si una cuenta falla no rompe el dashboard
                 continue
+
+            # ===============================
+            # COSTOS ANUALES (aislado para
+            # que un error no descarte los
+            # datos mensuales ya obtenidos)
+            # ===============================
+            try:
+                annual = ce.get_annual_costs()
+                previous_year_total += annual["previous_year_cost"]
+                current_year_ytd_total += annual["current_year_ytd"]
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(
+                    f"[annual_costs] account={aws_account.id} error={e}"
+                )
 
         # =====================================================
         # NORMALIZAR COSTO MENSUAL
