@@ -202,6 +202,22 @@ def pagina_principal():
     }), 404
 
 # =====================================================
+#   GLOBAL ERROR HANDLERS
+# =====================================================
+@app.errorhandler(404)
+def not_found(e):
+    return jsonify({"error": "Endpoint no encontrado"}), 404
+
+@app.errorhandler(405)
+def method_not_allowed(e):
+    return jsonify({"error": "Método no permitido"}), 405
+
+@app.errorhandler(500)
+def internal_error(e):
+    app.logger.error(f"[500] Error interno: {e}")
+    return jsonify({"error": "Error interno del servidor"}), 500
+
+# =====================================================
 #   RUN SERVER (DEV ONLY)
 # =====================================================
 if __name__ == '__main__':

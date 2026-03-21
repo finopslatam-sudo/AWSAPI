@@ -52,6 +52,51 @@ class CostExplorerService:
 
         return results
 
+    def get_annual_costs(self):
+
+        today = date.today()
+        current_year = today.year
+        prev_year = current_year - 1
+
+        prev_year_start = date(prev_year, 1, 1)
+        prev_year_end = date(current_year, 1, 1)   # exclusive (AWS CE)
+        curr_year_start = date(current_year, 1, 1)
+        curr_year_end = today + timedelta(days=1)   # exclusive
+
+        previous_year_cost = 0.0
+        current_year_ytd = 0.0
+
+        response = self.client.get_cost_and_usage(
+            TimePeriod={
+                "Start": prev_year_start.isoformat(),
+                "End": prev_year_end.isoformat()
+            },
+            Granularity="MONTHLY",
+            Metrics=["UnblendedCost"]
+        )
+        for r in response.get("ResultsByTime", []):
+            amount = float(r["Total"]["UnblendedCost"]["Amount"])
+            if abs(amount) >= 0.01:
+                previous_year_cost += amount
+
+        response = self.client.get_cost_and_usage(
+            TimePeriod={
+                "Start": curr_year_start.isoformat(),
+                "End": curr_year_end.isoformat()
+            },
+            Granularity="MONTHLY",
+            Metrics=["UnblendedCost"]
+        )
+        for r in response.get("ResultsByTime", []):
+            amount = float(r["Total"]["UnblendedCost"]["Amount"])
+            if abs(amount) >= 0.01:
+                current_year_ytd += amount
+
+        return {
+            "previous_year_cost": round(previous_year_cost, 2),
+            "current_year_ytd": round(current_year_ytd, 2),
+        }
+
     def get_service_breakdown_current_month(self):
 
         today = date.today()

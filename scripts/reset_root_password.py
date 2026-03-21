@@ -7,7 +7,7 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, BASE_DIR)
 
 from dotenv import load_dotenv
-load_dotenv("/etc/finops-api.env")  # ✅ usa el env real del systemd
+load_dotenv("/etc/finops-api.env")  
 
 from app import app
 from src.models.database import db

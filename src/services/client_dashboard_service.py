@@ -1,4 +1,5 @@
-from datetime import date
+from datetime import date, timedelta
+from dateutil.relativedelta import relativedelta
 
 from sqlalchemy import func
 
@@ -79,6 +80,16 @@ class ClientDashboardService:
 
         monthly_cost_map = {}
         service_breakdown_map = {}
+        previous_year_total = 0.0
+        current_year_ytd_total = 0.0
+
+        # Date reference points
+        today = date.today()
+        current_month_key = today.strftime("%Y-%m")
+        curr_year = today.year
+        prev_year = curr_year - 1
+        prev_month_start = today.replace(day=1) - relativedelta(months=1)
+        prev_month_end = today.replace(day=1) - timedelta(days=1)
 
         # =====================================================
         # ITERAR TODAS LAS CUENTAS AWS DEL CLIENTE
@@ -123,6 +134,14 @@ class ClientDashboardService:
                         service_breakdown_map.get(service, 0) + amount
                     )
 
+                # ===============================
+                # COSTOS ANUALES
+                # ===============================
+
+                annual = ce.get_annual_costs()
+                previous_year_total += annual["previous_year_cost"]
+                current_year_ytd_total += annual["current_year_ytd"]
+
             except Exception:
                 # si una cuenta falla no rompe el dashboard
                 continue
@@ -140,7 +159,6 @@ class ClientDashboardService:
         ]
 
         raw_current_month_cost = monthly_cost[-1]["amount"] if monthly_cost else 0
-        current_month_key = date.today().strftime("%Y-%m")
 
         # Compare monthly savings against a full-month spend baseline.
         # If the latest point is the current partial month, we fallback
@@ -157,6 +175,11 @@ class ClientDashboardService:
             0 if abs(current_month_cost) < 0.01
             else float(current_month_cost)
         )
+
+        # Gasto parcial del mes en curso
+        current_month_partial = 0.0
+        if monthly_cost and monthly_cost[-1]["month"] == current_month_key:
+            current_month_partial = float(monthly_cost[-1]["amount"])
 
         # =====================================================
         # NORMALIZAR BREAKDOWN POR SERVICIO
@@ -183,23 +206,61 @@ class ClientDashboardService:
             func.sum(active_savings.c.estimated_monthly_savings)
         ).scalar() or 0
 
+        savings_f = float(savings)
+
         if current_month_cost <= 0:
-            savings_percentage = 0
+            savings_percentage = 0.0
         else:
-            raw_savings_percentage = (
-                float(savings) / current_month_cost
-            ) * 100
             savings_percentage = round(
-                min(raw_savings_percentage, 100.0),
-                2
+                min((savings_f / current_month_cost) * 100, 100.0), 2
             )
 
+        # =====================================================
+        # CALCULOS ANUALES
+        # =====================================================
+
+        annual_estimated_savings = round(savings_f * 12, 2)
+
+        if previous_year_total > 0:
+            annual_savings_percentage = round(
+                min((annual_estimated_savings / previous_year_total) * 100, 100.0), 2
+            )
+        else:
+            annual_savings_percentage = 0.0
+
+        if current_month_partial > 0:
+            current_month_savings_percentage = round(
+                min((savings_f / current_month_partial) * 100, 100.0), 2
+            )
+        else:
+            current_month_savings_percentage = 0.0
+
         return {
+            # Campos originales (backward compat)
             "monthly_cost": monthly_cost,
             "service_breakdown": service_breakdown,
-            "current_month_cost": float(current_month_cost),
-            "potential_savings": float(savings),
-            "savings_percentage": round(savings_percentage, 2)
+            "current_month_cost": current_month_cost,
+            "potential_savings": savings_f,
+            "savings_percentage": savings_percentage,
+            # Nuevos campos
+            "previous_month_cost": current_month_cost,
+            "current_month_partial": current_month_partial,
+            "previous_year_cost": round(previous_year_total, 2),
+            "current_year_ytd": round(current_year_ytd_total, 2),
+            "annual_estimated_savings": annual_estimated_savings,
+            "monthly_savings_percentage": savings_percentage,
+            "annual_savings_percentage": annual_savings_percentage,
+            "current_month_savings_percentage": current_month_savings_percentage,
+            "date_labels": {
+                "previous_month_start": prev_month_start.isoformat(),
+                "previous_month_end": prev_month_end.isoformat(),
+                "current_month_start": today.replace(day=1).isoformat(),
+                "current_month_end": today.isoformat(),
+                "previous_year_start": f"{prev_year}-01-01",
+                "previous_year_end": f"{prev_year}-12-31",
+                "current_year_start": f"{curr_year}-01-01",
+                "current_year_end": today.isoformat(),
+            }
         }
 
     # =====================================================
