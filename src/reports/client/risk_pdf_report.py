@@ -83,6 +83,27 @@ def _kpi(label, value, sub, bg_hex, fg_hex, w):
     return t
 
 
+def _bar_cell(pct: float, bar_total_w: float, bar_color, bg_color) -> Table:
+    filled = max(2.0, pct / 100 * bar_total_w)
+    empty  = max(0.0, bar_total_w - filled)
+    if empty < 1:
+        data, cw = [[""]], [bar_total_w]
+    else:
+        data, cw = [["", ""]], [filled, empty]
+    t = Table(data, colWidths=cw, rowHeights=[8])
+    cmds = [
+        ("TOPPADDING",    (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 0),
+        ("BACKGROUND",    (0, 0), (0, -1),  bar_color),
+    ]
+    if empty >= 1:
+        cmds.append(("BACKGROUND", (1, 0), (1, -1), bg_color))
+    t.setStyle(TableStyle(cmds))
+    return t
+
+
 def _section(title, styles):
     return [
         Spacer(1, 10),
@@ -231,6 +252,48 @@ def build_risk_pdf(client_id: int, aws_account_id: int | None = None) -> bytes:
         ("Activos",           str(active_f),   "Pendientes de resolución",          "#fef2f2", "#dc2626"),
         ("Resueltos",         str(resolved_f), "Optimizaciones aplicadas",          "#f0fdf4", "#16a34a"),
     ], usable_w))
+
+    # ── GRÁFICO DISTRIBUCIÓN POR SEVERIDAD ───────────────
+    total_sev = (high_cnt + medium_cnt + low_cnt) or 1
+    el += _section("Recuento de Findings por Severidad", styles)
+    sev_data = [
+        ("HIGH",   high_cnt,   colors.HexColor("#dc2626"), colors.HexColor("#e2e8f0"), colors.HexColor("#fef2f2")),
+        ("MEDIUM", medium_cnt, colors.HexColor("#d97706"), colors.HexColor("#e2e8f0"), colors.HexColor("#fffbeb")),
+        ("LOW",    low_cnt,    colors.HexColor("#16a34a"), colors.HexColor("#e2e8f0"), colors.HexColor("#f0fdf4")),
+    ]
+    bar_col_w     = usable_w - 100 - 70 - 70
+    sev_cnt_style = ParagraphStyle("sc", fontSize=10, fontName="Helvetica-Bold", textColor=INK, leading=12)
+    sev_pct_style = ParagraphStyle("sp", fontSize=9, textColor=MUTED, leading=11)
+    sev_lbl_styles = {
+        "HIGH":   ParagraphStyle("slh", fontSize=10, fontName="Helvetica-Bold", textColor=RED,   leading=12),
+        "MEDIUM": ParagraphStyle("slm", fontSize=10, fontName="Helvetica-Bold", textColor=AMBER, leading=12),
+        "LOW":    ParagraphStyle("sll", fontSize=10, fontName="Helvetica-Bold", textColor=GREEN, leading=12),
+    }
+
+    sev_tbl_rows = []
+    for label, cnt, bar_col, bar_bg, row_bg in sev_data:
+        pct_s    = cnt / total_sev * 100
+        bar_cell = _bar_cell(pct_s, bar_col_w - 8, bar_col, bar_bg)
+        sev_tbl_rows.append([
+            Paragraph(label, sev_lbl_styles[label]),
+            Paragraph(str(cnt), sev_cnt_style),
+            Paragraph(f"{pct_s:.1f}%", sev_pct_style),
+            bar_cell,
+        ])
+
+    sev_tbl = Table(sev_tbl_rows, colWidths=[100, 70, 70, bar_col_w])
+    sev_tbl.setStyle(TableStyle([
+        ("TOPPADDING",    (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 8),
+        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ("GRID",          (0, 0), (-1, -1), 0.25, BORDER),
+        ("BACKGROUND",    (0, 0), (-1, 0),  colors.HexColor("#fef2f2")),
+        ("BACKGROUND",    (0, 1), (-1, 1),  colors.HexColor("#fffbeb")),
+        ("BACKGROUND",    (0, 2), (-1, 2),  colors.HexColor("#f0fdf4")),
+    ]))
+    el.append(sev_tbl)
 
     # ── RIESGO POR SERVICIO ───────────────────────────────
     if risk_bkdn:
