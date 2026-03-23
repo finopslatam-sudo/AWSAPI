@@ -1,5 +1,10 @@
-# Re-export InventoryScanner so callers can import from this package directly.
-# e.g.:  from src.aws.scanners import InventoryScanner
-from src.aws.inventory_scanner import InventoryScanner
+"""Scanner package exports (lazy to avoid circular imports)."""
 
 __all__ = ["InventoryScanner"]
+
+
+def __getattr__(name):
+    if name == "InventoryScanner":
+        from src.aws.inventory_scanner import InventoryScanner
+        return InventoryScanner
+    raise AttributeError(name)
