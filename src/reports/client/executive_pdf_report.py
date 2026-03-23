@@ -94,6 +94,23 @@ def _section(title: str, styles) -> list:
     ]
 
 
+def _pct_bar(pct: float, bar_color, bar_w: float = 180) -> Table:
+    """Barra visual proporcional al porcentaje usando celdas con fondo de color."""
+    filled = max(2.0, pct / 100 * bar_w)
+    empty  = max(0.1, bar_w - filled)
+    inner  = Table([[Spacer(filled, 7), Spacer(empty, 7)]],
+                   colWidths=[filled, empty])
+    inner.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (0, 0), bar_color),
+        ("BACKGROUND",    (1, 0), (1, 0), colors.HexColor("#e2e8f0")),
+        ("TOPPADDING",    (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 0),
+    ]))
+    return inner
+
+
 # =====================================================
 #   BUILD EXECUTIVE PDF
 # =====================================================
@@ -290,6 +307,42 @@ def build_executive_pdf(client_id: int, aws_account_id: int | None = None) -> by
     ]))
     elements.append(fc_row)
 
+    # ── RECUENTO DE FINDINGS POR SEVERIDAD ─────────────────
+    elements += _section("Recuento de Findings por Severidad", styles)
+
+    total_sev = max(high_f + medium_f + low_f, 1)
+    sev_col_w = [70, 50, 60, usable_w - 180]
+    sev_rows  = []
+    for label, count, clr, bg in [
+        ("HIGH",   high_f,   RED,   colors.HexColor("#fff5f5")),
+        ("MEDIUM", medium_f, AMBER, colors.HexColor("#fffbeb")),
+        ("LOW",    low_f,    GREEN, colors.HexColor("#f0fdf4")),
+    ]:
+        pct_v = count / total_sev * 100
+        sev_rows.append([
+            Paragraph(f"<b>{label}</b>",
+                      ParagraphStyle("sevlbl", fontSize=8, fontName="Helvetica-Bold",
+                                     textColor=clr, leading=10)),
+            Paragraph(f"<b>{count}</b>",
+                      ParagraphStyle("sevcnt", fontSize=8, fontName="Helvetica-Bold",
+                                     textColor=INK, leading=10)),
+            Paragraph(_pct(pct_v), styles["td"]),
+            _pct_bar(pct_v, clr, bar_w=sev_col_w[3] - 16),
+        ])
+
+    sev_tbl = Table(sev_rows, colWidths=sev_col_w)
+    sev_tbl.setStyle(TableStyle([
+        ("ROWBACKGROUNDS", (0, 0), (-1, -1),
+         [colors.HexColor("#fff5f5"), colors.HexColor("#fffbeb"), colors.HexColor("#f0fdf4")]),
+        ("BOX",            (0, 0), (-1, -1), 0.4, BORDER),
+        ("INNERGRID",      (0, 0), (-1, -1), 0.3, BORDER),
+        ("TOPPADDING",     (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING",  (0, 0), (-1, -1), 7),
+        ("LEFTPADDING",    (0, 0), (-1, -1), 10),
+        ("VALIGN",         (0, 0), (-1, -1), "MIDDLE"),
+    ]))
+    elements.append(sev_tbl)
+
     # ── GOVERNANCE & RISK ──────────────────────────────────
     elements += _section("Gobernanza & Riesgo", styles)
 
@@ -320,22 +373,22 @@ def build_executive_pdf(client_id: int, aws_account_id: int | None = None) -> by
     if monthly_cost:
         elements += _section("Tendencia de Costos — Últimos 6 Meses", styles)
 
-        total_mc = sum(float(m["amount"]) for m in monthly_cost) or 1
+        mc_6 = monthly_cost[-6:]
+        total_mc = sum(float(m["amount"]) for m in mc_6) or 1
+        bar_col_w = usable_w - 235
         mc_header = [Paragraph(h, styles["th"]) for h in ["Mes", "Gasto", "% del Total", "Barra"]]
         mc_data = [mc_header]
 
-        for m in monthly_cost[-6:]:
+        for m in mc_6:
             pct_val = float(m["amount"]) / total_mc * 100
-            bar_filled = max(1, int(pct_val / 100 * 30))
-            bar = "█" * bar_filled + "░" * (30 - bar_filled)
             mc_data.append([
                 Paragraph(str(m["month"]), styles["td"]),
                 Paragraph(_fmt_usd(m["amount"]), styles["td"]),
                 Paragraph(_pct(pct_val), styles["td"]),
-                Paragraph(bar, ParagraphStyle("bar", fontSize=6, textColor=ACCENT, fontName="Helvetica")),
+                _pct_bar(pct_val, ACCENT, bar_w=bar_col_w - 16),
             ])
 
-        mc_tbl = Table(mc_data, colWidths=[80, 85, 70, usable_w - 235], repeatRows=1)
+        mc_tbl = Table(mc_data, colWidths=[80, 85, 70, bar_col_w], repeatRows=1)
         mc_tbl.setStyle(TableStyle([
             ("BACKGROUND",    (0, 0), (-1, 0),  DARK),
             ("TEXTCOLOR",     (0, 0), (-1, 0),  WHITE),
@@ -387,31 +440,43 @@ def build_executive_pdf(client_id: int, aws_account_id: int | None = None) -> by
     if service_bkdn:
         elements += _section("Distribución de Costos por Servicio (Mes Actual)", styles)
 
-        total_svc = sum(float(s.get("amount", 0)) for s in service_bkdn) or 1
-        svc_header = [Paragraph(h, styles["th"]) for h in ["Servicio", "Costo", "Porcentaje"]]
-        svc_data = [svc_header]
+        total_svc  = sum(float(s.get("amount", 0)) for s in service_bkdn) or 1
+        svc_bar_w  = usable_w - 345
+        svc_col_w  = [185, 85, 75, svc_bar_w]
+        svc_header = [Paragraph(h, styles["th"])
+                      for h in ["Servicio", "Costo mensual", "Porcentaje", ""]]
+        svc_data   = [svc_header]
         for s in service_bkdn:
             pct_svc = float(s.get("amount", 0)) / total_svc * 100
             svc_data.append([
                 Paragraph(s.get("service", ""), styles["td"]),
                 Paragraph(_fmt_usd(s.get("amount", 0)), styles["td"]),
                 Paragraph(_pct(pct_svc), styles["td"]),
+                _pct_bar(pct_svc, ACCENT, bar_w=svc_bar_w - 16),
             ])
 
-        svc_col_w = [250, 100, 100]
+        # fila de total
+        svc_data.append([
+            Paragraph("<b>Total</b>", styles["td"]),
+            Paragraph(f"<b>{_fmt_usd(total_svc)}</b>", styles["td"]),
+            Paragraph("<b>100%</b>", styles["td"]),
+            Paragraph("", styles["td"]),
+        ])
+
         svc_tbl = Table(svc_data, colWidths=svc_col_w, repeatRows=1)
         svc_tbl.setStyle(TableStyle([
-            ("BACKGROUND",    (0, 0), (-1, 0),  DARK),
-            ("TEXTCOLOR",     (0, 0), (-1, 0),  WHITE),
-            ("BACKGROUND",    (0, 1), (-1, -1), WHITE),
-            ("ROWBACKGROUNDS",(0, 1), (-1, -1), [WHITE, BG_ALT]),
-            ("FONTNAME",      (0, 1), (-1, -1), "Helvetica"),
-            ("GRID",          (0, 0), (-1, -1), 0.25, BORDER),
-            ("TOPPADDING",    (0, 0), (-1, -1), 5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ("LEFTPADDING",   (0, 0), (-1, -1), 8),
-            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
-            ("ALIGN",         (1, 0), (2, -1),  "RIGHT"),
+            ("BACKGROUND",    (0, 0), (-1, 0),   DARK),
+            ("TEXTCOLOR",     (0, 0), (-1, 0),   WHITE),
+            ("BACKGROUND",    (0, 1), (-1, -2),  WHITE),
+            ("ROWBACKGROUNDS",(0, 1), (-1, -2),  [WHITE, BG_ALT]),
+            ("BACKGROUND",    (0, -1),(-1, -1),  BG_ALT),
+            ("FONTNAME",      (0, 1), (-1, -1),  "Helvetica"),
+            ("GRID",          (0, 0), (-1, -1),  0.25, BORDER),
+            ("TOPPADDING",    (0, 0), (-1, -1),  6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1),  6),
+            ("LEFTPADDING",   (0, 0), (-1, -1),  8),
+            ("VALIGN",        (0, 0), (-1, -1),  "MIDDLE"),
+            ("ALIGN",         (1, 0), (2, -1),   "RIGHT"),
         ]))
         elements.append(svc_tbl)
 
