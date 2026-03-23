@@ -1,4 +1,4 @@
-from flask import Response, jsonify
+from flask import Response, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from src.models.user import User
@@ -6,6 +6,7 @@ from src.reports.client.client_stats_provider import get_client_stats
 from src.reports.client.client_pdf_report import build_client_pdf
 from src.reports.client.client_csv_report import build_client_csv
 from src.reports.client.client_xlsx_report import build_client_xlsx
+from src.reports.client.executive_pdf_report import build_executive_pdf
 
 
 def require_client_user(user_id: int) -> User | None:
@@ -107,5 +108,29 @@ def register_client_report_routes(app):
             headers={
                 "Content-Disposition":
                 "attachment; filename=findings.xlsx"
+            }
+        )
+
+    # ===============================
+    # CLIENT — RESUMEN EJECUTIVO PDF
+    # ===============================
+    @app.route("/api/client/reports/executive/pdf", methods=["GET"])
+    @jwt_required()
+    def client_executive_pdf():
+        user = require_client_user(int(get_jwt_identity()))
+        if not user:
+            return jsonify({"error": "Acceso denegado"}), 403
+
+        account_id_raw = request.args.get("account_id")
+        aws_account_id = int(account_id_raw) if account_id_raw else None
+
+        pdf_data = build_executive_pdf(user.client_id, aws_account_id)
+
+        return Response(
+            pdf_data,
+            mimetype="application/pdf",
+            headers={
+                "Content-Disposition":
+                "attachment; filename=resumen-ejecutivo-finops.pdf"
             }
         )
