@@ -59,8 +59,13 @@ def build_risk_xlsx(client_id: int, aws_account_id: int | None = None) -> bytes:
 
     try:
         gov      = GovernanceService.get_governance_score(client_id, aws_account_id)
-        risk     = RiskService.get_risk_profile(client_id, aws_account_id)
-        risk_bkdn = RiskService.get_risk_breakdown_by_service(client_id, aws_account_id)
+        risk     = RiskService.get_risk_score(client_id, aws_account_id)
+        risk_bkdn_raw = RiskService.get_risk_breakdown_by_service(client_id, aws_account_id)
+        risk_bkdn = [
+            {"service_name": svc, **data}
+            for svc, data in risk_bkdn_raw.items()
+        ]
+        risk_bkdn.sort(key=lambda x: x.get("high", 0) * 5 + x.get("medium", 0) * 3 + x.get("low", 0), reverse=True)
     except Exception:
         gov      = {"compliance_percentage": 0}
         risk     = {"risk_level": "N/A", "risk_score": 0, "high": 0, "medium": 0, "low": 0}
