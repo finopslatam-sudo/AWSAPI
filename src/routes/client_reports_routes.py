@@ -11,6 +11,9 @@ from src.reports.client.cost_pdf_report import build_cost_pdf
 from src.reports.client.cost_xlsx_report import build_cost_xlsx
 from src.reports.client.risk_pdf_report import build_risk_pdf
 from src.reports.client.risk_xlsx_report import build_risk_xlsx
+from src.reports.client.inventory_stats_provider import get_inventory_stats
+from src.reports.client.inventory_csv_report import build_inventory_csv
+from src.reports.client.inventory_xlsx_report import build_inventory_xlsx
 
 
 def require_client_user(user_id: int) -> User | None:
@@ -232,5 +235,55 @@ def register_client_report_routes(app):
             headers={
                 "Content-Disposition":
                 "attachment; filename=reporte-riesgo-compliance-finops.xlsx"
+            }
+        )
+
+    # ===============================
+    # INVENTARIO DE RECURSOS — CSV
+    # ===============================
+    @app.route("/api/client/reports/inventory/csv", methods=["GET"])
+    @jwt_required()
+    def client_inventory_csv():
+        user = require_client_user(int(get_jwt_identity()))
+        if not user:
+            return jsonify({"error": "Acceso denegado"}), 403
+
+        account_id_raw = request.args.get("account_id")
+        aws_account_id = int(account_id_raw) if account_id_raw else None
+
+        stats    = get_inventory_stats(user.client_id, aws_account_id)
+        csv_data = build_inventory_csv(stats)
+
+        return Response(
+            csv_data,
+            mimetype="text/csv",
+            headers={
+                "Content-Disposition":
+                "attachment; filename=inventario-recursos-aws.csv"
+            }
+        )
+
+    # ===============================
+    # INVENTARIO DE RECURSOS — XLSX
+    # ===============================
+    @app.route("/api/client/reports/inventory/xlsx", methods=["GET"])
+    @jwt_required()
+    def client_inventory_xlsx():
+        user = require_client_user(int(get_jwt_identity()))
+        if not user:
+            return jsonify({"error": "Acceso denegado"}), 403
+
+        account_id_raw = request.args.get("account_id")
+        aws_account_id = int(account_id_raw) if account_id_raw else None
+
+        stats     = get_inventory_stats(user.client_id, aws_account_id)
+        xlsx_data = build_inventory_xlsx(stats)
+
+        return Response(
+            xlsx_data,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition":
+                "attachment; filename=inventario-recursos-aws.xlsx"
             }
         )
