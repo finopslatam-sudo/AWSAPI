@@ -1,22 +1,55 @@
+"""
+Thin orchestrator — preserves the original RightsizingEngine public API.
+All implementation lives under src/aws/finops/rightsizing/.
+"""
 import boto3
-from datetime import datetime, timedelta
-from src.models.aws_resource_inventory import AWSResourceInventory
-from src.models.aws_finding import AWSFinding
-from src.aws.sts_service import STSService
 from src.models.aws_account import AWSAccount
+from src.aws.sts_service import STSService
+
+from src.aws.finops.rightsizing.shared import (
+    EC2_CPU_THRESHOLD,
+    RDS_CPU_THRESHOLD,
+    REDSHIFT_CPU_THRESHOLD,
+    LAMBDA_LOW_INVOCATIONS_THRESHOLD,
+    NAT_LOW_TRAFFIC_BYTES,
+    CLOUDWATCH_MIN_STORED_BYTES,
+    S3_MIN_BUCKET_SIZE_BYTES,
+    S3_MIN_BUCKET_AGE_DAYS,
+    resolve_finding,
+    upsert_recommendation,
+    get_metric_sum,
+    get_metric_average,
+)
+from src.aws.finops.rightsizing.ec2 import evaluate_ec2, evaluate_ebs
+from src.aws.finops.rightsizing.rds import evaluate_rds, evaluate_redshift
+from src.aws.finops.rightsizing.lambda_ import evaluate_lambda
+from src.aws.finops.rightsizing.storage import (
+    evaluate_dynamodb,
+    evaluate_cloudwatch,
+    evaluate_s3,
+    evaluate_ecs,
+    evaluate_eks,
+    evaluate_nat,
+)
 
 
 class RightsizingEngine:
 
-    EC2_CPU_THRESHOLD = 10.0
-    RDS_CPU_THRESHOLD = 10.0
-    REDSHIFT_CPU_THRESHOLD = 10.0
-    LAMBDA_LOW_INVOCATIONS_THRESHOLD = 100
-    NAT_LOW_TRAFFIC_BYTES = 1_000_000_000
-    CLOUDWATCH_MIN_STORED_BYTES = 1_000_000_000
-    S3_MIN_BUCKET_SIZE_BYTES = 10 * 1024 * 1024 * 1024
-    S3_MIN_BUCKET_AGE_DAYS = 90
+    # =====================================================
+    # CLASS-LEVEL THRESHOLDS (preserved for back-compat)
+    # =====================================================
+    EC2_CPU_THRESHOLD = EC2_CPU_THRESHOLD
+    RDS_CPU_THRESHOLD = RDS_CPU_THRESHOLD
+    REDSHIFT_CPU_THRESHOLD = REDSHIFT_CPU_THRESHOLD
+    LAMBDA_LOW_INVOCATIONS_THRESHOLD = LAMBDA_LOW_INVOCATIONS_THRESHOLD
+    NAT_LOW_TRAFFIC_BYTES = NAT_LOW_TRAFFIC_BYTES
+    CLOUDWATCH_MIN_STORED_BYTES = CLOUDWATCH_MIN_STORED_BYTES
+    S3_MIN_BUCKET_SIZE_BYTES = S3_MIN_BUCKET_SIZE_BYTES
+    S3_MIN_BUCKET_AGE_DAYS = S3_MIN_BUCKET_AGE_DAYS
 
+    # =====================================================
+    # ORCHESTRATOR
+    # =====================================================
     @staticmethod
     def run(client_id, aws_account_id=None):
 
@@ -49,76 +82,26 @@ class RightsizingEngine:
                 aws_session_token=credentials["SessionToken"],
             )
 
-            total += RightsizingEngine.evaluate_ec2(
-                session,
-                client_id,
-                aws_account.id
-            )
-            total += RightsizingEngine.evaluate_ebs(
-                client_id,
-                aws_account.id
-            )
-            total += RightsizingEngine.evaluate_rds(
-                session,
-                client_id,
-                aws_account.id
-            )
-            total += RightsizingEngine.evaluate_lambda(
-                session,
-                client_id,
-                aws_account.id
-            )
-            total += RightsizingEngine.evaluate_dynamodb(
-                client_id,
-                aws_account.id
-            )
-            total += RightsizingEngine.evaluate_cloudwatch(
-                client_id,
-                aws_account.id
-            )
-            total += RightsizingEngine.evaluate_s3(
-                session,
-                client_id,
-                aws_account.id
-            )
-            total += RightsizingEngine.evaluate_ecs(
-                client_id,
-                aws_account.id
-            )
-            total += RightsizingEngine.evaluate_eks(
-                client_id,
-                aws_account.id
-            )
-            total += RightsizingEngine.evaluate_nat(
-                session,
-                client_id,
-                aws_account.id
-            )
-            total += RightsizingEngine.evaluate_redshift(
-                session,
-                client_id,
-                aws_account.id
-            )
+            total += evaluate_ec2(session, client_id, aws_account.id)
+            total += evaluate_ebs(client_id, aws_account.id)
+            total += evaluate_rds(session, client_id, aws_account.id)
+            total += evaluate_lambda(session, client_id, aws_account.id)
+            total += evaluate_dynamodb(client_id, aws_account.id)
+            total += evaluate_cloudwatch(client_id, aws_account.id)
+            total += evaluate_s3(session, client_id, aws_account.id)
+            total += evaluate_ecs(client_id, aws_account.id)
+            total += evaluate_eks(client_id, aws_account.id)
+            total += evaluate_nat(session, client_id, aws_account.id)
+            total += evaluate_redshift(session, client_id, aws_account.id)
 
         return total
 
+    # =====================================================
+    # SHARED HELPERS (delegated, preserved for back-compat)
+    # =====================================================
     @staticmethod
     def _resolve_finding(client_id, aws_account_id, resource_id, finding_type):
-        existing = (
-            AWSFinding.query
-            .filter_by(
-                client_id=client_id,
-                aws_account_id=aws_account_id,
-                resource_id=resource_id,
-                finding_type=finding_type,
-                resolved=False
-            )
-            .all()
-        )
-
-        for finding in existing:
-            finding.resolved = True
-            finding.resolved_at = datetime.utcnow()
+        resolve_finding(client_id, aws_account_id, resource_id, finding_type)
 
     @staticmethod
     def _upsert_recommendation(
@@ -133,7 +116,7 @@ class RightsizingEngine:
         message,
         estimated_monthly_savings
     ):
-        AWSFinding.upsert_finding(
+        upsert_recommendation(
             client_id=client_id,
             aws_account_id=aws_account_id,
             resource_id=resource_id,
@@ -156,21 +139,15 @@ class RightsizingEngine:
         end,
         period=86400
     ):
-        metrics = cloudwatch.get_metric_statistics(
-            Namespace=namespace,
-            MetricName=metric_name,
-            Dimensions=dimensions,
-            StartTime=start,
-            EndTime=end,
-            Period=period,
-            Statistics=["Sum"]
+        return get_metric_sum(
+            cloudwatch=cloudwatch,
+            namespace=namespace,
+            metric_name=metric_name,
+            dimensions=dimensions,
+            start=start,
+            end=end,
+            period=period
         )
-
-        datapoints = metrics.get("Datapoints", [])
-        if not datapoints:
-            return None
-
-        return sum(d.get("Sum", 0) for d in datapoints)
 
     @staticmethod
     def _get_metric_average(
@@ -182,756 +159,59 @@ class RightsizingEngine:
         end,
         period=86400
     ):
-        metrics = cloudwatch.get_metric_statistics(
-            Namespace=namespace,
-            MetricName=metric_name,
-            Dimensions=dimensions,
-            StartTime=start,
-            EndTime=end,
-            Period=period,
-            Statistics=["Average"]
+        return get_metric_average(
+            cloudwatch=cloudwatch,
+            namespace=namespace,
+            metric_name=metric_name,
+            dimensions=dimensions,
+            start=start,
+            end=end,
+            period=period
         )
 
-        datapoints = metrics.get("Datapoints", [])
-        if not datapoints:
-            return None
-
-        return sum(d.get("Average", 0) for d in datapoints) / len(datapoints)
-
     # =====================================================
-    # EC2 RIGHTSIZING
+    # SERVICE EVALUATORS (delegated, preserved for back-compat)
     # =====================================================
     @staticmethod
     def evaluate_ec2(session, client_id, aws_account_id):
+        return evaluate_ec2(session, client_id, aws_account_id)
 
-        count = 0
-
-        instances = AWSResourceInventory.query.filter_by(
-            client_id=client_id,
-            aws_account_id=aws_account_id,
-            service_name="EC2",
-            resource_type="Instance",
-            is_active=True
-        ).all()
-
-        for instance in instances:
-            finding_type = "EC2_UNDERUTILIZED"
-
-            if instance.state != "running":
-                RightsizingEngine._resolve_finding(
-                    client_id,
-                    aws_account_id,
-                    instance.resource_id,
-                    finding_type
-                )
-                continue
-
-            region = instance.region
-            instance_id = instance.resource_id
-
-            cloudwatch = session.client(
-                "cloudwatch",
-                region_name=region
-            )
-
-            end = datetime.utcnow()
-            start = end - timedelta(days=7)
-
-            try:
-                avg_cpu = RightsizingEngine._get_metric_average(
-                    cloudwatch=cloudwatch,
-                    namespace="AWS/EC2",
-                    metric_name="CPUUtilization",
-                    dimensions=[
-                        {"Name": "InstanceId", "Value": instance_id}
-                    ],
-                    start=start,
-                    end=end
-                )
-            except Exception as e:
-                print(f"[EC2 RIGHTSIZING ERROR]: {str(e)}")
-                continue
-
-            if avg_cpu is None:
-                RightsizingEngine._resolve_finding(
-                    client_id,
-                    aws_account_id,
-                    instance_id,
-                    finding_type
-                )
-                continue
-
-            if avg_cpu < RightsizingEngine.EC2_CPU_THRESHOLD:
-                RightsizingEngine._upsert_recommendation(
-                    client_id=client_id,
-                    aws_account_id=instance.aws_account_id,
-                    resource_id=instance_id,
-                    resource_type="Instance",
-                    region=region,
-                    aws_service="EC2",
-                    finding_type=finding_type,
-                    severity="MEDIUM",
-                    message=f"CPU promedio de los ultimos 7 dias: {round(avg_cpu, 2)}%. La instancia parece sobredimensionada.",
-                    estimated_monthly_savings=100.0
-                )
-                count += 1
-            else:
-                RightsizingEngine._resolve_finding(
-                    client_id,
-                    aws_account_id,
-                    instance_id,
-                    finding_type
-                )
-
-        return count
-
-    # =====================================================
-    # EBS RIGHTSIZING
-    # =====================================================
     @staticmethod
     def evaluate_ebs(client_id, aws_account_id):
+        return evaluate_ebs(client_id, aws_account_id)
 
-        count = 0
-
-        volumes = AWSResourceInventory.query.filter_by(
-            client_id=client_id,
-            aws_account_id=aws_account_id,
-            service_name="EBS",
-            resource_type="Volume",
-            is_active=True
-        ).all()
-
-        finding_type = "EBS_GP2_TO_GP3"
-
-        for volume in volumes:
-            metadata = volume.resource_metadata or {}
-            volume_type = metadata.get("volume_type")
-            size_gb = float(metadata.get("size_gb") or 0)
-
-            if volume_type == "gp2" and size_gb > 0:
-                estimated_savings = round(max(size_gb * 0.02, 1.0), 2)
-
-                RightsizingEngine._upsert_recommendation(
-                    client_id=client_id,
-                    aws_account_id=aws_account_id,
-                    resource_id=volume.resource_id,
-                    resource_type=volume.resource_type,
-                    region=volume.region,
-                    aws_service="EBS",
-                    finding_type=finding_type,
-                    severity="MEDIUM",
-                    message=f"El volumen usa gp2 ({int(size_gb)} GB). Evaluar migracion a gp3 para reducir costo y mantener rendimiento.",
-                    estimated_monthly_savings=estimated_savings
-                )
-                count += 1
-            else:
-                RightsizingEngine._resolve_finding(
-                    client_id,
-                    aws_account_id,
-                    volume.resource_id,
-                    finding_type
-                )
-
-        return count
-
-    # =====================================================
-    # RDS RIGHTSIZING
-    # =====================================================
     @staticmethod
     def evaluate_rds(session, client_id, aws_account_id):
+        return evaluate_rds(session, client_id, aws_account_id)
 
-        count = 0
-
-        rds_instances = AWSResourceInventory.query.filter_by(
-            client_id=client_id,
-            aws_account_id=aws_account_id,
-            service_name="RDS",
-            resource_type="DBInstance",
-            is_active=True
-        ).all()
-
-        for db_instance in rds_instances:
-            finding_type = "RDS_UNDERUTILIZED"
-
-            if db_instance.state != "available":
-                RightsizingEngine._resolve_finding(
-                    client_id,
-                    aws_account_id,
-                    db_instance.resource_id,
-                    finding_type
-                )
-                continue
-
-            region = db_instance.region
-            db_identifier = db_instance.resource_id
-
-            cloudwatch = session.client(
-                "cloudwatch",
-                region_name=region
-            )
-
-            end = datetime.utcnow()
-            start = end - timedelta(days=7)
-
-            try:
-                avg_cpu = RightsizingEngine._get_metric_average(
-                    cloudwatch=cloudwatch,
-                    namespace="AWS/RDS",
-                    metric_name="CPUUtilization",
-                    dimensions=[
-                        {"Name": "DBInstanceIdentifier", "Value": db_identifier}
-                    ],
-                    start=start,
-                    end=end
-                )
-            except Exception as e:
-                print(f"[RDS RIGHTSIZING ERROR]: {str(e)}")
-                continue
-
-            if avg_cpu is None:
-                RightsizingEngine._resolve_finding(
-                    client_id,
-                    aws_account_id,
-                    db_identifier,
-                    finding_type
-                )
-                continue
-
-            if avg_cpu < RightsizingEngine.RDS_CPU_THRESHOLD:
-                RightsizingEngine._upsert_recommendation(
-                    client_id=client_id,
-                    aws_account_id=db_instance.aws_account_id,
-                    resource_id=db_identifier,
-                    resource_type="DBInstance",
-                    region=region,
-                    aws_service="RDS",
-                    finding_type=finding_type,
-                    severity="MEDIUM",
-                    message=f"CPU promedio de los ultimos 7 dias: {round(avg_cpu, 2)}%. La instancia RDS parece sobredimensionada.",
-                    estimated_monthly_savings=50.0
-                )
-                count += 1
-            else:
-                RightsizingEngine._resolve_finding(
-                    client_id,
-                    aws_account_id,
-                    db_identifier,
-                    finding_type
-                )
-
-        return count
-
-    # =====================================================
-    # LAMBDA RIGHTSIZING
-    # =====================================================
     @staticmethod
     def evaluate_lambda(session, client_id, aws_account_id):
+        return evaluate_lambda(session, client_id, aws_account_id)
 
-        count = 0
-
-        functions = AWSResourceInventory.query.filter_by(
-            client_id=client_id,
-            aws_account_id=aws_account_id,
-            service_name="Lambda",
-            resource_type="Function",
-            is_active=True
-        ).all()
-
-        finding_type = "LAMBDA_MEMORY_RIGHTSIZING"
-        end = datetime.utcnow()
-        start = end - timedelta(days=7)
-
-        for function in functions:
-            memory_size = int((function.resource_metadata or {}).get("memory_size") or 0)
-
-            if memory_size <= 1024:
-                RightsizingEngine._resolve_finding(
-                    client_id,
-                    aws_account_id,
-                    function.resource_id,
-                    finding_type
-                )
-                continue
-
-            try:
-                cloudwatch = session.client("cloudwatch", region_name=function.region)
-                total_invocations = RightsizingEngine._get_metric_sum(
-                    cloudwatch=cloudwatch,
-                    namespace="AWS/Lambda",
-                    metric_name="Invocations",
-                    dimensions=[
-                        {"Name": "FunctionName", "Value": function.resource_id}
-                    ],
-                    start=start,
-                    end=end
-                )
-            except Exception as e:
-                print(f"[LAMBDA RIGHTSIZING ERROR]: {str(e)}")
-                continue
-
-            if total_invocations is not None and total_invocations < RightsizingEngine.LAMBDA_LOW_INVOCATIONS_THRESHOLD:
-                estimated_savings = round(max((memory_size - 1024) / 1024 * 3, 0), 2)
-                RightsizingEngine._upsert_recommendation(
-                    client_id=client_id,
-                    aws_account_id=aws_account_id,
-                    resource_id=function.resource_id,
-                    resource_type=function.resource_type,
-                    region=function.region,
-                    aws_service="Lambda",
-                    finding_type=finding_type,
-                    severity="LOW",
-                    message=f"La funcion tiene {memory_size} MB asignados y solo {int(total_invocations)} invocaciones en 7 dias. Conviene revisar su memoria.",
-                    estimated_monthly_savings=estimated_savings
-                )
-                count += 1
-            else:
-                RightsizingEngine._resolve_finding(
-                    client_id,
-                    aws_account_id,
-                    function.resource_id,
-                    finding_type
-                )
-
-        return count
-
-    # =====================================================
-    # DYNAMODB RIGHTSIZING
-    # =====================================================
     @staticmethod
     def evaluate_dynamodb(client_id, aws_account_id):
+        return evaluate_dynamodb(client_id, aws_account_id)
 
-        count = 0
-
-        tables = AWSResourceInventory.query.filter_by(
-            client_id=client_id,
-            aws_account_id=aws_account_id,
-            service_name="DynamoDB",
-            resource_type="Table",
-            is_active=True
-        ).all()
-
-        finding_type = "DYNAMODB_PROVISIONED_RIGHTSIZING"
-
-        for table in tables:
-            metadata = table.resource_metadata or {}
-            billing_mode = metadata.get("billing_mode")
-
-            if billing_mode == "PROVISIONED":
-                RightsizingEngine._upsert_recommendation(
-                    client_id=client_id,
-                    aws_account_id=aws_account_id,
-                    resource_id=table.resource_id,
-                    resource_type=table.resource_type,
-                    region=table.region,
-                    aws_service="DynamoDB",
-                    finding_type=finding_type,
-                    severity="LOW",
-                    message="La tabla usa modo PROVISIONED. Revisar si On-Demand o menores capacidades aprovisionadas son suficientes.",
-                    estimated_monthly_savings=0
-                )
-                count += 1
-            else:
-                RightsizingEngine._resolve_finding(
-                    client_id,
-                    aws_account_id,
-                    table.resource_id,
-                    finding_type
-                )
-
-        return count
-
-    # =====================================================
-    # CLOUDWATCH STORAGE OPTIMIZATION
-    # =====================================================
     @staticmethod
     def evaluate_cloudwatch(client_id, aws_account_id):
+        return evaluate_cloudwatch(client_id, aws_account_id)
 
-        count = 0
-
-        log_groups = AWSResourceInventory.query.filter_by(
-            client_id=client_id,
-            aws_account_id=aws_account_id,
-            service_name="CloudWatch",
-            resource_type="LogGroup",
-            is_active=True
-        ).all()
-
-        finding_type = "CLOUDWATCH_STORAGE_RIGHTSIZING"
-
-        for log_group in log_groups:
-            metadata = log_group.resource_metadata or {}
-            stored_bytes = int(metadata.get("stored_bytes") or 0)
-            retention_days = metadata.get("retention_days")
-
-            qualifies = (
-                stored_bytes >= RightsizingEngine.CLOUDWATCH_MIN_STORED_BYTES and
-                (retention_days is None or retention_days > 90)
-            )
-
-            if qualifies:
-                stored_gb = stored_bytes / (1024 ** 3)
-                estimated_savings = round(min(max(stored_gb * 0.03, 1.0), 20.0), 2)
-                retention_label = "sin retencion definida" if retention_days is None else f"con retencion de {retention_days} dias"
-
-                RightsizingEngine._upsert_recommendation(
-                    client_id=client_id,
-                    aws_account_id=aws_account_id,
-                    resource_id=log_group.resource_id,
-                    resource_type=log_group.resource_type,
-                    region=log_group.region,
-                    aws_service="CloudWatch",
-                    finding_type=finding_type,
-                    severity="LOW",
-                    message=f"El log group almacena {stored_gb:.2f} GB y esta {retention_label}. Ajustar retencion puede reducir costo.",
-                    estimated_monthly_savings=estimated_savings
-                )
-                count += 1
-            else:
-                RightsizingEngine._resolve_finding(
-                    client_id,
-                    aws_account_id,
-                    log_group.resource_id,
-                    finding_type
-                )
-
-        return count
-
-    # =====================================================
-    # S3 OPTIMIZATION REVIEW
-    # =====================================================
     @staticmethod
     def evaluate_s3(session, client_id, aws_account_id):
+        return evaluate_s3(session, client_id, aws_account_id)
 
-        count = 0
-
-        buckets = AWSResourceInventory.query.filter_by(
-            client_id=client_id,
-            aws_account_id=aws_account_id,
-            service_name="S3",
-            resource_type="Bucket",
-            is_active=True
-        ).all()
-
-        finding_type = "S3_STORAGE_RIGHTSIZING_REVIEW"
-        end = datetime.utcnow()
-        start = end - timedelta(days=7)
-
-        for bucket in buckets:
-            created_at = (bucket.resource_metadata or {}).get("creation_date")
-            try:
-                created_dt = datetime.fromisoformat(
-                    str(created_at).replace("Z", "+00:00")
-                )
-            except Exception:
-                created_dt = None
-
-            bucket_age_days = (
-                (end - created_dt.replace(tzinfo=None)).days
-                if created_dt is not None else 0
-            )
-
-            try:
-                cloudwatch = session.client("cloudwatch", region_name="us-east-1")
-                bucket_size = RightsizingEngine._get_metric_average(
-                    cloudwatch=cloudwatch,
-                    namespace="AWS/S3",
-                    metric_name="BucketSizeBytes",
-                    dimensions=[
-                        {"Name": "BucketName", "Value": bucket.resource_id},
-                        {"Name": "StorageType", "Value": "StandardStorage"}
-                    ],
-                    start=start,
-                    end=end
-                )
-            except Exception as e:
-                print(f"[S3 RIGHTSIZING ERROR]: {str(e)}")
-                bucket_size = None
-
-            qualifies = (
-                bucket_size is not None and
-                bucket_size >= RightsizingEngine.S3_MIN_BUCKET_SIZE_BYTES and
-                bucket_age_days >= RightsizingEngine.S3_MIN_BUCKET_AGE_DAYS
-            )
-
-            if qualifies:
-                size_gb = bucket_size / (1024 ** 3)
-                RightsizingEngine._upsert_recommendation(
-                    client_id=client_id,
-                    aws_account_id=aws_account_id,
-                    resource_id=bucket.resource_id,
-                    resource_type=bucket.resource_type,
-                    region=bucket.region,
-                    aws_service="S3",
-                    finding_type=finding_type,
-                    severity="LOW",
-                    message=f"El bucket almacena aproximadamente {size_gb:.2f} GB y tiene mas de {bucket_age_days} dias. Conviene revisar lifecycle o Intelligent-Tiering.",
-                    estimated_monthly_savings=0
-                )
-                count += 1
-            else:
-                RightsizingEngine._resolve_finding(
-                    client_id,
-                    aws_account_id,
-                    bucket.resource_id,
-                    finding_type
-                )
-
-        return count
-
-    # =====================================================
-    # ECS OPTIMIZATION REVIEW
-    # =====================================================
     @staticmethod
     def evaluate_ecs(client_id, aws_account_id):
+        return evaluate_ecs(client_id, aws_account_id)
 
-        count = 0
-
-        services = AWSResourceInventory.query.filter_by(
-            client_id=client_id,
-            aws_account_id=aws_account_id,
-            service_name="ECS",
-            resource_type="Service",
-            is_active=True
-        ).all()
-
-        finding_type = "ECS_SERVICE_RIGHTSIZING_REVIEW"
-
-        for service in services:
-            metadata = service.resource_metadata or {}
-            desired_count = int(metadata.get("desired_count") or 0)
-            running_count = int(metadata.get("running_count") or 0)
-            pending_count = int(metadata.get("pending_count") or 0)
-
-            qualifies = desired_count == 0 or (
-                desired_count > 0 and running_count == 0 and pending_count == 0
-            )
-
-            if qualifies:
-                RightsizingEngine._upsert_recommendation(
-                    client_id=client_id,
-                    aws_account_id=aws_account_id,
-                    resource_id=service.resource_id,
-                    resource_type=service.resource_type,
-                    region=service.region,
-                    aws_service="ECS",
-                    finding_type=finding_type,
-                    severity="LOW",
-                    message=f"El servicio ECS tiene desired={desired_count}, running={running_count}, pending={pending_count}. Conviene revisar su capacidad o necesidad operativa.",
-                    estimated_monthly_savings=0
-                )
-                count += 1
-            else:
-                RightsizingEngine._resolve_finding(
-                    client_id,
-                    aws_account_id,
-                    service.resource_id,
-                    finding_type
-                )
-
-        return count
-
-    # =====================================================
-    # EKS OPTIMIZATION REVIEW
-    # =====================================================
     @staticmethod
     def evaluate_eks(client_id, aws_account_id):
+        return evaluate_eks(client_id, aws_account_id)
 
-        count = 0
-
-        nodegroups = AWSResourceInventory.query.filter_by(
-            client_id=client_id,
-            aws_account_id=aws_account_id,
-            service_name="EKS",
-            resource_type="NodeGroup",
-            is_active=True
-        ).all()
-
-        finding_type = "EKS_NODEGROUP_RIGHTSIZING_REVIEW"
-
-        for nodegroup in nodegroups:
-            metadata = nodegroup.resource_metadata or {}
-            min_size = int(metadata.get("min_size") or 0)
-            max_size = int(metadata.get("max_size") or 0)
-            desired_size = int(metadata.get("desired_size") or 0)
-
-            qualifies = desired_size == 0 or (
-                desired_size > 0 and max_size >= max(desired_size * 3, desired_size + 3)
-            )
-
-            if qualifies:
-                RightsizingEngine._upsert_recommendation(
-                    client_id=client_id,
-                    aws_account_id=aws_account_id,
-                    resource_id=nodegroup.resource_id,
-                    resource_type=nodegroup.resource_type,
-                    region=nodegroup.region,
-                    aws_service="EKS",
-                    finding_type=finding_type,
-                    severity="LOW",
-                    message=f"El node group tiene min={min_size}, desired={desired_size}, max={max_size}. Conviene revisar su escalado para evitar capacidad ociosa.",
-                    estimated_monthly_savings=0
-                )
-                count += 1
-            else:
-                RightsizingEngine._resolve_finding(
-                    client_id,
-                    aws_account_id,
-                    nodegroup.resource_id,
-                    finding_type
-                )
-
-        return count
-
-    # =====================================================
-    # NAT GATEWAY OPTIMIZATION
-    # =====================================================
     @staticmethod
     def evaluate_nat(session, client_id, aws_account_id):
+        return evaluate_nat(session, client_id, aws_account_id)
 
-        count = 0
-
-        gateways = AWSResourceInventory.query.filter_by(
-            client_id=client_id,
-            aws_account_id=aws_account_id,
-            service_name="NAT",
-            resource_type="NatGateway",
-            is_active=True
-        ).all()
-
-        finding_type = "NAT_IDLE_GATEWAY"
-        end = datetime.utcnow()
-        start = end - timedelta(days=7)
-
-        for gateway in gateways:
-            if gateway.state != "available":
-                RightsizingEngine._resolve_finding(
-                    client_id,
-                    aws_account_id,
-                    gateway.resource_id,
-                    finding_type
-                )
-                continue
-
-            try:
-                cloudwatch = session.client("cloudwatch", region_name=gateway.region)
-                bytes_out = RightsizingEngine._get_metric_sum(
-                    cloudwatch=cloudwatch,
-                    namespace="AWS/NATGateway",
-                    metric_name="BytesOutToDestination",
-                    dimensions=[
-                        {"Name": "NatGatewayId", "Value": gateway.resource_id}
-                    ],
-                    start=start,
-                    end=end
-                ) or 0
-                bytes_in = RightsizingEngine._get_metric_sum(
-                    cloudwatch=cloudwatch,
-                    namespace="AWS/NATGateway",
-                    metric_name="BytesInFromSource",
-                    dimensions=[
-                        {"Name": "NatGatewayId", "Value": gateway.resource_id}
-                    ],
-                    start=start,
-                    end=end
-                ) or 0
-            except Exception as e:
-                print(f"[NAT RIGHTSIZING ERROR]: {str(e)}")
-                continue
-
-            total_bytes = bytes_in + bytes_out
-
-            if total_bytes < RightsizingEngine.NAT_LOW_TRAFFIC_BYTES:
-                RightsizingEngine._upsert_recommendation(
-                    client_id=client_id,
-                    aws_account_id=aws_account_id,
-                    resource_id=gateway.resource_id,
-                    resource_type=gateway.resource_type,
-                    region=gateway.region,
-                    aws_service="NAT",
-                    finding_type=finding_type,
-                    severity="MEDIUM",
-                    message=f"El NAT Gateway ha procesado solo {(total_bytes / (1024 ** 3)):.2f} GB en 7 dias. Evaluar si sigue siendo necesario o si puede redisenarse la salida.",
-                    estimated_monthly_savings=32.0
-                )
-                count += 1
-            else:
-                RightsizingEngine._resolve_finding(
-                    client_id,
-                    aws_account_id,
-                    gateway.resource_id,
-                    finding_type
-                )
-
-        return count
-
-    # =====================================================
-    # REDSHIFT RIGHTSIZING
-    # =====================================================
     @staticmethod
     def evaluate_redshift(session, client_id, aws_account_id):
-
-        count = 0
-
-        clusters = AWSResourceInventory.query.filter_by(
-            client_id=client_id,
-            aws_account_id=aws_account_id,
-            service_name="Redshift",
-            resource_type="Cluster",
-            is_active=True
-        ).all()
-
-        finding_type = "REDSHIFT_UNDERUTILIZED"
-        end = datetime.utcnow()
-        start = end - timedelta(days=7)
-
-        for cluster in clusters:
-            if cluster.state != "available":
-                RightsizingEngine._resolve_finding(
-                    client_id,
-                    aws_account_id,
-                    cluster.resource_id,
-                    finding_type
-                )
-                continue
-
-            try:
-                cloudwatch = session.client("cloudwatch", region_name=cluster.region)
-                avg_cpu = RightsizingEngine._get_metric_average(
-                    cloudwatch=cloudwatch,
-                    namespace="AWS/Redshift",
-                    metric_name="CPUUtilization",
-                    dimensions=[
-                        {"Name": "ClusterIdentifier", "Value": cluster.resource_id}
-                    ],
-                    start=start,
-                    end=end
-                )
-            except Exception as e:
-                print(f"[REDSHIFT RIGHTSIZING ERROR]: {str(e)}")
-                continue
-
-            if avg_cpu is not None and avg_cpu < RightsizingEngine.REDSHIFT_CPU_THRESHOLD:
-                node_count = (cluster.resource_metadata or {}).get("number_of_nodes") or 1
-                estimated_savings = round(max(float(node_count) * 30.0, 30.0), 2)
-                RightsizingEngine._upsert_recommendation(
-                    client_id=client_id,
-                    aws_account_id=aws_account_id,
-                    resource_id=cluster.resource_id,
-                    resource_type=cluster.resource_type,
-                    region=cluster.region,
-                    aws_service="Redshift",
-                    finding_type=finding_type,
-                    severity="MEDIUM",
-                    message=f"CPU promedio de los ultimos 7 dias: {round(avg_cpu, 2)}%. El cluster parece sobredimensionado.",
-                    estimated_monthly_savings=estimated_savings
-                )
-                count += 1
-            else:
-                RightsizingEngine._resolve_finding(
-                    client_id,
-                    aws_account_id,
-                    cluster.resource_id,
-                    finding_type
-                )
-
-        return count
+        return evaluate_redshift(session, client_id, aws_account_id)

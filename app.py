@@ -126,6 +126,7 @@ from src.routes.admin_plans_routes import register_admin_plans_routes
 from src.routes.client_reports_routes import register_client_report_routes
 from src.routes.admin_stats_routes import admin_stats_bp
 from src.routes.admin_users_routes import admin_users_bp
+from src.routes.admin_user_access_routes import admin_user_access_bp
 from src.routes.client_findings_routes import client_findings_bp
 from src.routes.me_routes import me_bp
 from src.routes.client_audit_routes import client_audit_bp
@@ -150,6 +151,7 @@ app.register_blueprint(client_findings_bp)
 app.register_blueprint(contact_bp)
 app.register_blueprint(admin_stats_bp)
 app.register_blueprint(admin_users_bp)
+app.register_blueprint(admin_user_access_bp)
 app.register_blueprint(client_users_bp)
 app.register_blueprint(client_subscription_bp)
 app.register_blueprint(client_info_bp)

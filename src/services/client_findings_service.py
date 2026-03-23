@@ -1,4 +1,4 @@
-from sqlalchemy import func, or_, case, and_
+from sqlalchemy import func, case, and_
 from datetime import datetime
 
 from src.models.database import db
@@ -6,6 +6,13 @@ from src.models.aws_finding import AWSFinding
 from src.models.aws_resource_inventory import AWSResourceInventory
 from src.models.aws_account import AWSAccount
 from src.services.client_dashboard_service import ClientDashboardService
+
+# Filter/query helpers live in a dedicated module to keep this file < 300 lines.
+from src.services.client_findings_filters import (
+    apply_common_filters,
+    build_savings_subquery,
+)
+
 
 class ClientFindingsService:
 
@@ -51,45 +58,17 @@ class ClientFindingsService:
                 AWSResourceInventory.is_active.is_(True)
             )
         )
-        if aws_account_id is not None:
-            query = query.filter(
-                AWSFinding.aws_account_id == aws_account_id
-            )
-        # ---------------- STATUS FILTER ----------------
-        if status == "active":
-            query = query.filter(AWSFinding.resolved.is_(False))
 
-        elif status == "resolved":
-            query = query.filter(AWSFinding.resolved.is_(True))
-
-        # ---------------- SEVERITY FILTER ----------------
-        if severity:
-            query = query.filter(AWSFinding.severity == severity)
-
-        # ---------------- FINDING TYPE FILTER ----------------
-        if finding_type:
-            query = query.filter(AWSFinding.finding_type == finding_type)
-
-        # ---------------- SERVICE FILTER ----------------
-        if service:
-            query = query.filter(
-                AWSFinding.aws_service.ilike(service)
-            )
-
-        # ---------------- REGION FILTER ----------------
-        if region:
-            query = query.filter(
-                AWSFinding.region.ilike(f"{region}%")
-            )
-
-        # ---------------- SEARCH FILTER ----------------
-        if search:
-            query = query.filter(
-                or_(
-                    AWSFinding.resource_id.ilike(f"%{search}%"),
-                    AWSFinding.message.ilike(f"%{search}%")
-                )
-            )
+        query = apply_common_filters(
+            query,
+            aws_account_id=aws_account_id,
+            status=status,
+            severity=severity,
+            finding_type=finding_type,
+            service=service,
+            search=search,
+            region=region
+        )
 
         # ---------------- SAFE SORTING ----------------
         allowed_sort_fields = {
@@ -100,10 +79,7 @@ class ClientFindingsService:
             "resource_id": AWSFinding.resource_id
         }
 
-        sort_column = allowed_sort_fields.get(
-            sort_by,
-            AWSFinding.created_at
-        )
+        sort_column = allowed_sort_fields.get(sort_by, AWSFinding.created_at)
 
         if sort_order == "asc":
             query = query.order_by(sort_column.asc())
@@ -210,110 +186,31 @@ class ClientFindingsService:
             )
         )
 
-        if aws_account_id is not None:
-            query = query.filter(
-                AWSFinding.aws_account_id == aws_account_id
-            )
-
-        if status == "active":
-            query = query.filter(AWSFinding.resolved.is_(False))
-        elif status == "resolved":
-            query = query.filter(AWSFinding.resolved.is_(True))
-
-        if severity:
-            query = query.filter(AWSFinding.severity == severity)
-
-        if finding_type:
-            query = query.filter(AWSFinding.finding_type == finding_type)
-
-        if service:
-            query = query.filter(
-                AWSFinding.aws_service.ilike(service)
-            )
-
-        if search:
-            query = query.filter(
-                or_(
-                    AWSFinding.resource_id.ilike(f"%{search}%"),
-                    AWSFinding.message.ilike(f"%{search}%")
-                )
-            )
-
-        if region:
-            query = query.filter(
-                AWSFinding.region.ilike(f"{region}%")
-            )
+        query = apply_common_filters(
+            query,
+            aws_account_id=aws_account_id,
+            status=status,
+            severity=severity,
+            finding_type=finding_type,
+            service=service,
+            search=search,
+            region=region
+        )
 
         results = query.first()
 
-        savings_query = db.session.query(
-            AWSFinding.aws_account_id.label("aws_account_id"),
-            AWSFinding.resource_id.label("resource_id"),
-            AWSFinding.finding_type.label("finding_type"),
-            func.max(
-                func.coalesce(
-                    AWSFinding.estimated_monthly_savings,
-                    0
-                )
-            ).label("estimated_monthly_savings")
-        ).join(
-            AWSResourceInventory,
-            and_(
-                AWSFinding.resource_id == AWSResourceInventory.resource_id,
-                AWSFinding.client_id == AWSResourceInventory.client_id
-            )
-        ).filter(
-            AWSFinding.client_id == client_id,
-            AWSResourceInventory.is_active.is_(True)
+        # Deduplicated savings subquery (avoids double-counting same resource)
+        active_savings = build_savings_subquery(
+            db,
+            client_id,
+            aws_account_id=aws_account_id,
+            status=status,
+            severity=severity,
+            finding_type=finding_type,
+            service=service,
+            search=search,
+            region=region
         )
-
-        if aws_account_id is not None:
-            savings_query = savings_query.filter(
-                AWSFinding.aws_account_id == aws_account_id
-            )
-
-        if status == "active":
-            savings_query = savings_query.filter(
-                AWSFinding.resolved.is_(False)
-            )
-        elif status == "resolved":
-            savings_query = savings_query.filter(
-                AWSFinding.resolved.is_(True)
-            )
-
-        if severity:
-            savings_query = savings_query.filter(
-                AWSFinding.severity == severity
-            )
-
-        if finding_type:
-            savings_query = savings_query.filter(
-                AWSFinding.finding_type == finding_type
-            )
-
-        if service:
-            savings_query = savings_query.filter(
-                AWSFinding.aws_service.ilike(service)
-            )
-
-        if search:
-            savings_query = savings_query.filter(
-                or_(
-                    AWSFinding.resource_id.ilike(f"%{search}%"),
-                    AWSFinding.message.ilike(f"%{search}%")
-                )
-            )
-
-        if region:
-            savings_query = savings_query.filter(
-                AWSFinding.region.ilike(f"{region}%")
-            )
-
-        active_savings = savings_query.group_by(
-            AWSFinding.aws_account_id,
-            AWSFinding.resource_id,
-            AWSFinding.finding_type
-        ).subquery()
 
         estimated_savings = db.session.query(
             func.sum(active_savings.c.estimated_monthly_savings)
@@ -326,10 +223,7 @@ class ClientFindingsService:
         ).scalar() or 0
 
         active_findings = results.active or 0
-        review_recommendations = max(
-            active_findings - financial_opportunities,
-            0
-        )
+        review_recommendations = max(active_findings - financial_opportunities, 0)
 
         return {
             "total": results.total or 0,
@@ -372,7 +266,7 @@ class ClientFindingsService:
         db.session.commit()
 
         return finding
-    
+
     # =====================================================
     # SUMMARY BY AWS SERVICE (ENTERPRISE SAFE)
     # =====================================================
