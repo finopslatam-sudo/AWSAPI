@@ -27,6 +27,8 @@ from src.aws.finops.rightsizing.storage import (
     evaluate_dynamodb,
     evaluate_cloudwatch,
     evaluate_s3,
+)
+from src.aws.finops.rightsizing.compute import (
     evaluate_ecs,
     evaluate_eks,
     evaluate_nat,
