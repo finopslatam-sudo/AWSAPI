@@ -16,6 +16,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from reportlab.lib import colors
+from reportlab.graphics.shapes import Drawing, Rect, String, Line
 
 from src.services.client_dashboard_service import ClientDashboardService
 from src.services.client_stats_service import get_users_by_client, get_client_plan
@@ -72,6 +73,64 @@ def _section(title, styles):
         Paragraph(title, styles["sec"]),
         HRFlowable(width="100%", thickness=0.5, color=BORDER, spaceAfter=6),
     ]
+
+
+def _service_bar_chart(svc_list, usable_w) -> Drawing:
+    top_n    = min(len(svc_list), 12)
+    items    = svc_list[:top_n]
+    max_amt  = float(items[0].get("amount", 0)) if items else 1
+    total    = sum(float(s.get("amount", 0)) for s in items) or 1
+
+    label_w  = 145.0
+    value_w  = 80.0
+    bar_area = float(usable_w) - label_w - value_w - 8
+    row_h    = 24.0
+    pad_top  = 8.0
+    chart_h  = top_n * row_h + pad_top + 6
+
+    d = Drawing(float(usable_w), chart_h)
+
+    bar_col    = colors.HexColor("#15803d")
+    bg_even    = colors.HexColor("#f0fdf4")
+    text_dark  = colors.HexColor("#0f172a")
+    text_green = colors.HexColor("#15803d")
+    text_muted = colors.HexColor("#64748b")
+
+    for i, s in enumerate(items):
+        amt   = float(s.get("amount", 0))
+        ratio = amt / max_amt if max_amt else 0
+        bar_w = max(3.0, ratio * bar_area)
+        pct   = amt / total * 100
+        y     = chart_h - pad_top - (i + 1) * row_h
+
+        if i % 2 == 0:
+            d.add(Rect(0, y, float(usable_w), row_h,
+                       fillColor=bg_even, strokeColor=None))
+
+        d.add(Rect(label_w, y + 5, bar_w, row_h - 10,
+                   fillColor=bar_col, strokeColor=None, rx=2, ry=2))
+
+        name = s.get("service", "")
+        if len(name) > 24:
+            name = name[:23] + "…"
+        d.add(String(label_w - 6, y + row_h / 2 - 4, name,
+                     fontSize=7.5, textAnchor="end",
+                     fillColor=text_dark, fontName="Helvetica"))
+
+        d.add(String(label_w + bar_w + 5, y + row_h / 2 - 4,
+                     _fmt_usd(amt),
+                     fontSize=7.5, textAnchor="start",
+                     fillColor=text_green, fontName="Helvetica-Bold"))
+
+        d.add(String(float(usable_w) - 2, y + row_h / 2 - 4,
+                     f"{pct:.1f}%",
+                     fontSize=7, textAnchor="end",
+                     fillColor=text_muted, fontName="Helvetica"))
+
+    d.add(Line(label_w, 0, label_w, chart_h - pad_top,
+               strokeColor=colors.HexColor("#e2e8f0"), strokeWidth=0.5))
+
+    return d
 
 
 def _kpi_row(cards, col_w, usable_w):
@@ -208,34 +267,10 @@ def build_cost_pdf(client_id: int, aws_account_id: int | None = None) -> bytes:
         ]))
         el.append(tbl)
 
-    # ── DISTRIBUCIÓN POR SERVICIO ────────────────────────
+    # ── DISTRIBUCIÓN POR SERVICIO — GRÁFICO DE BARRAS ────
     if svc:
         el += _section("Distribución de Costos por Servicio (Mes Actual)", styles)
-        total_svc = sum(float(s.get("amount", 0)) for s in svc) or 1
-        svc_hdr = [Paragraph(h, styles["th"]) for h in ["Servicio", "Costo", "% del Total", "Barra"]]
-        svc_rows = [svc_hdr]
-        for s in svc:
-            pct_s = float(s.get("amount", 0)) / total_svc * 100
-            bar = "█" * max(1, int(pct_s / 100 * 20)) + "░" * (20 - max(1, int(pct_s / 100 * 20)))
-            svc_rows.append([
-                Paragraph(s.get("service", ""), styles["td"]),
-                Paragraph(_fmt_usd(s.get("amount", 0)), styles["td"]),
-                Paragraph(_pct(pct_s), styles["td"]),
-                Paragraph(bar, ParagraphStyle("bar2", fontSize=6, textColor=GREEN, fontName="Helvetica")),
-            ])
-        svc_tbl = Table(svc_rows, colWidths=[210, 90, 70, usable_w - 370], repeatRows=1)
-        svc_tbl.setStyle(TableStyle([
-            ("BACKGROUND",    (0, 0), (-1, 0),  DARK),
-            ("TEXTCOLOR",     (0, 0), (-1, 0),  WHITE),
-            ("ROWBACKGROUNDS",(0, 1), (-1, -1), [WHITE, BG_ALT]),
-            ("GRID",          (0, 0), (-1, -1), 0.25, BORDER),
-            ("TOPPADDING",    (0, 0), (-1, -1), 5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ("LEFTPADDING",   (0, 0), (-1, -1), 8),
-            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
-            ("ALIGN",         (1, 0), (2, -1),  "RIGHT"),
-        ]))
-        el.append(svc_tbl)
+        el.append(_service_bar_chart(svc, usable_w))
 
     # ── PIE ──────────────────────────────────────────────
     el.append(Spacer(1, 14))
