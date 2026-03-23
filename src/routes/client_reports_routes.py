@@ -7,6 +7,10 @@ from src.reports.client.client_pdf_report import build_client_pdf
 from src.reports.client.client_csv_report import build_client_csv
 from src.reports.client.client_xlsx_report import build_client_xlsx
 from src.reports.client.executive_pdf_report import build_executive_pdf
+from src.reports.client.cost_pdf_report import build_cost_pdf
+from src.reports.client.cost_xlsx_report import build_cost_xlsx
+from src.reports.client.risk_pdf_report import build_risk_pdf
+from src.reports.client.risk_xlsx_report import build_risk_xlsx
 
 
 def require_client_user(user_id: int) -> User | None:
@@ -132,5 +136,101 @@ def register_client_report_routes(app):
             headers={
                 "Content-Disposition":
                 "attachment; filename=resumen-ejecutivo-finops.pdf"
+            }
+        )
+
+    # ===============================
+    # REPORTE DE COSTOS — PDF
+    # ===============================
+    @app.route("/api/client/reports/costs/pdf", methods=["GET"])
+    @jwt_required()
+    def client_costs_pdf():
+        user = require_client_user(int(get_jwt_identity()))
+        if not user:
+            return jsonify({"error": "Acceso denegado"}), 403
+
+        account_id_raw = request.args.get("account_id")
+        aws_account_id = int(account_id_raw) if account_id_raw else None
+
+        pdf_data = build_cost_pdf(user.client_id, aws_account_id)
+
+        return Response(
+            pdf_data,
+            mimetype="application/pdf",
+            headers={
+                "Content-Disposition":
+                "attachment; filename=reporte-costos-finops.pdf"
+            }
+        )
+
+    # ===============================
+    # REPORTE DE COSTOS — XLSX
+    # ===============================
+    @app.route("/api/client/reports/costs/xlsx", methods=["GET"])
+    @jwt_required()
+    def client_costs_xlsx():
+        user = require_client_user(int(get_jwt_identity()))
+        if not user:
+            return jsonify({"error": "Acceso denegado"}), 403
+
+        account_id_raw = request.args.get("account_id")
+        aws_account_id = int(account_id_raw) if account_id_raw else None
+
+        xlsx_data = build_cost_xlsx(user.client_id, aws_account_id)
+
+        return Response(
+            xlsx_data,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition":
+                "attachment; filename=reporte-costos-finops.xlsx"
+            }
+        )
+
+    # ===============================
+    # REPORTE DE RIESGO — PDF
+    # ===============================
+    @app.route("/api/client/reports/risk/pdf", methods=["GET"])
+    @jwt_required()
+    def client_risk_pdf():
+        user = require_client_user(int(get_jwt_identity()))
+        if not user:
+            return jsonify({"error": "Acceso denegado"}), 403
+
+        account_id_raw = request.args.get("account_id")
+        aws_account_id = int(account_id_raw) if account_id_raw else None
+
+        pdf_data = build_risk_pdf(user.client_id, aws_account_id)
+
+        return Response(
+            pdf_data,
+            mimetype="application/pdf",
+            headers={
+                "Content-Disposition":
+                "attachment; filename=reporte-riesgo-compliance-finops.pdf"
+            }
+        )
+
+    # ===============================
+    # REPORTE DE RIESGO — XLSX
+    # ===============================
+    @app.route("/api/client/reports/risk/xlsx", methods=["GET"])
+    @jwt_required()
+    def client_risk_xlsx():
+        user = require_client_user(int(get_jwt_identity()))
+        if not user:
+            return jsonify({"error": "Acceso denegado"}), 403
+
+        account_id_raw = request.args.get("account_id")
+        aws_account_id = int(account_id_raw) if account_id_raw else None
+
+        xlsx_data = build_risk_xlsx(user.client_id, aws_account_id)
+
+        return Response(
+            xlsx_data,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition":
+                "attachment; filename=reporte-riesgo-compliance-finops.xlsx"
             }
         )
