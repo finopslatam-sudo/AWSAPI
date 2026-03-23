@@ -16,7 +16,6 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from reportlab.lib import colors
-from reportlab.graphics.shapes import Drawing, Rect, String, Line
 
 from src.services.client_dashboard_service import ClientDashboardService
 from src.services.client_stats_service import get_users_by_client, get_client_plan
@@ -75,62 +74,26 @@ def _section(title, styles):
     ]
 
 
-def _service_bar_chart(svc_list, usable_w) -> Drawing:
-    top_n    = min(len(svc_list), 12)
-    items    = svc_list[:top_n]
-    max_amt  = float(items[0].get("amount", 0)) if items else 1
-    total    = sum(float(s.get("amount", 0)) for s in items) or 1
-
-    label_w  = 145.0
-    value_w  = 80.0
-    bar_area = float(usable_w) - label_w - value_w - 8
-    row_h    = 24.0
-    pad_top  = 8.0
-    chart_h  = top_n * row_h + pad_top + 6
-
-    d = Drawing(float(usable_w), chart_h)
-
-    bar_col    = colors.HexColor("#15803d")
-    bg_even    = colors.HexColor("#f0fdf4")
-    text_dark  = colors.HexColor("#0f172a")
-    text_green = colors.HexColor("#15803d")
-    text_muted = colors.HexColor("#64748b")
-
-    for i, s in enumerate(items):
-        amt   = float(s.get("amount", 0))
-        ratio = amt / max_amt if max_amt else 0
-        bar_w = max(3.0, ratio * bar_area)
-        pct   = amt / total * 100
-        y     = chart_h - pad_top - (i + 1) * row_h
-
-        if i % 2 == 0:
-            d.add(Rect(0, y, float(usable_w), row_h,
-                       fillColor=bg_even, strokeColor=None))
-
-        d.add(Rect(label_w, y + 5, bar_w, row_h - 10,
-                   fillColor=bar_col, strokeColor=None, rx=2, ry=2))
-
-        name = s.get("service", "")
-        if len(name) > 24:
-            name = name[:23] + "…"
-        d.add(String(label_w - 6, y + row_h / 2 - 4, name,
-                     fontSize=7.5, textAnchor="end",
-                     fillColor=text_dark, fontName="Helvetica"))
-
-        d.add(String(label_w + bar_w + 5, y + row_h / 2 - 4,
-                     _fmt_usd(amt),
-                     fontSize=7.5, textAnchor="start",
-                     fillColor=text_green, fontName="Helvetica-Bold"))
-
-        d.add(String(float(usable_w) - 2, y + row_h / 2 - 4,
-                     f"{pct:.1f}%",
-                     fontSize=7, textAnchor="end",
-                     fillColor=text_muted, fontName="Helvetica"))
-
-    d.add(Line(label_w, 0, label_w, chart_h - pad_top,
-               strokeColor=colors.HexColor("#e2e8f0"), strokeWidth=0.5))
-
-    return d
+def _bar_cell(pct: float, bar_total_w: float, bar_color, bg_color) -> Table:
+    """Celda con barra de progreso embebida (para usar dentro de una Table)."""
+    filled = max(2.0, pct / 100 * bar_total_w)
+    empty  = max(0.0, bar_total_w - filled)
+    if empty < 1:
+        data, cw = [[""]], [bar_total_w]
+    else:
+        data, cw = [["", ""]], [filled, empty]
+    t = Table(data, colWidths=cw, rowHeights=[7])
+    cmds = [
+        ("TOPPADDING",    (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 0),
+        ("BACKGROUND",    (0, 0), (0, -1),  bar_color),
+    ]
+    if empty >= 1:
+        cmds.append(("BACKGROUND", (1, 0), (1, -1), bg_color))
+    t.setStyle(TableStyle(cmds))
+    return t
 
 
 def _kpi_row(cards, col_w, usable_w):
@@ -242,35 +205,95 @@ def build_cost_pdf(client_id: int, aws_account_id: int | None = None) -> bytes:
     # ── TENDENCIA MENSUAL ────────────────────────────────
     if monthly:
         el += _section("Tendencia de Costos — Últimos 6 Meses", styles)
-        total_mc = sum(float(m["amount"]) for m in monthly) or 1
-        hdr_row = [Paragraph(h, styles["th"]) for h in ["Mes", "Gasto", "% del Total", "Tendencia Visual"]]
+        last6     = monthly[-6:]
+        total_mc  = sum(float(m["amount"]) for m in last6) or 1
+        max_mc    = max(float(m["amount"]) for m in last6) or 1
+        bar_col_w = usable_w - 245   # ancho columna tendencia
+        bar_fill  = colors.HexColor("#1d4ed8")
+        bar_bg    = colors.HexColor("#dbeafe")
+        hdr_row   = [Paragraph(h, styles["th"]) for h in
+                     ["Mes", "Gasto", "% del Total", "Tendencia Visual"]]
         rows = [hdr_row]
-        for m in monthly[-6:]:
-            pct_v = float(m["amount"]) / total_mc * 100
-            bar = "█" * max(1, int(pct_v / 100 * 28)) + "░" * (28 - max(1, int(pct_v / 100 * 28)))
+        for m in last6:
+            amt   = float(m["amount"])
+            pct_v = amt / total_mc * 100
+            ratio = amt / max_mc          # relativo al mes más caro
+            bar_cell = _bar_cell(ratio * 100, bar_col_w - 10, bar_fill, bar_bg)
             rows.append([
                 Paragraph(str(m["month"]), styles["td"]),
-                Paragraph(_fmt_usd(m["amount"]), styles["td"]),
+                Paragraph(_fmt_usd(amt), styles["td"]),
                 Paragraph(_pct(pct_v), styles["td"]),
-                Paragraph(bar, ParagraphStyle("bar", fontSize=6, textColor=BLUE, fontName="Helvetica")),
+                bar_cell,
             ])
-        tbl = Table(rows, colWidths=[80, 90, 75, usable_w - 245], repeatRows=1)
+        tbl = Table(rows, colWidths=[80, 90, 75, bar_col_w], repeatRows=1)
         tbl.setStyle(TableStyle([
             ("BACKGROUND",    (0, 0), (-1, 0),  DARK),
             ("TEXTCOLOR",     (0, 0), (-1, 0),  WHITE),
             ("ROWBACKGROUNDS",(0, 1), (-1, -1), [WHITE, BG_ALT]),
             ("GRID",          (0, 0), (-1, -1), 0.25, BORDER),
-            ("TOPPADDING",    (0, 0), (-1, -1), 5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING",    (0, 0), (-1, -1), 7),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
             ("LEFTPADDING",   (0, 0), (-1, -1), 8),
             ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
         ]))
         el.append(tbl)
 
-    # ── DISTRIBUCIÓN POR SERVICIO — GRÁFICO DE BARRAS ────
+    # ── DISTRIBUCIÓN POR SERVICIO ─────────────────────────
     if svc:
         el += _section("Distribución de Costos por Servicio (Mes Actual)", styles)
-        el.append(_service_bar_chart(svc, usable_w))
+        total_svc = sum(float(s.get("amount", 0)) for s in svc) or 1
+        bar_w_svc = 130.0
+        bar_fill_s = colors.HexColor("#1d4ed8")
+        bar_bg_s   = colors.HexColor("#e2e8f0")
+        pct_style  = ParagraphStyle("ps", fontSize=8, textColor=MUTED, leading=10)
+        col_svc    = 210
+        col_cost   = 90
+        col_pct    = usable_w - col_svc - col_cost   # ~193
+
+        svc_hdr = [Paragraph(h, styles["th"]) for h in
+                   ["Servicio", "Costo mensual", "Porcentaje"]]
+        svc_rows = [svc_hdr]
+        for s in svc:
+            amt   = float(s.get("amount", 0))
+            pct_s = amt / total_svc * 100
+            bar_table = Table(
+                [[_bar_cell(pct_s, bar_w_svc, bar_fill_s, bar_bg_s),
+                  Paragraph(f"{pct_s:.2f}%", pct_style)]],
+                colWidths=[bar_w_svc, col_pct - bar_w_svc - 4],
+            )
+            bar_table.setStyle(TableStyle([
+                ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING",    (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ("LEFTPADDING",   (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING",  (0, 0), (-1, -1), 4),
+            ]))
+            svc_rows.append([
+                Paragraph(s.get("service", ""), styles["td"]),
+                Paragraph(_fmt_usd(amt), styles["td"]),
+                bar_table,
+            ])
+        # fila de total
+        svc_rows.append([
+            Paragraph("<b>Total</b>", styles["td"]),
+            Paragraph(f"<b>{_fmt_usd(total_svc)}</b>", styles["td"]),
+            Paragraph("<b>100%</b>", styles["td"]),
+        ])
+        n_data = len(svc_rows)
+        svc_tbl = Table(svc_rows, colWidths=[col_svc, col_cost, col_pct], repeatRows=1)
+        svc_tbl.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0),          (-1, 0),           DARK),
+            ("TEXTCOLOR",     (0, 0),          (-1, 0),           WHITE),
+            ("ROWBACKGROUNDS",(0, 1),          (-1, n_data - 2),  [WHITE, BG_ALT]),
+            ("BACKGROUND",    (0, n_data - 1), (-1, n_data - 1),  colors.HexColor("#f1f5f9")),
+            ("GRID",          (0, 0),          (-1, -1),          0.25, BORDER),
+            ("TOPPADDING",    (0, 0),          (-1, -1),          6),
+            ("BOTTOMPADDING", (0, 0),          (-1, -1),          6),
+            ("LEFTPADDING",   (0, 0),          (-1, -1),          8),
+            ("VALIGN",        (0, 0),          (-1, -1),          "MIDDLE"),
+            ("FONTNAME",      (0, n_data - 1), (-1, n_data - 1),  "Helvetica-Bold"),
+        ]))
+        el.append(svc_tbl)
 
     # ── PIE ──────────────────────────────────────────────
     el.append(Spacer(1, 14))
