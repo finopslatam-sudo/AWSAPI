@@ -15,99 +15,13 @@ from reportlab.platypus import (
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
-from reportlab.lib import colors
-
 from src.services.client_dashboard_service import ClientDashboardService
 from src.services.client_stats_service import get_users_by_client, get_client_plan
 from src.models.aws_account import AWSAccount
-
-# ── paleta ────────────────────────────────────────────────
-INK    = colors.HexColor("#0f172a")
-MUTED  = colors.HexColor("#64748b")
-BORDER = colors.HexColor("#e2e8f0")
-BG_ALT = colors.HexColor("#f8fafc")
-WHITE  = colors.white
-DARK   = colors.HexColor("#1e293b")
-GREEN  = colors.HexColor("#15803d")
-BLUE   = colors.HexColor("#1d4ed8")
-INDIGO = colors.HexColor("#4f46e5")
-VIOLET = colors.HexColor("#6d28d9")
-
-
-def _fmt_usd(v) -> str:
-    v = float(v or 0)
-    if v >= 1000:
-        return f"USD ${v/1000:.1f}K"
-    return f"USD ${v:.2f}"
-
-
-def _pct(v) -> str:
-    return f"{float(v or 0):.1f}%"
-
-
-def _kpi(label, value, sub, bg_hex, fg_hex, w):
-    bg = colors.HexColor(bg_hex)
-    fg = colors.HexColor(fg_hex)
-    t = Table(
-        [
-            [Paragraph(label, ParagraphStyle("kl", fontSize=7.5, textColor=MUTED, leading=10))],
-            [Paragraph(value, ParagraphStyle("kv", fontSize=14, textColor=fg, leading=17, fontName="Helvetica-Bold"))],
-            [Paragraph(sub,   ParagraphStyle("ks", fontSize=7,   textColor=MUTED, leading=9))],
-        ],
-        colWidths=[w - 14],
-    )
-    t.setStyle(TableStyle([
-        ("BACKGROUND",    (0, 0), (-1, -1), bg),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 8),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 8),
-        ("TOPPADDING",    (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ]))
-    return t
-
-
-def _section(title, styles):
-    return [
-        Spacer(1, 10),
-        Paragraph(title, styles["sec"]),
-        HRFlowable(width="100%", thickness=0.5, color=BORDER, spaceAfter=6),
-    ]
-
-
-def _bar_cell(pct: float, bar_total_w: float, bar_color, bg_color) -> Table:
-    """Celda con barra de progreso embebida (para usar dentro de una Table)."""
-    filled = max(2.0, pct / 100 * bar_total_w)
-    empty  = max(0.0, bar_total_w - filled)
-    if empty < 1:
-        data, cw = [[""]], [bar_total_w]
-    else:
-        data, cw = [["", ""]], [filled, empty]
-    t = Table(data, colWidths=cw, rowHeights=[7])
-    cmds = [
-        ("TOPPADDING",    (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 0),
-        ("BACKGROUND",    (0, 0), (0, -1),  bar_color),
-    ]
-    if empty >= 1:
-        cmds.append(("BACKGROUND", (1, 0), (1, -1), bg_color))
-    t.setStyle(TableStyle(cmds))
-    return t
-
-
-def _kpi_row(cards, col_w, usable_w):
-    n = len(cards)
-    w = (usable_w - 4 * (n - 1)) / n
-    cells = [_kpi(*c, w=w) for c in cards]
-    t = Table([cells], colWidths=[w + 4] * n)
-    t.setStyle(TableStyle([
-        ("LEFTPADDING",   (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 4),
-        ("TOPPADDING",    (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-    ]))
-    return t
+from src.reports.client.cost_pdf_shared import (
+    INK, MUTED, BORDER, BG_ALT, WHITE, DARK, GREEN, BLUE, INDIGO, VIOLET,
+    _fmt_usd, _pct, _kpi, _section, _bar_cell, _kpi_row,
+)
 
 
 def build_cost_pdf(client_id: int, aws_account_id: int | None = None) -> bytes:

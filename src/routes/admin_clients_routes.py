@@ -21,6 +21,7 @@ from src.models.client import Client
 from src.models.plan import Plan
 from src.models.subscription import ClientSubscription
 from src.models.database import db
+from src.routes.admin_clients_helpers import create_client_flow
 
 # =====================================================
 # BLUEPRINT
@@ -93,149 +94,9 @@ def list_clients():
 @admin_clients_bp.route("", methods=["POST"])
 @jwt_required()
 def create_client():
-
     actor = User.query.get(int(get_jwt_identity()))
-    if not actor or actor.global_role not in ("root", "admin"):
-        return jsonify({"error": "Unauthorized"}), 403
-
     data = request.get_json() or {}
-
-    company_name = data.get("company_name")
-    email = data.get("email")
-    contact_name = data.get("contact_name")
-    phone = data.get("phone")
-    is_active = data.get("is_active", True)
-    plan_id = data.get("plan_id")
-
-    owner_data = data.get("owner")
-
-    # =====================================================
-    # VALIDACIONES CLIENTE
-    # =====================================================
-    if not company_name:
-        return jsonify({"error": "company_name es obligatorio"}), 400
-
-    if not email:
-        return jsonify({"error": "email es obligatorio"}), 400
-
-    if not plan_id:
-        return jsonify({"error": "plan_id es obligatorio"}), 400
-
-    if not owner_data:
-        return jsonify({"error": "Owner obligatorio"}), 400
-
-    plan = Plan.query.get(plan_id)
-    if not plan:
-        return jsonify({"error": "Plan no válido"}), 400
-
-    if Client.query.filter_by(email=email.strip().lower()).first():
-        return jsonify({"error": "Ya existe un cliente con ese email"}), 409
-    
-    if Client.query.filter_by(company_name=company_name.strip()).first():
-        return jsonify({
-            "error": "Ya existe un cliente con ese nombre"}), 409
-
-    # =====================================================
-    # VALIDACIONES OWNER
-    # =====================================================
-    owner_email = owner_data.get("email")
-    owner_contact_name = owner_data.get("contact_name")
-    password = owner_data.get("password")
-    password_confirm = owner_data.get("password_confirm")
-
-    if not owner_email or not owner_contact_name:
-        return jsonify({"error": "Datos de owner incompletos"}), 400
-
-    if not password or len(password) < 8:
-        return jsonify({"error": "Password inválida"}), 400
-
-    if password != password_confirm:
-        return jsonify({"error": "Las contraseñas no coinciden"}), 400
-
-    if User.query.filter_by(email=owner_email.strip().lower()).first():
-        return jsonify({"error": "El usuario owner ya existe"}), 409
-
-    # =====================================================
-    # TRANSACCIÓN ATÓMICA
-    # =====================================================
-    try:
-
-        # ----------------------
-        # Crear cliente
-        # ----------------------
-        client = Client(
-            company_name=company_name.strip(),
-            email=email.strip().lower(),
-            contact_name=contact_name.strip() if contact_name else None,
-            phone=phone.strip() if phone else None,
-            is_active=is_active,
-        )
-
-        db.session.add(client)
-        db.session.flush()
-
-        # ----------------------
-        # Crear suscripción
-        # ----------------------
-        subscription = ClientSubscription(
-            client_id=client.id,
-            plan_id=plan.id,
-            is_active=True,
-        )
-
-        db.session.add(subscription)
-
-        # ----------------------
-        # Crear usuario OWNER
-        # ----------------------
-        owner = User(
-            email=owner_email.strip().lower(),
-            contact_name=owner_contact_name.strip(),
-            global_role=None,
-            client_id=client.id,
-            client_role="owner",
-            is_active=True,
-            force_password_change=True,
-        )
-
-        owner.set_password(password)
-
-        db.session.add(owner)
-
-        # ----------------------
-        # COMMIT FINAL
-        # ----------------------
-        db.session.commit()
-
-        # ----------------------
-        # Evento email
-        # ----------------------
-        from src.services.user_events_service import (
-            on_user_created_with_password
-        )
-
-        try:
-            on_user_created_with_password(owner, password)
-        except Exception:
-            current_app.logger.exception(
-                "[OWNER_WELCOME_EMAIL_FAILED] user_id=%s",
-                owner.id,
-            )
-
-        return jsonify({
-            "data": {
-                "client_id": client.id,
-                "company_name": client.company_name,
-                "owner_id": owner.id,
-                "owner_email": owner.email,
-                "plan": plan.name,
-            }
-        }), 201
-
-    except Exception:
-        db.session.rollback()
-        current_app.logger.exception("[CREATE_CLIENT_FAILED]")
-        return jsonify({"error": "Error interno"}), 500
+    return create_client_flow(data, actor)
 
 
 # =====================================================
