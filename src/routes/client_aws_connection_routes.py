@@ -177,8 +177,13 @@ def list_accounts():
         is_active=True
     ).all()
 
+    serialized_accounts = [a.to_dict() for a in accounts]
+
     return jsonify({
-        "accounts": [a.to_dict() for a in accounts]
+        "status": "ok",
+        "data": serialized_accounts,
+        "accounts": serialized_accounts,
+        "total": len(serialized_accounts)
     }), 200
 
 # ======================================================

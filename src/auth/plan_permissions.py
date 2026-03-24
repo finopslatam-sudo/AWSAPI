@@ -42,6 +42,7 @@ PLAN_FEATURES = {
         "findings": True,
         "assets": True,
         "costos": True,
+        "alertas": True,
 
         "gobernanza": False,
         "optimization": False,
@@ -53,6 +54,7 @@ PLAN_FEATURES = {
         "findings": True,
         "assets": True,
         "costos": True,
+        "alertas": True,
 
         "gobernanza": True,
         "optimization": True,
@@ -64,6 +66,7 @@ PLAN_FEATURES = {
         "findings": True,
         "assets": True,
         "costos": True,
+        "alertas": True,
 
         "gobernanza": True,
         "optimization": True,
