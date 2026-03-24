@@ -33,8 +33,9 @@ class AlertPolicy(db.Model):
     threshold_type = db.Column(db.String(10), nullable=True)  # USD | %
     period = db.Column(db.String(20), nullable=True)  # monthly | annual | daily | weekly
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at    = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at    = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_fired_at = db.Column(db.DateTime, nullable=True)
 
     def to_dict(self, include_account: bool = True):
         account = None

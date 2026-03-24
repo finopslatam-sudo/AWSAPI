@@ -141,6 +141,7 @@ from src.routes.client_subscription_routes import client_subscription_bp
 from src.routes.client_info_routes import client_info_bp
 from src.routes.admin_plan_upgrade_routes import admin_plan_upgrade_bp
 from src.routes.notification_routes import notification_bp
+from src.routes.alert_engine_routes import alert_engine_bp
 from src.models.notification import Notification  # noqa: F401 — expone tabla a Flask-Migrate
 
 app.register_blueprint(snapshot_bp)
@@ -161,6 +162,7 @@ app.register_blueprint(client_subscription_bp)
 app.register_blueprint(client_info_bp)
 app.register_blueprint(admin_plan_upgrade_bp)
 app.register_blueprint(notification_bp)
+app.register_blueprint(alert_engine_bp)
 
 register_admin_clients_routes(app)
 register_admin_report_routes(app)
