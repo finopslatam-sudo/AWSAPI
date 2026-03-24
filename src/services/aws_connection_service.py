@@ -10,6 +10,7 @@ from src.models.database import db
 from src.aws.sts_service import STSService
 from src.auth.plan_permissions import get_plan_limit
 from src.aws.anomaly_monitor_service import AnomalyMonitorService
+from src.services.default_policy_service import create_default_anomaly_policy
 
 
 class AWSConnectionService:
@@ -365,6 +366,16 @@ class AWSConnectionService:
                 db.session.commit()
             except Exception:
                 db.session.rollback()
+
+        # -----------------------------------------
+        # Create default anomaly policy for Foundation clients
+        # Non-blocking: if it fails, account still connects
+        # -----------------------------------------
+
+        try:
+            create_default_anomaly_policy(client_id, aws_account)
+        except Exception as e:
+            print(f"[AWSConnection] Error creando política por defecto: {e}")
 
         return verified_account_id
     
