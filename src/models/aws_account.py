@@ -42,6 +42,11 @@ class AWSAccount(db.Model):
     audit_finished_at = db.Column(db.DateTime)
 
     # ==========================================
+    # ANOMALY DETECTION
+    # ==========================================
+    anomaly_monitor_arn = db.Column(db.String(255), nullable=True)
+
+    # ==========================================
     # METADATA
     # ==========================================
     created_at = db.Column(

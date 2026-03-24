@@ -9,6 +9,7 @@ from src.models.aws_account import AWSAccount
 from src.models.database import db
 from src.aws.sts_service import STSService
 from src.auth.plan_permissions import get_plan_limit
+from src.aws.anomaly_monitor_service import AnomalyMonitorService
 
 
 class AWSConnectionService:
@@ -348,6 +349,22 @@ class AWSConnectionService:
             raise RuntimeError(
                 "Database error while saving AWS account"
             )
+
+        # -----------------------------------------
+        # Create Anomaly Monitor for this account
+        # Non-blocking: if it fails, account still connects
+        # -----------------------------------------
+
+        monitor_arn = AnomalyMonitorService.create_from_session(
+            session, verified_account_id
+        )
+
+        if monitor_arn:
+            aws_account.anomaly_monitor_arn = monitor_arn
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
 
         return verified_account_id
     

@@ -27,6 +27,7 @@ from src.models.aws_finding import AWSFinding
 from src.models.aws_resource_inventory import AWSResourceInventory
 from src.models.database import db
 from src.aws.cost_explorer_service import CostExplorerService
+from src.aws.anomaly_monitor_service import AnomalyMonitorService
 from src.services.alert_notifier import dispatch_alert
 
 
@@ -136,6 +137,35 @@ def evaluate_anomaly_spike(policy: AlertPolicy):
     accounts = _get_accounts(policy)
     if not accounts:
         return False, {}
+
+    threshold = policy.threshold or 10
+    t_type = policy.threshold_type or "USD"
+    min_impact = threshold if t_type == "USD" else 10.0
+
+    # ── Intentar con AWS Cost Anomaly Detection ────────────────────
+    all_anomalies = []
+    for account in accounts:
+        anomalies = AnomalyMonitorService.get_anomalies(account, min_impact_usd=min_impact)
+        all_anomalies.extend(anomalies)
+
+    if all_anomalies:
+        detalle = [
+            {
+                "cuenta": a["cuenta"],
+                "impacto": f"USD {a['impacto_usd']}",
+                "esperado": f"USD {a['gasto_esperado_usd']}",
+                "servicios": ", ".join(a["servicios"]) if a["servicios"] else "N/A",
+                "desde": a["fecha_inicio"],
+            }
+            for a in all_anomalies[:5]
+        ]
+        return True, {
+            "anomalias_detectadas": len(all_anomalies),
+            "detalle": detalle,
+            "fuente": "AWS Cost Anomaly Detection (ML nativo)",
+        }
+
+    # ── Fallback: cálculo manual si no hay monitor configurado ─────
     try:
         months = CostExplorerService(accounts[0]).get_last_6_months_cost()
         if len(months) < 2:
@@ -145,13 +175,14 @@ def evaluate_anomaly_spike(policy: AlertPolicy):
         if previous <= 0:
             return False, {}
         increase_pct = ((current - previous) / previous) * 100
-        threshold = policy.threshold or 20
-        fired = increase_pct >= threshold
+        pct_threshold = threshold if t_type == "%" else 20
+        fired = increase_pct >= pct_threshold
         return fired, {
             "costo_mes_actual": f"USD {round(current, 2)}",
             "costo_mes_anterior": f"USD {round(previous, 2)}",
             "incremento": f"{round(increase_pct, 1)}%",
-            "umbral_alerta": f"{threshold}% de incremento",
+            "umbral_alerta": f"{pct_threshold}% de incremento",
+            "fuente": "Cálculo manual (monitor AWS pendiente)",
         }
     except Exception:
         return False, {}
