@@ -181,6 +181,7 @@ def upgrade_subscription():
             db.session.add(notif)
         db.session.commit()
     except Exception as e:
+        db.session.rollback()
         print("Error creando notificaciones staff:", e)
 
     # =====================================

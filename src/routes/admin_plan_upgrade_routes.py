@@ -213,6 +213,7 @@ def approve_upgrade(request_id):
             db.session.add(notif)
         db.session.commit()
     except Exception as e:
+        db.session.rollback()
         print(f"Error creando notificaciones de aprobación: {e}")
 
     return jsonify({
