@@ -21,6 +21,7 @@ from src.services.email_templates import (
 )
 
 from src.models.plan_upgrade_request import PlanUpgradeRequest
+from src.models.notification import Notification
 
 
 client_subscription_bp = Blueprint(
@@ -161,6 +162,26 @@ def upgrade_subscription():
 
     except Exception as e:
         print("Error sending owner email:", e)
+
+    # =====================================
+    # NOTIFICACIONES IN-APP — STAFF
+    # =====================================
+    try:
+        from src.models.client import Client
+        client_obj = Client.query.get(user.client_id)
+        company = client_obj.company_name if client_obj else f"Cliente #{user.client_id}"
+        staff_users = User.query.filter(User.global_role.isnot(None), User.is_active == True).all()
+        for staff_user in staff_users:
+            notif = Notification(
+                user_id=staff_user.id,
+                type="plan_upgrade_requested",
+                title="Solicitud de upgrade de plan",
+                message=f"{company} solicitó un upgrade al plan {new_plan.name}.",
+            )
+            db.session.add(notif)
+        db.session.commit()
+    except Exception as e:
+        print("Error creando notificaciones staff:", e)
 
     # =====================================
     # EMAIL ALERTA INTERNA A ADMIN

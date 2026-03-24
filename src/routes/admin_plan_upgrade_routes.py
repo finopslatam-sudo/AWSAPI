@@ -11,7 +11,7 @@ Permite a usuarios global admin/root:
 - Rechazar upgrades
 """
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from src.models.user import User
@@ -27,6 +27,7 @@ from src.services.email_templates import (
 )
 
 from src.models.client import Client
+from src.models.notification import Notification
 from datetime import datetime
 
 
@@ -194,6 +195,26 @@ def approve_upgrade(request_id):
         )
 
 
+    # =====================================
+    # NOTIFICACIONES IN-APP — USUARIOS DEL CLIENTE
+    # =====================================
+    try:
+        client_users = User.query.filter_by(
+            client_id=request_upgrade.client_id,
+            is_active=True
+        ).all()
+        for cu in client_users:
+            notif = Notification(
+                user_id=cu.id,
+                type="plan_upgrade_approved",
+                title="¡Tu plan fue actualizado!",
+                message=f"Tu plan ha sido actualizado a {new_plan.name}. Ya puedes disfrutar de las nuevas funcionalidades.",
+            )
+            db.session.add(notif)
+        db.session.commit()
+    except Exception as e:
+        print(f"Error creando notificaciones de aprobación: {e}")
+
     return jsonify({
         "data": {
             "status": "approved",
@@ -246,6 +267,27 @@ def reject_upgrade(request_id):
             body=email_body
         )
 
+
+    # =====================================
+    # NOTIFICACIONES IN-APP — USUARIOS DEL CLIENTE
+    # =====================================
+    try:
+        client_users = User.query.filter_by(
+            client_id=request_upgrade.client_id,
+            is_active=True
+        ).all()
+        plan_name = request_upgrade.requested_plan
+        for cu in client_users:
+            notif = Notification(
+                user_id=cu.id,
+                type="plan_upgrade_rejected",
+                title="Solicitud de upgrade rechazada",
+                message=f"Tu solicitud para cambiar al plan {plan_name} no fue aprobada. Contáctanos para más información.",
+            )
+            db.session.add(notif)
+        db.session.commit()
+    except Exception as e:
+        print(f"Error creando notificaciones de rechazo: {e}")
 
     return jsonify({
         "status": "rejected"
