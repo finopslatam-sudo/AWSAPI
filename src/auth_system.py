@@ -7,6 +7,8 @@ import os
 
 from src.models.database import db
 from src.models.user import User
+from src.models.subscription import ClientSubscription
+from src.models.plan import Plan
 from src.services.password_service import (
     generate_temp_password,
     get_temp_password_expiration
@@ -37,6 +39,23 @@ def init_auth_system(app):
 # ===============================
 # HELPERS
 # ===============================
+def get_user_plan_code(user: User):
+    if not user.client_id:
+        return None
+
+    subscription = (
+        ClientSubscription.query
+        .filter_by(client_id=user.client_id, is_active=True)
+        .first()
+    )
+
+    if not subscription:
+        return None
+
+    plan = Plan.query.get(subscription.plan_id)
+    return plan.code if plan else None
+
+
 def build_login_response(user: User) -> dict:
     return {
         "id": user.id,
@@ -47,6 +66,7 @@ def build_login_response(user: User) -> dict:
         "is_active": user.is_active,
         "force_password_change": user.force_password_change,
         "contact_name": user.contact_name,
+        "plan_code": get_user_plan_code(user),
     }
 
 # ===============================
