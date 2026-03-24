@@ -196,9 +196,16 @@ def approve_upgrade(request_id):
 
 
     # =====================================
-    # NOTIFICACIONES IN-APP — USUARIOS DEL CLIENTE
+    # NOTIFICACIONES IN-APP
     # =====================================
     try:
+        # Eliminar notificaciones de staff sobre esta solicitud
+        Notification.query.filter_by(
+            type="plan_upgrade_requested",
+            reference_id=request_id,
+        ).delete()
+
+        # Notificar a los usuarios del cliente
         client_users = User.query.filter_by(
             client_id=request_upgrade.client_id,
             is_active=True
@@ -214,7 +221,7 @@ def approve_upgrade(request_id):
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        print(f"Error creando notificaciones de aprobación: {e}")
+        print(f"Error en notificaciones de aprobación: {e}")
 
     return jsonify({
         "data": {
@@ -270,9 +277,16 @@ def reject_upgrade(request_id):
 
 
     # =====================================
-    # NOTIFICACIONES IN-APP — USUARIOS DEL CLIENTE
+    # NOTIFICACIONES IN-APP
     # =====================================
     try:
+        # Eliminar notificaciones de staff sobre esta solicitud
+        Notification.query.filter_by(
+            type="plan_upgrade_requested",
+            reference_id=request_id,
+        ).delete()
+
+        # Notificar a los usuarios del cliente
         client_users = User.query.filter_by(
             client_id=request_upgrade.client_id,
             is_active=True
@@ -288,7 +302,8 @@ def reject_upgrade(request_id):
             db.session.add(notif)
         db.session.commit()
     except Exception as e:
-        print(f"Error creando notificaciones de rechazo: {e}")
+        db.session.rollback()
+        print(f"Error en notificaciones de rechazo: {e}")
 
     return jsonify({
         "status": "rejected"

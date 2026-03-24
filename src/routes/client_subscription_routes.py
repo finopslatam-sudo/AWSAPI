@@ -175,8 +175,9 @@ def upgrade_subscription():
             notif = Notification(
                 user_id=staff_user.id,
                 type="plan_upgrade_requested",
-                title="Solicitud de upgrade de plan",
-                message=f"{company} solicitó un upgrade al plan {new_plan.name}.",
+                title="Aprobación pendiente",
+                message=f"{company} solicitó un upgrade al plan {new_plan.name}. Aprobación pendiente.",
+                reference_id=upgrade_request.id,
             )
             db.session.add(notif)
         db.session.commit()
