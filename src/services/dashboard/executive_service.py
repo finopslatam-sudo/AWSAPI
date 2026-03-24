@@ -16,27 +16,41 @@ class ExecutiveService:
     @staticmethod
     def get_executive_summary(
         client_id: int,
-        aws_account_id: int | None = None
+        aws_account_id: int | None = None,
+        risk: dict | None = None,
+        governance: dict | None = None,
+        roi: dict | None = None,
+        priority_services: list | None = None,
     ):
 
         # -----------------------------------------------------
         # CORE METRICS
         # -----------------------------------------------------
-        risk = RiskService.get_risk_score(client_id, aws_account_id)
-        governance = GovernanceService.get_governance_score(
-            client_id,
-            aws_account_id
-        )
-        roi = ROIService.get_roi_projection(client_id, aws_account_id)
-        priority = RiskService.get_priority_services(
-            client_id,
-            aws_account_id
-        )
+        if risk is None:
+            risk = RiskService.get_risk_score(client_id, aws_account_id)
+
+        if governance is None:
+            governance = GovernanceService.get_governance_score(
+                client_id,
+                aws_account_id
+            )
+
+        if roi is None:
+            roi = ROIService.get_roi_projection(client_id, aws_account_id)
+
+        if priority_services is None:
+            priority_services = RiskService.get_priority_services(
+                client_id,
+                aws_account_id
+            )
 
         # -----------------------------------------------------
         # PRIMARY RISK DRIVER
         # -----------------------------------------------------
-        primary_service = priority[0]["service"] if priority else None
+        primary_service = (
+            priority_services[0]["service"]
+            if priority_services else None
+        )
 
         # -----------------------------------------------------
         # FINANCIAL EXPOSURE (ACTIVE FINDINGS ONLY + INVENTORY ACTIVE)

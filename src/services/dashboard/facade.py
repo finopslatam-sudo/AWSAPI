@@ -170,13 +170,17 @@ class ClientDashboardFacade:
             client_id,
             aws_account_id
         )
-        executive_summary = ExecutiveService.get_executive_summary(
-            client_id,
-            aws_account_id
-        )
         roi_projection = ROIService.get_roi_projection(
             client_id,
             aws_account_id
+        )
+        executive_summary = ExecutiveService.get_executive_summary(
+            client_id,
+            aws_account_id,
+            risk=risk,
+            governance=governance,
+            roi=roi_projection,
+            priority_services=priority_services,
         )
         trend = TrendService.get_risk_trend(client_id, 30)
         remediation = RemediationService.get_remediation_metrics(
