@@ -15,6 +15,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from src.models.database import db
 from src.models.user import User
 from src.models.support_ticket import SupportTicket, SupportTicketMessage
+from src.models.notification import Notification
 
 
 client_support_bp = Blueprint(
@@ -26,7 +27,7 @@ client_support_bp.strict_slashes = False
 
 
 # ─────────────────────────────────────────────────────────
-# HELPER
+# HELPERS
 # ─────────────────────────────────────────────────────────
 
 def _require_client(user_id: int) -> User | None:
@@ -38,6 +39,24 @@ def _require_client(user_id: int) -> User | None:
     if not user.client_id:
         return None
     return user
+
+
+def _notify_staff(title: str, message: str, ntype: str, reference_id: int,
+                  assigned_to_id: int | None = None) -> None:
+    """Crea notificaciones para staff. Si assigned_to_id está definido,
+    notifica solo a ese usuario; si no, notifica a todo el staff activo."""
+    if assigned_to_id:
+        targets = User.query.filter_by(id=assigned_to_id, is_active=True).all()
+    else:
+        targets = User.query.filter(
+            User.global_role.in_(["root", "admin", "support"]),
+            User.is_active == True  # noqa: E712
+        ).all()
+    for s in targets:
+        db.session.add(Notification(
+            user_id=s.id, type=ntype,
+            title=title, message=message, reference_id=reference_id,
+        ))
 
 
 # ─────────────────────────────────────────────────────────
@@ -102,6 +121,14 @@ def create_ticket():
         db.session.flush()  # obtener ID antes de commit
 
         ticket.ticket_number = f"TKT-{datetime.utcnow().year}-{ticket.id:05d}"
+
+        _notify_staff(
+            title=f"Nuevo ticket: {title[:60]}",
+            message=f"El cliente ha abierto el ticket {ticket.ticket_number}.",
+            ntype="support_ticket_created",
+            reference_id=ticket.id,
+        )
+
         db.session.commit()
 
         return jsonify({"status": "ok", "ticket": ticket.to_dict()}), 201
@@ -179,6 +206,15 @@ def add_message(ticket_id: int):
             ticket.status = "open"
 
         ticket.updated_at = datetime.utcnow()
+
+        _notify_staff(
+            title=f"Respuesta en {ticket.ticket_number}",
+            message=f"El cliente ha respondido en el ticket '{ticket.title[:60]}'.",
+            ntype="support_ticket_client_reply",
+            reference_id=ticket.id,
+            assigned_to_id=ticket.assigned_to_id,
+        )
+
         db.session.commit()
 
         return jsonify({"status": "ok", "message": msg.to_dict()}), 201

@@ -14,6 +14,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from src.models.database import db
 from src.models.user import User
 from src.models.support_ticket import SupportTicket, SupportTicketMessage
+from src.models.notification import Notification
 
 
 admin_support_bp = Blueprint(
@@ -25,7 +26,7 @@ admin_support_bp.strict_slashes = False
 
 
 # ─────────────────────────────────────────────────────────
-# HELPER
+# HELPERS
 # ─────────────────────────────────────────────────────────
 
 def _require_staff(user_id: int) -> User | None:
@@ -35,6 +36,13 @@ def _require_staff(user_id: int) -> User | None:
     if user.global_role not in ("root", "admin", "support"):
         return None
     return user
+
+
+def _notify_ticket_owner(ticket: SupportTicket, title: str, message: str, ntype: str) -> None:
+    db.session.add(Notification(
+        user_id=ticket.user_id, type=ntype,
+        title=title, message=message, reference_id=ticket.id,
+    ))
 
 
 # ─────────────────────────────────────────────────────────
@@ -144,6 +152,14 @@ def add_message(ticket_id: int):
         ticket.status = "in_progress"
         ticket.assigned_to_id = staff.id
         ticket.updated_at = datetime.utcnow()
+
+        _notify_ticket_owner(
+            ticket,
+            title=f"Respuesta en {ticket.ticket_number}",
+            message=f"El equipo de soporte ha respondido tu ticket '{ticket.title[:60]}'.",
+            ntype="support_ticket_reply",
+        )
+
         db.session.commit()
 
         return jsonify({"status": "ok", "message": msg.to_dict()}), 201
@@ -185,6 +201,20 @@ def update_status(ticket_id: int):
     if new_status == "resolved":
         ticket.resolved_at = datetime.utcnow()
         ticket.assigned_to_id = staff.id
+
+    _status_labels = {
+        "resolved": "resuelto",
+        "closed":   "cerrado",
+        "open":     "reabierto",
+        "in_progress": "en proceso",
+    }
+    if new_status in ("resolved", "closed", "open", "in_progress"):
+        _notify_ticket_owner(
+            ticket,
+            title=f"Ticket {ticket.ticket_number} {_status_labels[new_status]}",
+            message=f"El estado de tu ticket '{ticket.title[:60]}' cambió a {_status_labels[new_status]}.",
+            ntype="support_ticket_status",
+        )
 
     db.session.commit()
 
