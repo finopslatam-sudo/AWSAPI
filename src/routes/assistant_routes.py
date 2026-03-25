@@ -1,17 +1,17 @@
 """
 assistant_routes.py
-Endpoint de Finops.ia — chatbot AWS FinOps Enterprise.
+Endpoint de Finops.ia con RAG — lee datos reales del cliente antes de responder.
 """
 from flask import Blueprint, jsonify, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from src.models.user import User
 from src.services.assistant_service import chat
+from src.services.assistant_context_builder import build_context
 
 assistant_bp = Blueprint("assistant", __name__)
 
 
 def _require_client_user(user_id: int):
-    """Retorna el usuario cliente o None si es staff / no existe."""
     user = User.query.get(user_id)
     if not user or not user.is_active:
         return None
@@ -34,15 +34,25 @@ def assistant_chat():
 
     messages = data.get("messages", [])
     is_new = bool(data.get("is_new_conversation", False))
+    aws_account_id = data.get("aws_account_id")
 
     if not isinstance(messages, list):
         return jsonify({"error": "messages debe ser una lista"}), 400
 
-    # Limitar historial a últimos 20 mensajes (10 turnos) para control de costos
+    # Validar aws_account_id si viene
+    if aws_account_id is not None:
+        try:
+            aws_account_id = int(aws_account_id)
+        except (TypeError, ValueError):
+            return jsonify({"error": "aws_account_id inválido"}), 400
+
+    # Limitar historial a últimos 20 mensajes (10 turnos)
     messages = messages[-20:]
 
     try:
-        response_text = chat(messages, is_new)
+        # RAG: construir contexto con datos reales del cliente
+        context = build_context(user.client_id, aws_account_id)
+        response_text = chat(messages, is_new, context)
         return jsonify({"response": response_text}), 200
     except RuntimeError as e:
         current_app.logger.error(f"[Finops.ia] Config error: {e}")
