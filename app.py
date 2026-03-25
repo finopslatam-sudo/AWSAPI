@@ -144,6 +144,7 @@ from src.routes.notification_routes import notification_bp
 from src.routes.alert_engine_routes import alert_engine_bp
 from src.routes.client_support_routes import client_support_bp
 from src.routes.admin_support_routes import admin_support_bp
+from src.routes.assistant_routes import assistant_bp
 from src.models.notification import Notification  # noqa: F401 — expone tabla a Flask-Migrate
 from src.models.support_ticket import SupportTicket, SupportTicketMessage  # noqa: F401 — expone tablas a Flask-Migrate
 
@@ -168,6 +169,7 @@ app.register_blueprint(notification_bp)
 app.register_blueprint(alert_engine_bp)
 app.register_blueprint(client_support_bp)
 app.register_blueprint(admin_support_bp)
+app.register_blueprint(assistant_bp)
 
 register_admin_clients_routes(app)
 register_admin_report_routes(app)
