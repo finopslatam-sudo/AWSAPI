@@ -98,6 +98,8 @@ class RDSScanner(BaseScanner):
                             "item_count": table.get("ItemCount"),
                             "table_size_bytes": table.get("TableSizeBytes"),
                             "creation_date": str(table.get("CreationDateTime")),
+                            "provisioned_wcu": table.get("ProvisionedThroughput", {}).get("WriteCapacityUnits"),
+                            "provisioned_rcu": table.get("ProvisionedThroughput", {}).get("ReadCapacityUnits"),
                         }
                     )
 

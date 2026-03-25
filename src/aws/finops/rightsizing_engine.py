@@ -88,10 +88,10 @@ class RightsizingEngine:
             total += evaluate_ebs(client_id, aws_account.id)
             total += evaluate_rds(session, client_id, aws_account.id)
             total += evaluate_lambda(session, client_id, aws_account.id)
-            total += evaluate_dynamodb(client_id, aws_account.id)
+            total += evaluate_dynamodb(session, client_id, aws_account.id)
             total += evaluate_cloudwatch(client_id, aws_account.id)
             total += evaluate_s3(session, client_id, aws_account.id)
-            total += evaluate_ecs(client_id, aws_account.id)
+            total += evaluate_ecs(session, client_id, aws_account.id)
             total += evaluate_eks(client_id, aws_account.id)
             total += evaluate_nat(session, client_id, aws_account.id)
             total += evaluate_redshift(session, client_id, aws_account.id)
@@ -191,8 +191,8 @@ class RightsizingEngine:
         return evaluate_lambda(session, client_id, aws_account_id)
 
     @staticmethod
-    def evaluate_dynamodb(client_id, aws_account_id):
-        return evaluate_dynamodb(client_id, aws_account_id)
+    def evaluate_dynamodb(session, client_id, aws_account_id):
+        return evaluate_dynamodb(session, client_id, aws_account_id)
 
     @staticmethod
     def evaluate_cloudwatch(client_id, aws_account_id):
@@ -203,8 +203,8 @@ class RightsizingEngine:
         return evaluate_s3(session, client_id, aws_account_id)
 
     @staticmethod
-    def evaluate_ecs(client_id, aws_account_id):
-        return evaluate_ecs(client_id, aws_account_id)
+    def evaluate_ecs(session, client_id, aws_account_id):
+        return evaluate_ecs(session, client_id, aws_account_id)
 
     @staticmethod
     def evaluate_eks(client_id, aws_account_id):

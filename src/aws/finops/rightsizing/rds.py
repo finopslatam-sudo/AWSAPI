@@ -7,10 +7,14 @@ from src.aws.finops.rightsizing.shared import (
     upsert_recommendation,
     get_metric_average,
 )
+from src.aws.finops.rightsizing.pricing import (
+    RDS_DOWNSIZE, rds_monthly,
+    REDSHIFT_PRICING, REDSHIFT_DOWNSIZE, HOURS_MONTH,
+)
 
 
 # =====================================================
-# RDS RIGHTSIZING
+# RDS RIGHTSIZING — specific instance class downsize
 # =====================================================
 
 def evaluate_rds(session, client_id, aws_account_id):
@@ -29,23 +33,17 @@ def evaluate_rds(session, client_id, aws_account_id):
         finding_type = "RDS_UNDERUTILIZED"
 
         if db_instance.state != "available":
-            resolve_finding(
-                client_id,
-                aws_account_id,
-                db_instance.resource_id,
-                finding_type
-            )
+            resolve_finding(client_id, aws_account_id, db_instance.resource_id, finding_type)
             continue
 
-        region = db_instance.region
+        region        = db_instance.region
         db_identifier = db_instance.resource_id
+        metadata      = db_instance.resource_metadata or {}
+        instance_class = metadata.get("instance_class", "")
+        multi_az       = bool(metadata.get("multi_az", False))
 
-        cloudwatch = session.client(
-            "cloudwatch",
-            region_name=region
-        )
-
-        end = datetime.utcnow()
+        cloudwatch = session.client("cloudwatch", region_name=region)
+        end   = datetime.utcnow()
         start = end - timedelta(days=7)
 
         try:
@@ -53,26 +51,41 @@ def evaluate_rds(session, client_id, aws_account_id):
                 cloudwatch=cloudwatch,
                 namespace="AWS/RDS",
                 metric_name="CPUUtilization",
-                dimensions=[
-                    {"Name": "DBInstanceIdentifier", "Value": db_identifier}
-                ],
+                dimensions=[{"Name": "DBInstanceIdentifier", "Value": db_identifier}],
                 start=start,
-                end=end
+                end=end,
             )
         except Exception as e:
             print(f"[RDS RIGHTSIZING ERROR]: {str(e)}")
             continue
 
         if avg_cpu is None:
-            resolve_finding(
-                client_id,
-                aws_account_id,
-                db_identifier,
-                finding_type
-            )
+            resolve_finding(client_id, aws_account_id, db_identifier, finding_type)
             continue
 
         if avg_cpu < RDS_CPU_THRESHOLD:
+            recommended = RDS_DOWNSIZE.get(instance_class)
+            current_mo  = rds_monthly(instance_class, multi_az)
+            az_label    = " Multi-AZ" if multi_az else ""
+
+            if recommended and current_mo > 0:
+                rec_mo   = rds_monthly(recommended, multi_az)
+                savings  = round(current_mo - rec_mo, 2)
+                severity = "HIGH" if savings >= 100 else "MEDIUM"
+                message  = (
+                    f"CPU promedio 7d: {round(avg_cpu, 1)}% | "
+                    f"Actual: {instance_class}{az_label} (${current_mo:.0f}/mes) → "
+                    f"Recomendado: {recommended}{az_label} (${rec_mo:.0f}/mes) | "
+                    f"Ahorro: ${savings:.0f}/mes"
+                )
+            else:
+                savings  = round(max(current_mo * 0.5, 10.0), 2) if current_mo > 0 else 50.0
+                severity = "MEDIUM"
+                message  = (
+                    f"CPU promedio 7d: {round(avg_cpu, 1)}% | "
+                    f"Instancia {instance_class}{az_label} subutilizada. Evaluar downsize."
+                )
+
             upsert_recommendation(
                 client_id=client_id,
                 aws_account_id=db_instance.aws_account_id,
@@ -81,24 +94,19 @@ def evaluate_rds(session, client_id, aws_account_id):
                 region=region,
                 aws_service="RDS",
                 finding_type=finding_type,
-                severity="MEDIUM",
-                message=f"CPU promedio de los ultimos 7 dias: {round(avg_cpu, 2)}%. La instancia RDS parece sobredimensionada.",
-                estimated_monthly_savings=50.0
+                severity=severity,
+                message=message,
+                estimated_monthly_savings=savings,
             )
             count += 1
         else:
-            resolve_finding(
-                client_id,
-                aws_account_id,
-                db_identifier,
-                finding_type
-            )
+            resolve_finding(client_id, aws_account_id, db_identifier, finding_type)
 
     return count
 
 
 # =====================================================
-# REDSHIFT RIGHTSIZING
+# REDSHIFT RIGHTSIZING — reduce nodes or node type
 # =====================================================
 
 def evaluate_redshift(session, client_id, aws_account_id):
@@ -114,18 +122,17 @@ def evaluate_redshift(session, client_id, aws_account_id):
     ).all()
 
     finding_type = "REDSHIFT_UNDERUTILIZED"
-    end = datetime.utcnow()
+    end   = datetime.utcnow()
     start = end - timedelta(days=7)
 
     for cluster in clusters:
         if cluster.state != "available":
-            resolve_finding(
-                client_id,
-                aws_account_id,
-                cluster.resource_id,
-                finding_type
-            )
+            resolve_finding(client_id, aws_account_id, cluster.resource_id, finding_type)
             continue
+
+        metadata   = cluster.resource_metadata or {}
+        node_type  = metadata.get("node_type", "")
+        node_count = int(metadata.get("number_of_nodes") or 1)
 
         try:
             cloudwatch = session.client("cloudwatch", region_name=cluster.region)
@@ -133,38 +140,60 @@ def evaluate_redshift(session, client_id, aws_account_id):
                 cloudwatch=cloudwatch,
                 namespace="AWS/Redshift",
                 metric_name="CPUUtilization",
-                dimensions=[
-                    {"Name": "ClusterIdentifier", "Value": cluster.resource_id}
-                ],
+                dimensions=[{"Name": "ClusterIdentifier", "Value": cluster.resource_id}],
                 start=start,
-                end=end
+                end=end,
             )
         except Exception as e:
             print(f"[REDSHIFT RIGHTSIZING ERROR]: {str(e)}")
             continue
 
-        if avg_cpu is not None and avg_cpu < REDSHIFT_CPU_THRESHOLD:
-            node_count = (cluster.resource_metadata or {}).get("number_of_nodes") or 1
-            estimated_savings = round(max(float(node_count) * 30.0, 30.0), 2)
-            upsert_recommendation(
-                client_id=client_id,
-                aws_account_id=aws_account_id,
-                resource_id=cluster.resource_id,
-                resource_type=cluster.resource_type,
-                region=cluster.region,
-                aws_service="Redshift",
-                finding_type=finding_type,
-                severity="MEDIUM",
-                message=f"CPU promedio de los ultimos 7 dias: {round(avg_cpu, 2)}%. El cluster parece sobredimensionado.",
-                estimated_monthly_savings=estimated_savings
+        if avg_cpu is None or avg_cpu >= REDSHIFT_CPU_THRESHOLD:
+            resolve_finding(client_id, aws_account_id, cluster.resource_id, finding_type)
+            continue
+
+        node_hr   = REDSHIFT_PRICING.get(node_type, 0.0)
+        current_mo = round(node_hr * node_count * HOURS_MONTH, 2)
+
+        if node_count > 1:
+            rec_count = node_count - 1
+            savings   = round(node_hr * HOURS_MONTH, 2)
+            message   = (
+                f"CPU promedio 7d: {round(avg_cpu, 1)}% | "
+                f"Cluster: {node_count}x {node_type} (${current_mo:.0f}/mes) → "
+                f"Recomendado: {rec_count}x {node_type} (${current_mo - savings:.0f}/mes) | "
+                f"Ahorro: ${savings:.0f}/mes"
             )
-            count += 1
+        elif REDSHIFT_DOWNSIZE.get(node_type):
+            rec_type  = REDSHIFT_DOWNSIZE[node_type]
+            rec_mo    = round(REDSHIFT_PRICING.get(rec_type, 0.0) * HOURS_MONTH, 2)
+            savings   = round(max(current_mo - rec_mo, 0), 2)
+            message   = (
+                f"CPU promedio 7d: {round(avg_cpu, 1)}% | "
+                f"Nodo: {node_type} (${current_mo:.0f}/mes) → "
+                f"Recomendado: {rec_type} (${rec_mo:.0f}/mes) | "
+                f"Ahorro: ${savings:.0f}/mes"
+            )
         else:
-            resolve_finding(
-                client_id,
-                aws_account_id,
-                cluster.resource_id,
-                finding_type
+            savings = round(current_mo * 0.3, 2)
+            message = (
+                f"CPU promedio 7d: {round(avg_cpu, 1)}% | "
+                f"Cluster {node_type} ({node_count} nodo/s) subutilizado. "
+                f"Evaluar reducir nodos o pausar el cluster."
             )
+
+        upsert_recommendation(
+            client_id=client_id,
+            aws_account_id=aws_account_id,
+            resource_id=cluster.resource_id,
+            resource_type=cluster.resource_type,
+            region=cluster.region,
+            aws_service="Redshift",
+            finding_type=finding_type,
+            severity="MEDIUM",
+            message=message,
+            estimated_monthly_savings=savings,
+        )
+        count += 1
 
     return count

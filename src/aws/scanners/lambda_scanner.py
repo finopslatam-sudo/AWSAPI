@@ -121,6 +121,8 @@ class LambdaScanner(BaseScanner):
                                 "running_count": service.get("runningCount"),
                                 "pending_count": service.get("pendingCount"),
                                 "launch_type": service.get("launchType"),
+                                "task_definition": service.get("taskDefinition"),
+                                "cluster_arn": cluster_arn,
                             }
                         )
 
