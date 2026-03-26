@@ -9,6 +9,7 @@ from src.models.database import db
 from src.models.user import User
 from src.models.aws_account import AWSAccount
 from src.aws.finops_auditor import FinOpsAuditor
+from src.services.cost_explorer_cache_service import CostExplorerCacheService
 
 
 client_audit_bp = Blueprint(
@@ -85,6 +86,10 @@ def run_client_audit():
                     account.audit_status = "completed"
                     account.audit_finished_at = datetime.utcnow()
                     db.session.commit()
+
+                # Invalidar caché de desglose por servicio para que el
+                # dashboard refleje los nuevos datos tras el scan.
+                CostExplorerCacheService.invalidate_service_breakdown(aws_account_id)
 
                 db.session.remove()
 

@@ -6,7 +6,7 @@ from sqlalchemy import func
 from src.models.aws_finding import AWSFinding
 from src.models.aws_account import AWSAccount
 from src.models.database import db
-from src.aws.cost_explorer_service import CostExplorerService
+from src.services.cost_explorer_cache_service import CostExplorerCacheService as CostExplorerService
 
 # Query helpers live in a dedicated module to keep this file < 300 lines.
 from src.services.client_dashboard_queries import (

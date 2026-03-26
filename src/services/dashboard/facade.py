@@ -20,7 +20,7 @@ from src.services.client_dashboard_service import ClientDashboardService
 #   IN-MEMORY CACHE (TTL 5 min por client/account)
 # =====================================================
 _cache: dict = {}
-_CACHE_TTL = 300  # segundos
+_CACHE_TTL = 900  # segundos (15 min — L1 cache; la fuente real está en cost_explorer_cache BD)
 
 
 class ClientDashboardFacade:
@@ -168,7 +168,8 @@ class ClientDashboardFacade:
         )
         priority_services = RiskService.get_priority_services(
             client_id,
-            aws_account_id
+            aws_account_id,
+            breakdown=risk_by_service,  # reutiliza el resultado ya calculado
         )
         roi_projection = ROIService.get_roi_projection(
             client_id,

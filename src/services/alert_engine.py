@@ -26,7 +26,7 @@ from src.models.aws_account import AWSAccount
 from src.models.aws_finding import AWSFinding
 from src.models.aws_resource_inventory import AWSResourceInventory
 from src.models.database import db
-from src.aws.cost_explorer_service import CostExplorerService
+from src.services.cost_explorer_cache_service import CostExplorerCacheService as CostExplorerService
 from src.aws.anomaly_monitor_service import AnomalyMonitorService
 from src.services.alert_notifier import dispatch_alert
 

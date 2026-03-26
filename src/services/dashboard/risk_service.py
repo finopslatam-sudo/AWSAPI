@@ -176,13 +176,15 @@ class RiskService:
     @staticmethod
     def get_priority_services(
         client_id: int,
-        aws_account_id: int | None = None
+        aws_account_id: int | None = None,
+        breakdown: dict | None = None,  # pre-computed para evitar query duplicada
     ):
 
-        breakdown = RiskService.get_risk_breakdown_by_service(
-            client_id,
-            aws_account_id
-        )
+        if breakdown is None:
+            breakdown = RiskService.get_risk_breakdown_by_service(
+                client_id,
+                aws_account_id
+            )
 
         services_list = [
             {
