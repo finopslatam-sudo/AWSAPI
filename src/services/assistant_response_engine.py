@@ -64,7 +64,7 @@ def _h_greeting(client_id, account_id):
     snaps = _snapshots(client_id, 1)
     risk = f"Score: {snaps[0].risk_score} ({snaps[0].risk_level})" if snaps else "Sin datos de riesgo aún"
     return (
-        f"Hola, soy Finops.ia — arquitecto AWS especializado en FinOps.\n\n"
+        f"Hola, soy Finops.ia — Tu asistente AWS especializado en FinOps.\n\n"
         f"Resumen de tu cuenta:\n"
         f"  • {len(fs)} hallazgos activos ({crits} críticos)\n"
         f"  • Ahorro potencial: ${total_sav:.0f}/mes\n"
