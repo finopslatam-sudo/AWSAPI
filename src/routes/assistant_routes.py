@@ -1,12 +1,11 @@
 """
 assistant_routes.py
-Endpoint de Finops.ia con RAG — lee datos reales del cliente antes de responder.
+Endpoint de Finops.ia — motor de respuestas local, sin API externa.
 """
 from flask import Blueprint, jsonify, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from src.models.user import User
-from src.services.assistant_service import chat
-from src.services.assistant_context_builder import build_context
+from src.services.assistant_response_engine import get_response
 
 assistant_bp = Blueprint("assistant", __name__)
 
@@ -39,24 +38,22 @@ def assistant_chat():
     if not isinstance(messages, list):
         return jsonify({"error": "messages debe ser una lista"}), 400
 
-    # Validar aws_account_id si viene
     if aws_account_id is not None:
         try:
             aws_account_id = int(aws_account_id)
         except (TypeError, ValueError):
             return jsonify({"error": "aws_account_id inválido"}), 400
 
-    # Limitar historial a últimos 20 mensajes (10 turnos)
-    messages = messages[-20:]
+    # Obtener el último mensaje del usuario
+    last_message = ""
+    for m in reversed(messages):
+        if m.get("role") == "user" and m.get("content"):
+            last_message = str(m["content"])
+            break
 
     try:
-        # RAG: construir contexto con datos reales del cliente
-        context = build_context(user.client_id, aws_account_id)
-        response_text = chat(messages, is_new, context)
+        response_text = get_response(last_message, user.client_id, aws_account_id, is_new)
         return jsonify({"response": response_text}), 200
-    except RuntimeError as e:
-        current_app.logger.error(f"[Finops.ia] Config error: {e}")
-        return jsonify({"error": "Servicio no disponible temporalmente"}), 503
     except Exception as e:
         current_app.logger.error(f"[Finops.ia] Error: {e}")
         return jsonify({"error": "Error interno del servidor"}), 500
