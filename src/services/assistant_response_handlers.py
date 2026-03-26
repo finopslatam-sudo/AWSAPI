@@ -28,6 +28,10 @@ def _snapshots(client_id, n=2):
 
 def _sav(f): return float(f.estimated_monthly_savings or 0)
 
+def _account_lookup(client_id):
+    return {a.id: (a.account_name, a.account_id)
+            for a in AWSAccount.query.filter_by(client_id=client_id, is_active=True).all()}
+
 
 # ── Handlers ─────────────────────────────────────────────────
 def _h_greeting(client_id, account_id):
@@ -106,9 +110,12 @@ def _h_critical(client_id, account_id):
     fs = [f for f in _findings(client_id, account_id) if f.severity == "CRITICAL"]
     if not fs:
         return "No tienes hallazgos CRITICAL activos."
+    accs = _account_lookup(client_id)
     lines = [f"{len(fs)} hallazgos CRITICAL:\n"]
     for f in fs[:7]:
+        a_name, a_id = accs.get(f.aws_account_id, ("?", "?"))
         lines.append(f"  • {f.finding_type} | {f.resource_id} | {f.region or 'N/A'}")
+        lines.append(f"    Cuenta: {a_name} ({a_id})")
         lines.append(f"    {(f.message or '')[:120]}")
         lines.append(f"    Ahorro: ${_sav(f):.0f}/mes\n")
     return "\n".join(lines)
@@ -118,10 +125,13 @@ def _h_unused(client_id, account_id):
     fs = [f for f in _findings(client_id, account_id) if any(k in f.finding_type.upper() for k in idle_kw)]
     if not fs:
         return "No se detectaron recursos claramente sin usar."
+    accs = _account_lookup(client_id)
     total = sum(_sav(f) for f in fs)
     lines = [f"{len(fs)} recursos sin usar / subutilizados | ${total:.0f}/mes\n"]
     for f in fs[:6]:
+        a_name, a_id = accs.get(f.aws_account_id, ("?", "?"))
         lines.append(f"  • [{f.aws_service}] {f.resource_id} — ${_sav(f):.0f}/mes")
+        lines.append(f"    Cuenta: {a_name} ({a_id})")
         lines.append(f"    {(f.message or '')[:100]}")
     return "\n".join(lines)
 
@@ -158,9 +168,12 @@ def _h_expensive(client_id, account_id):
     top = sorted(_findings(client_id, account_id), key=_sav, reverse=True)[:8]
     if not top:
         return "No hay hallazgos con estimación de ahorro."
+    accs = _account_lookup(client_id)
     lines = ["Recursos con mayor impacto en costos:\n"]
     for f in top:
+        a_name, a_id = accs.get(f.aws_account_id, ("?", "?"))
         lines.append(f"  • [{f.severity}] {f.resource_id} | {f.aws_service}")
+        lines.append(f"    Cuenta: {a_name} ({a_id})")
         lines.append(f"    {(f.message or '')[:100]}")
         lines.append(f"    Ahorro: ${_sav(f):.0f}/mes\n")
     return "\n".join(lines)
@@ -198,19 +211,25 @@ def _h_resolve_first(client_id, account_id):
                       reverse=True)[:6]
     if not priority:
         return "No hay hallazgos pendientes."
+    accs = _account_lookup(client_id)
     lines = ["Prioridad de resolución (severidad + ahorro):\n"]
     for i, f in enumerate(priority, 1):
-        lines.append(f"  {i}. [{f.severity}] {f.finding_type} | {f.resource_id} | ${_sav(f):.0f}/mes")
+        a_name, a_id = accs.get(f.aws_account_id, ("?", "?"))
+        lines.append(f"  {i}. [{f.severity}] {f.finding_type} | ${_sav(f):.0f}/mes")
+        lines.append(f"     {f.resource_id} | {a_name} ({a_id})")
     return "\n".join(lines)
 
 def _h_service_findings(client_id, account_id, service_name: str):
     fs = [f for f in _findings(client_id, account_id) if f.aws_service == service_name]
     if not fs:
         return f"No hay hallazgos de {service_name} activos."
+    accs = _account_lookup(client_id)
     total = sum(_sav(f) for f in fs)
     lines = [f"{len(fs)} hallazgos {service_name} | ${total:.0f}/mes de ahorro potencial\n"]
     for f in fs[:5]:
+        a_name, a_id = accs.get(f.aws_account_id, ("?", "?"))
         lines.append(f"  • {f.resource_id}")
+        lines.append(f"    Cuenta: {a_name} ({a_id})")
         lines.append(f"    {(f.message or '')[:150]}")
         lines.append(f"    Ahorro: ${_sav(f):.0f}/mes\n")
     return "\n".join(lines)
@@ -258,8 +277,7 @@ def _h_health(client_id, account_id):
              else "Mejora el etiquetado." if g < 80 else "Recursos bien etiquetados.")
     return f"Health score: {h}/100 — {h_msg}\nGobernanza: {g:.1f}% — {g_msg}"
 
-
-# ── Registro de handlers ──────────────────────────────────────
+# ── Registro de handlers ─────────────────────────────────────
 _HANDLERS = {
     "account_info":     _h_account_info,
     "savings_total":    _h_savings_total,

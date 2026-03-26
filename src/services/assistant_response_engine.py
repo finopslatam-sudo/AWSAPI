@@ -7,6 +7,9 @@ from src.models.aws_finding import AWSFinding
 from src.models.aws_resource_inventory import AWSResourceInventory
 from src.models.risk_snapshot import RiskSnapshot
 from src.services.assistant_response_handlers import _HANDLERS, _h_greeting
+from src.services.assistant_response_handlers_extra import _HANDLERS_EXTRA
+
+_ALL_HANDLERS = {**_HANDLERS, **_HANDLERS_EXTRA}
 
 # ── Detección de intención ────────────────────────────────────
 _INTENTS = {
@@ -96,6 +99,36 @@ _INTENTS = {
         "etiquetado", "tags", "compliance", "etiquetas", "tagging",
         "qué tan sano", "que tan sano",
     ],
+    "account_spending": [
+        "cuenta gasta mas", "que cuenta gasta", "cuanto gasta cada cuenta",
+        "gasto por cuenta", "cuenta tiene mayor gasto", "comparar cuentas",
+        "cual cuenta gasta", "que cuenta cuesta mas", "gasto de cada cuenta",
+    ],
+    "recommend_eliminate": [
+        "que recurso eliminar", "que elimino", "que debo eliminar",
+        "que puedo eliminar", "recursos a eliminar", "que borrar",
+        "que desactivar", "que apagar", "cuáles eliminar", "cuales eliminar",
+    ],
+    "service_most_expensive": [
+        "servicio que mas gasta", "servicio mas caro", "servicio que mas cuesta",
+        "cual servicio es mas caro", "servicio con mayor costo",
+        "servicio que mas dinero gasta",
+    ],
+    "service_least_expensive": [
+        "servicio que menos gasta", "servicio mas barato", "servicio que menos cuesta",
+        "menor gasto de servicio", "cual servicio es mas barato",
+        "servicio menos costoso",
+    ],
+    "best_opportunity": [
+        "mejor oportunidad de ahorro", "mejor oportunidad", "mayor oportunidad de ahorro",
+        "donde ahorro mas", "donde puedo ahorrar mas",
+        "maxima oportunidad", "mejor lugar para ahorrar",
+    ],
+    "reduce_spending": [
+        "gastar menos", "reducir costos", "reducir gasto", "bajar costos",
+        "que debo hacer para ahorrar", "como ahorro", "como reduzco",
+        "plan de ahorro", "como optimizo mi gasto", "quiero gastar menos",
+    ],
 }
 
 _NON_AWS = [
@@ -158,5 +191,5 @@ def get_response(message: str, client_id: int, aws_account_id: int | None, is_ne
         return _h_greeting(client_id, aws_account_id)
     if any(kw in message.lower() for kw in _NON_AWS):
         return _ONLY_AWS
-    handler = _HANDLERS.get(_detect_intent(message))
+    handler = _ALL_HANDLERS.get(_detect_intent(message))
     return handler(client_id, aws_account_id) if handler else _UNKNOWN
