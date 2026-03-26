@@ -92,7 +92,7 @@ PLAN_LIMITS = {
     },
 
     "enterprise": {
-        "aws_accounts": 20,
+        "aws_accounts": 10,
         "users": 12
     }
 }

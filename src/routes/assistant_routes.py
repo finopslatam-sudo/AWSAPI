@@ -5,9 +5,13 @@ Endpoint de Finops.ia — motor de respuestas local, sin API externa.
 from flask import Blueprint, jsonify, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from src.models.user import User
+from src.models.subscription import ClientSubscription
+from src.models.plan import Plan
 from src.services.assistant_response_engine import get_response
 
 assistant_bp = Blueprint("assistant", __name__)
+
+_ENTERPRISE_CODE = "FINOPS_ENTERPRISE"
 
 
 def _require_client_user(user_id: int):
@@ -19,6 +23,20 @@ def _require_client_user(user_id: int):
     return user
 
 
+def _has_enterprise_plan(client_id: int) -> bool:
+    sub = (
+        ClientSubscription.query
+        .join(Plan, Plan.id == ClientSubscription.plan_id)
+        .filter(
+            ClientSubscription.client_id == client_id,
+            ClientSubscription.is_active == True,
+            Plan.code == _ENTERPRISE_CODE,
+        )
+        .first()
+    )
+    return sub is not None
+
+
 @assistant_bp.route("/api/client/assistant/chat", methods=["POST"])
 @jwt_required()
 def assistant_chat():
@@ -26,6 +44,9 @@ def assistant_chat():
     user = _require_client_user(user_id)
     if not user:
         return jsonify({"error": "Acceso denegado"}), 403
+
+    if not _has_enterprise_plan(user.client_id):
+        return jsonify({"error": "El Bot FinOps está disponible solo en el plan Enterprise"}), 403
 
     data = request.get_json(silent=True)
     if data is None:
