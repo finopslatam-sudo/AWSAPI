@@ -9,7 +9,7 @@ from src.reports.client.client_xlsx_report import build_client_xlsx
 from src.reports.client.executive_pdf_report import build_executive_pdf
 from src.reports.client.cost_pdf_report import build_cost_pdf
 from src.reports.client.cost_xlsx_report import build_cost_xlsx
-from src.reports.client.risk_pdf_report import build_risk_pdf
+from src.reports.client.risk import build_risk_pdf
 from src.reports.client.risk_xlsx_report import build_risk_xlsx
 from src.reports.client.inventory_stats_provider import get_inventory_stats
 from src.reports.client.inventory_csv_report import build_inventory_csv

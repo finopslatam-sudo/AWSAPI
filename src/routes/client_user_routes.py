@@ -1,7 +1,6 @@
 """
 CLIENT USER ROUTES
 ==================
-
 Gestión de usuarios dentro de una organización cliente.
 Solo el OWNER puede administrar usuarios.
 """
@@ -10,94 +9,55 @@ from flask import Blueprint, jsonify, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from src.models.user import User
-from src.services.password_service import (
-    generate_temp_password,
-    get_temp_password_expiration
-)
-
-from src.services.user_events_service import (
-    on_admin_reset_password,
-    on_user_deactivated,
-    on_user_reactivated
-)
 from src.services.client_users_service import get_client_users
+from src.services.user_events_service import on_admin_reset_password, on_user_deactivated, on_user_reactivated
 from src.auth.plan_permissions import get_plan_limit
-from src.models.database import db
-from src.services.email_service import send_email
-from src.services.email_templates import build_user_welcome_email
-
-
-client_users_bp = Blueprint(
-    "client_users",
-    __name__,
-    url_prefix="/api/client/users"
+from src.services.client_user_management_service import (
+    create_client_user,
+    update_client_user,
+    deactivate_client_user,
+    reset_client_user_password,
+    activate_client_user,
 )
 
-# =====================================================
-# requiere owner
-# =====================================================
+
+client_users_bp = Blueprint("client_users", __name__, url_prefix="/api/client/users")
+
+
 def require_owner(user_id: int):
-
     user = User.query.get(user_id)
-
-    if not user:
+    if not user or not user.is_active or not user.client_id or user.client_role != "owner":
         return None
-
-    # usuario desactivado
-    if not user.is_active:
-        return None
-
-    # no pertenece a cliente
-    if not user.client_id:
-        return None
-
-    # rol incorrecto
-    if user.client_role != "owner":
-        return None
-
     return user
 
-# =====================================================
-# Lista Usuarios de clientes
-# =====================================================
+
 @client_users_bp.route("", methods=["GET"])
 @jwt_required()
 def list_client_users():
-
     actor = require_owner(int(get_jwt_identity()))
-
     if not actor:
-        return jsonify({
-            "error": "Forbidden"
-        }), 403
+        return jsonify({"error": "Forbidden"}), 403
 
     users = get_client_users(actor.client_id)
-
     user_limit = get_plan_limit(actor.client_id, "users")
-
     return jsonify({
         "data": users,
         "meta": {
             "total": len(users),
             "limit": user_limit,
-            "remaining": max(user_limit - len(users), 0)
-        }
+            "remaining": max(user_limit - len(users), 0),
+        },
     }), 200
 
-# =====================================================
-# Crea usuario de cliente + correo de bienvenia
-# =====================================================
+
 @client_users_bp.route("", methods=["POST"])
 @jwt_required()
-def create_client_user():
-
+def create_client_user_route():
     actor = require_owner(int(get_jwt_identity()))
-
     if not actor:
         return jsonify({"error": "Forbidden"}), 403
 
     data = request.get_json() or {}
-
     name = data.get("name")
     email = data.get("email")
     role = data.get("role")
@@ -106,223 +66,105 @@ def create_client_user():
     if not all([name, email, role, password]):
         return jsonify({"error": "Missing fields"}), 400
 
-    # ==========================
-    # VALIDAR LIMITE DE PLAN
-    # ==========================
-
-    current_users = User.query.filter(
-        User.client_id == actor.client_id,
-        User.global_role.is_(None)
-    ).count()
-
-    user_limit = get_plan_limit(actor.client_id, "users")
-
-    if current_users >= user_limit:
-
-        return jsonify({
-            "error": "User limit reached",
-            "limit": user_limit
-        }), 400
-
-    # ==========================
-    # VALIDAR EMAIL
-    # ==========================
-
-    existing = User.query.filter_by(email=email).first()
-
-    if existing:
-        return jsonify({"error": "Email already exists"}), 400
-
-    # ==========================
-    # CREAR USUARIO
-    # ==========================
-
-    new_user = User(
-        contact_name=name,
-        email=email,
-        client_id=actor.client_id,
-        client_role=role,
-        global_role=None,
-        is_active=True,
-        force_password_change=True
-    )
-
-    new_user.set_password(password)
-
-    db.session.add(new_user)
-    db.session.commit()
-
-    # ==========================
-    # EMAIL BIENVENIDA
-    # ==========================
-
     try:
+        result = create_client_user(actor, name, email, role, password)
+    except ValueError as e:
+        msg = str(e)
+        if msg.startswith("user_limit_reached:"):
+            limit = msg.split(":")[1]
+            return jsonify({"error": "User limit reached", "limit": int(limit)}), 400
+        if msg == "email_exists":
+            return jsonify({"error": "Email already exists"}), 400
+        return jsonify({"error": "Error interno del servidor"}), 500
 
-        email_body = build_user_welcome_email(
-            name=name,
-            email=email,
-            password=password
-        )
+    return jsonify({"data": result}), 201
 
-        send_email(
-            to=email,
-            subject="Bienvenido a FinOpsLatam",
-            body=email_body
-        )
 
-    except Exception as e:
-        print("Error sending welcome email:", e)
-
-    return jsonify({
-        "data": {
-            "id": new_user.id,
-            "email": new_user.email,
-            "contact_name": new_user.contact_name,
-            "client_role": new_user.client_role
-        }
-    }), 201
-
-# =====================================================
-# Edita Usuario de cliente
-# =====================================================
 @client_users_bp.route("/<int:user_id>", methods=["PUT"])
 @jwt_required()
-def update_client_user(user_id):
-
+def update_client_user_route(user_id):
     actor = require_owner(int(get_jwt_identity()))
-
     if not actor:
-        return jsonify({"error": "Forbidden"}), 403
-
-    user = User.query.get(user_id)
-
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    # evitar editar usuarios de otro cliente
-    if user.client_id != actor.client_id:
         return jsonify({"error": "Forbidden"}), 403
 
     data = request.get_json() or {}
+    try:
+        result = update_client_user(actor, user_id, data)
+    except ValueError as e:
+        msg = str(e)
+        if msg == "not_found":
+            return jsonify({"error": "User not found"}), 404
+        return jsonify({"error": "Forbidden"}), 403
 
-    user.contact_name = data.get("name", user.contact_name)
-    user.email = data.get("email", user.email)
-    user.client_role = data.get("role", user.client_role)
+    return jsonify({"data": result}), 200
 
-    db.session.commit()
 
-    return jsonify({
-        "data": {
-            "id": user.id,
-            "email": user.email,
-            "contact_name": user.contact_name,
-            "client_role": user.client_role
-        }
-    }), 200
-
-# =====================================================
-# ELIMINAR USUARIO (SOFT DELETE)
-# =====================================================
 @client_users_bp.route("/<int:user_id>", methods=["DELETE"])
 @jwt_required()
 def delete_client_user(user_id):
-
     actor = require_owner(int(get_jwt_identity()))
-
     if not actor:
         return jsonify({"error": "Forbidden"}), 403
 
-    user = User.query.get(user_id)
-
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    # evitar borrar usuarios de otro cliente
-    if user.client_id != actor.client_id:
+    try:
+        user = deactivate_client_user(actor, user_id)
+    except ValueError as e:
+        msg = str(e)
+        if msg == "not_found":
+            return jsonify({"error": "User not found"}), 404
+        if msg == "self_delete":
+            return jsonify({"error": "Owner cannot delete itself"}), 400
         return jsonify({"error": "Forbidden"}), 403
-
-    # evitar que el owner se elimine a sí mismo
-    if user.id == actor.id:
-        return jsonify({
-            "error": "Owner cannot delete itself"
-        }), 400
-
-    user.is_active = False
-
-    db.session.commit()
 
     try:
         on_user_deactivated(user)
     except Exception:
-        current_app.logger.exception(
-            "[CLIENT_USER_DEACTIVATED_EMAIL_FAILED] user_id=%s",
-            user.id,
-        )
+        current_app.logger.exception("[CLIENT_USER_DEACTIVATED_EMAIL_FAILED] user_id=%s", user.id)
 
     return jsonify({"ok": True}), 200
 
-# =====================================================
-# CLIENT — RESET USER PASSWORD
-# =====================================================
+
 @client_users_bp.route("/<int:user_id>/reset-password", methods=["POST"])
 @jwt_required()
 def client_reset_password(user_id):
-
     actor = User.query.get(get_jwt_identity())
-
     if not actor or actor.client_role != "owner":
         return jsonify({"error": "Unauthorized"}), 403
 
-    user = User.query.get_or_404(user_id)
-
-    if user.client_id != actor.client_id:
+    try:
+        user, temp_password = reset_client_user_password(actor, user_id)
+    except ValueError as e:
+        msg = str(e)
+        if msg == "not_found":
+            return jsonify({"error": "User not found"}), 404
         return jsonify({"error": "No pertenece a tu organización"}), 403
-
-    temp_password = generate_temp_password()
-
-    user.set_password(temp_password)
-    user.force_password_change = True
-    user.password_expires_at = get_temp_password_expiration()
-
-    db.session.commit()
 
     try:
         on_admin_reset_password(user, temp_password)
     except Exception:
-        current_app.logger.exception(
-            "[CLIENT_RESET_PASSWORD_EMAIL_FAILED] user_id=%s",
-            user.id,
-        )
+        current_app.logger.exception("[CLIENT_RESET_PASSWORD_EMAIL_FAILED] user_id=%s", user.id)
 
     return jsonify({"ok": True}), 200
 
-# =====================================================
-# CLIENT — ACTIVATE USER
-# =====================================================
+
 @client_users_bp.route("/<int:user_id>/activate", methods=["PATCH"])
 @jwt_required()
 def activate_user(user_id):
-
     actor = User.query.get(get_jwt_identity())
-
     if not actor or actor.client_role != "owner":
         return jsonify({"error": "Unauthorized"}), 403
 
-    user = User.query.get_or_404(user_id)
-
-    if user.client_id != actor.client_id:
+    try:
+        user = activate_client_user(actor, user_id)
+    except ValueError as e:
+        msg = str(e)
+        if msg == "not_found":
+            return jsonify({"error": "User not found"}), 404
         return jsonify({"error": "No pertenece a tu organización"}), 403
-
-    user.is_active = True
-
-    db.session.commit()
 
     try:
         on_user_reactivated(user)
     except Exception:
-        current_app.logger.exception(
-            "[CLIENT_USER_REACTIVATED_EMAIL_FAILED] user_id=%s",
-            user.id,
-        )
+        current_app.logger.exception("[CLIENT_USER_REACTIVATED_EMAIL_FAILED] user_id=%s", user.id)
 
     return jsonify({"ok": True}), 200
