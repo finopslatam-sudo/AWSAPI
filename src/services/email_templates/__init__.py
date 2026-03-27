@@ -20,6 +20,10 @@ from src.services.email_templates.upgrades import (
     build_plan_upgrade_rejected_email,
     build_internal_plan_upgrade_alert,
 )
+from src.services.email_templates.payments import (
+    build_payment_welcome_email,
+    build_admin_new_payment_email,
+)
 
 __all__ = [
     "build_forgot_password_email",
@@ -34,4 +38,6 @@ __all__ = [
     "build_plan_upgrade_request_received_email",
     "build_plan_upgrade_rejected_email",
     "build_internal_plan_upgrade_alert",
+    "build_payment_welcome_email",
+    "build_admin_new_payment_email",
 ]
