@@ -102,9 +102,14 @@ def create_subscription(
             "name": {"given_name": given_name, "surname": surname},
         },
         "application_context": {
-            "brand_name":  "FinOps Latam",
-            "locale":      "es-MX",
-            "user_action": "SUBSCRIBE_NOW",
+            "brand_name":         "FinOps Latam",
+            "locale":             "es-MX",
+            "shipping_preference": "NO_SHIPPING",
+            "user_action":        "SUBSCRIBE_NOW",
+            "payment_method": {
+                "payer_selected":  "PAYPAL",
+                "payee_preferred": "UNRESTRICTED",
+            },
             "return_url":  f"{frontend_url}/pago/success?plan={plan_code}",
             "cancel_url":  f"{frontend_url}/pago/cancel?plan={plan_code}",
         },
