@@ -67,6 +67,7 @@ def create_subscription(
     if not plan_name or amount is None:
         raise ValueError(f"Plan inválido: '{plan_code}'")
 
+    currency      = os.getenv("MP_CURRENCY", "CLP")
     frontend_url  = os.getenv("FRONTEND_URL", "https://www.finopslatam.com").rstrip("/")
     backend_url   = os.getenv("API_URL",      "https://api.finopslatam.com").rstrip("/")
 
@@ -78,6 +79,7 @@ def create_subscription(
             "frequency":          1,
             "frequency_type":     "months",
             "transaction_amount": amount,
+            "currency_id":        currency,
         },
         "payer_email":       user_email,
         "back_url":          f"{frontend_url}/pago/success?plan={plan_code}",
