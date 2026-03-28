@@ -5,9 +5,11 @@ Integración con Mercado Pago Subscriptions API (preapproval).
 
 Variables de entorno requeridas:
   MP_ACCESS_TOKEN    — token de acceso (producción o sandbox)
-  MP_CURRENCY        — moneda: 'USD', 'CLP', 'ARS', etc. (default: USD)
   FRONTEND_URL       — URL base del frontend
   API_URL            — URL base del backend (para el notification_url)
+
+Nota: la moneda es determinada automáticamente por Mercado Pago
+según el país del vendedor (no se envía en el payload).
 
 Flujo:
   1. create_subscription()      — crea preapproval en MP, retorna (id, init_point)
@@ -65,7 +67,6 @@ def create_subscription(
     if not plan_name or amount is None:
         raise ValueError(f"Plan inválido: '{plan_code}'")
 
-    currency      = os.getenv("MP_CURRENCY", "USD")
     frontend_url  = os.getenv("FRONTEND_URL", "https://www.finopslatam.com").rstrip("/")
     backend_url   = os.getenv("API_URL",      "https://api.finopslatam.com").rstrip("/")
 
@@ -77,7 +78,6 @@ def create_subscription(
             "frequency":          1,
             "frequency_type":     "months",
             "transaction_amount": amount,
-            "currency_id":        currency,
         },
         "payer_email":       user_email,
         "back_url":          f"{frontend_url}/pago/success?plan={plan_code}",
