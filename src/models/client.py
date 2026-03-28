@@ -52,6 +52,11 @@ class Client(db.Model):
         nullable=True
     )
 
+    pais = db.Column(
+        db.String(100),
+        nullable=True
+    )
+
     # ==========================
     # STATUS
     # ==========================

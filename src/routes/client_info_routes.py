@@ -97,6 +97,7 @@ def get_client_info():
         "email": client.email,
         "contact_name": client.contact_name,
         "phone": client.phone,
+        "pais": client.pais,
 
         # ---- datos estructurados enterprise ----
         "data": {
@@ -107,6 +108,7 @@ def get_client_info():
                 "email": client.email,
                 "contact_name": client.contact_name,
                 "phone": client.phone,
+                "pais": client.pais,
                 "created_at": client.created_at.isoformat()
                 if client.created_at else None
             },

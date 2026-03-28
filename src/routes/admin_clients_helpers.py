@@ -20,6 +20,7 @@ def _validate_create_payload(data: dict):
     email = data.get("email")
     contact_name = data.get("contact_name")
     phone = data.get("phone")
+    pais = data.get("pais")
     is_active = data.get("is_active", True)
     plan_id = data.get("plan_id")
     owner_data = data.get("owner") or {}
@@ -61,6 +62,7 @@ def _validate_create_payload(data: dict):
         "email": email.strip().lower(),
         "contact_name": contact_name.strip() if contact_name else None,
         "phone": phone.strip() if phone else None,
+        "pais": pais.strip() if pais else None,
         "is_active": is_active,
         "plan": plan,
         "owner_email": owner_email.strip().lower(),
@@ -86,6 +88,7 @@ def create_client_flow(data: dict, actor: User):
             email=payload["email"],
             contact_name=payload["contact_name"],
             phone=payload["phone"],
+            pais=payload["pais"],
             is_active=payload["is_active"],
         )
         db.session.add(client)

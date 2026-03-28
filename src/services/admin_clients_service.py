@@ -69,6 +69,7 @@ def get_clients_with_active_plan():
             Client.contact_name,
             Client.email,
             Client.phone,
+            Client.pais,
             Client.is_active,
             Client.created_at,
             Plan.name.label("plan"),
@@ -93,6 +94,7 @@ def get_clients_with_active_plan():
             "contact_name": r.contact_name,
             "email": r.email,
             "phone": r.phone,
+            "pais": r.pais,
             "is_active": r.is_active,
             "plan": r.plan,
             "created_at": (

@@ -129,6 +129,7 @@ def update_client(client_id):
         "email",
         "contact_name",
         "phone",
+        "pais",
         "is_active",
     ):
         if field in data:
@@ -143,6 +144,7 @@ def update_client(client_id):
             "email": client.email,
             "contact_name": client.contact_name,
             "phone": client.phone,
+            "pais": client.pais,
             "is_active": client.is_active,
         }
     }), 200
