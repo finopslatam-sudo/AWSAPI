@@ -125,3 +125,43 @@ def get_client_info():
         }
 
     }), 200
+
+
+@client_info_bp.route("/info", methods=["PATCH"])
+@jwt_required()
+def update_client_info():
+
+    user = User.query.get(int(get_jwt_identity()))
+
+    if not user or not user.is_active or not user.client_id:
+        return jsonify({"error": "Acceso denegado"}), 403
+
+    if user.client_role not in ("owner", "finops_admin"):
+        return jsonify({"error": "Acceso denegado"}), 403
+
+    client = Client.query.get(user.client_id)
+
+    if not client:
+        return jsonify({"error": "No encontrado"}), 404
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Payload inválido"}), 400
+
+    if "pais" in data:
+        client.pais = str(data["pais"]).strip()[:100] if data["pais"] else None
+
+    if "contact_name" in data:
+        client.contact_name = str(data["contact_name"]).strip()[:255] if data["contact_name"] else None
+
+    if "phone" in data:
+        client.phone = str(data["phone"]).strip()[:50] if data["phone"] else None
+
+    from src.models.database import db
+    db.session.commit()
+
+    return jsonify({
+        "pais": client.pais,
+        "contact_name": client.contact_name,
+        "phone": client.phone,
+    }), 200
