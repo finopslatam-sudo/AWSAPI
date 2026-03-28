@@ -62,5 +62,6 @@ passlib==1.7.4
 # PAYMENTS
 # ===============================
 # PayPal usa requests (ya incluido arriba)
+mercadopago==2.2.1
 
 # ===============================
