@@ -149,7 +149,7 @@ from src.routes.payments_routes import payments_bp
 from src.routes.webhooks_routes import webhooks_bp
 from src.models.notification import Notification  # noqa: F401 — expone tabla a Flask-Migrate
 from src.models.support_ticket import SupportTicket, SupportTicketMessage  # noqa: F401 — expone tablas a Flask-Migrate
-from src.models.stripe_payment import Payment  # noqa: F401 — expone tabla a Flask-Migrate
+from src.models.payment import Payment  # noqa: F401 — expone tabla a Flask-Migrate
 
 app.register_blueprint(snapshot_bp)
 app.register_blueprint(dashboard_bp)

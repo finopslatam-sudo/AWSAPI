@@ -1,18 +1,18 @@
 """
-WEBHOOKS ROUTES — STRIPE
+WEBHOOKS ROUTES — PAYPAL
 ========================
-Recibe eventos de Stripe y ejecuta la lógica post-pago.
+Recibe eventos de PayPal y ejecuta la lógica post-pago.
 
-Flujo para invoice.payment_succeeded (primer pago):
-  1. Verificar firma del webhook (STRIPE_WEBHOOK_SECRET)
-  2. Buscar Payment por stripe_subscription_id y actualizar status a 'active'
+Flujo para BILLING.SUBSCRIPTION.ACTIVATED:
+  1. Verificar firma del webhook (PAYPAL_WEBHOOK_ID)
+  2. Buscar Payment por paypal_subscription_id y actualizar status a 'active'
   3. Enviar email de bienvenida al cliente
   4. Enviar email de notificación a todos los staff (root/admin/support)
   5. Crear notificación in-app para cada usuario staff
 
 SEGURIDAD:
-  - Sin JWT (Stripe llama directamente)
-  - Firma verificada con STRIPE_WEBHOOK_SECRET
+  - Sin JWT (PayPal llama directamente)
+  - Firma verificada con PAYPAL_WEBHOOK_ID via API de PayPal
   - Idempotencia: status 'active' previene reprocesamiento
 """
 
@@ -20,7 +20,7 @@ import logging
 from flask import Blueprint, jsonify, request
 
 from src.models.database import db
-from src.models.stripe_payment import Payment
+from src.models.payment import Payment
 from src.models.user import User
 from src.models.notification import Notification
 from src.services.email_service import send_email
@@ -28,7 +28,7 @@ from src.services.email_templates import (
     build_payment_welcome_email,
     build_admin_new_payment_email,
 )
-from src.services.stripe_service import construct_webhook_event
+from src.services.paypal_service import verify_webhook_signature
 
 logger = logging.getLogger("webhooks")
 
@@ -55,19 +55,13 @@ def _notify_staff(message: str, title: str, ref_id: int) -> None:
         ))
 
 
-def _handle_payment_succeeded(event_data: dict) -> None:
-    """Procesa invoice.payment_succeeded — activa el registro del pago."""
-    invoice          = event_data.get("object", {})
-    subscription_id  = invoice.get("subscription", "")
-    billing_reason   = invoice.get("billing_reason", "")
+def _handle_subscription_activated(resource: dict) -> None:
+    """Procesa BILLING.SUBSCRIPTION.ACTIVATED — activa el registro del pago."""
+    subscription_id = resource.get("id", "")
 
-    # Solo notificar en el primer pago de la suscripción
-    if billing_reason != "subscription_create":
-        return
-
-    payment = Payment.query.filter_by(stripe_subscription_id=subscription_id).first()
+    payment = Payment.query.filter_by(paypal_subscription_id=subscription_id).first()
     if not payment:
-        logger.warning("Suscripción Stripe no encontrada en BD: %s", subscription_id)
+        logger.warning("Suscripción PayPal no encontrada en BD: %s", subscription_id)
         return
 
     # Idempotencia: si ya fue procesado, ignorar
@@ -118,29 +112,29 @@ def _handle_payment_succeeded(event_data: dict) -> None:
         logger.exception("Error enviando emails de notificación a staff")
 
 
-@webhooks_bp.route("/stripe", methods=["POST"])
-def stripe_webhook():
+@webhooks_bp.route("/paypal", methods=["POST"])
+def paypal_webhook():
     """
-    POST /api/webhooks/stripe
-    Recibe eventos de Stripe y los procesa.
+    POST /api/webhooks/paypal
+    Recibe eventos de PayPal y los procesa.
     Valida la firma antes de procesar cualquier evento.
     """
-    payload    = request.get_data()
-    sig_header = request.headers.get("Stripe-Signature", "")
+    payload = request.get_data()
+    headers = request.headers
 
-    try:
-        event = construct_webhook_event(payload, sig_header)
-    except Exception as exc:
-        logger.warning("Webhook Stripe inválido: %s", exc)
+    if not verify_webhook_signature(headers, payload):
+        logger.warning("Webhook PayPal con firma inválida")
         return jsonify({"error": "Invalid signature"}), 400
 
-    event_type = event.get("type", "")
+    event      = request.get_json(silent=True) or {}
+    event_type = event.get("event_type", "")
+    resource   = event.get("resource", {})
 
-    if event_type == "invoice.payment_succeeded":
+    if event_type == "BILLING.SUBSCRIPTION.ACTIVATED":
         try:
-            _handle_payment_succeeded(event.get("data", {}))
+            _handle_subscription_activated(resource)
         except Exception:
-            logger.exception("Error procesando invoice.payment_succeeded")
+            logger.exception("Error procesando BILLING.SUBSCRIPTION.ACTIVATED")
             return jsonify({"error": "Error interno"}), 500
 
     return jsonify({"received": True}), 200

@@ -1,23 +1,23 @@
 """
-PAYMENTS ROUTES — STRIPE
+PAYMENTS ROUTES — PAYPAL
 ========================
-Endpoint público para iniciar el flujo de suscripción con Stripe.
+Endpoint público para iniciar el flujo de suscripción con PayPal.
 
 NO requiere JWT — el usuario aún no tiene cuenta.
 Flujo:
   1. Frontend envía datos del cliente
-  2. Backend crea Customer + Subscription en Stripe (estado: incomplete)
-  3. Backend retorna client_secret
-  4. Frontend usa stripe.confirmPayment(client_secret) para procesar la tarjeta
-  5. Stripe activa la suscripción y cobra mensualmente de forma automática
+  2. Backend crea Subscription en PayPal
+  3. Backend retorna checkout_url
+  4. Frontend redirige al usuario a checkout_url (PayPal)
+  5. PayPal activa la suscripción y cobra mensualmente de forma automática
 """
 
 import logging
 from flask import Blueprint, jsonify, request
 
 from src.models.database import db
-from src.models.stripe_payment import Payment
-from src.services.stripe_service import PLAN_NAMES, create_customer, create_subscription
+from src.models.payment import Payment
+from src.services.paypal_service import PLAN_NAMES, create_subscription
 
 logger = logging.getLogger("payments")
 
@@ -30,7 +30,7 @@ def create_subscription_endpoint():
     POST /api/payments/create-subscription
 
     Body: { plan_code, email, nombre, empresa, pais, telefono }
-    Response 200: { client_secret, subscription_id }
+    Response 200: { checkout_url, subscription_id }
     Response 400: { error }
     Response 502: { error }
     """
@@ -57,11 +57,13 @@ def create_subscription_endpoint():
         return jsonify({"error": "Plan inválido"}), 400
 
     try:
-        customer_id = create_customer(email, nombre, empresa)
-        subscription_id, client_secret = create_subscription(
-            customer_id,
-            plan_code,
-            metadata={"plan_code": plan_code, "empresa": empresa, "pais": pais},
+        subscription_id, checkout_url = create_subscription(
+            plan_code=plan_code,
+            email=email,
+            nombre=nombre,
+            empresa=empresa,
+            pais=pais,
+            telefono=telefono,
         )
 
         payment = Payment(
@@ -72,20 +74,19 @@ def create_subscription_endpoint():
             telefono=telefono,
             plan_code=plan_code,
             plan_name=plan_name,
-            stripe_customer_id=customer_id,
-            stripe_subscription_id=subscription_id,
-            status="pending_payment",
+            paypal_subscription_id=subscription_id,
+            status="pending_approval",
         )
         db.session.add(payment)
         db.session.commit()
 
         return jsonify({
-            "client_secret":   client_secret,
+            "checkout_url":    checkout_url,
             "subscription_id": subscription_id,
         }), 200
 
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     except Exception:
-        logger.exception("Error creando suscripción Stripe")
+        logger.exception("Error creando suscripción PayPal")
         return jsonify({"error": "Error al conectar con el proveedor de pago"}), 502
