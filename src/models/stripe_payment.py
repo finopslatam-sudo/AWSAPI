@@ -1,12 +1,13 @@
 """
 PAYMENT MODEL
 =============
-Registra cada suscripción procesada a través de PayPal.
+Registra cada suscripción procesada a través de Stripe.
 
 Estados:
-- pending_approval   : suscripción creada en PayPal, esperando aprobación del usuario
-- pending_activation : PayPal confirmó el pago, esperando que admin active la cuenta
-- activated          : admin ya creó y activó la cuenta del cliente
+- pending_payment  : suscripción creada, esperando que el cliente confirme la tarjeta
+- active           : Stripe confirmó el primer pago, esperando que admin active la cuenta
+- activated        : admin ya creó y activó la cuenta del cliente
+- payment_failed   : el pago fue rechazado
 """
 
 from datetime import datetime
@@ -24,8 +25,10 @@ class Payment(db.Model):
     telefono               = db.Column(db.String(50),  nullable=True)
     plan_code              = db.Column(db.String(50),  nullable=False)
     plan_name              = db.Column(db.String(100), nullable=False)
+    stripe_customer_id     = db.Column(db.String(255), nullable=True, index=True)
+    stripe_subscription_id = db.Column(db.String(255), nullable=True, unique=True, index=True)
     paypal_subscription_id = db.Column(db.String(255), nullable=True, unique=True, index=True)
-    status                 = db.Column(db.String(50),  nullable=False, default="pending_approval")
+    status                 = db.Column(db.String(50),  nullable=False, default="pending_payment")
     created_at             = db.Column(db.DateTime,    nullable=False, default=datetime.utcnow)
 
     def to_dict(self) -> dict:

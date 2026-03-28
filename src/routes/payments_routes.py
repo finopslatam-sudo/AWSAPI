@@ -1,72 +1,69 @@
 """
-PAYMENTS ROUTES
-===============
-Endpoint público para iniciar el flujo de pago con PayPal.
+PAYMENTS ROUTES — STRIPE
+========================
+Endpoint público para iniciar el flujo de suscripción con Stripe.
 
 NO requiere JWT — el usuario aún no tiene cuenta.
-La seguridad del pago la gestiona PayPal directamente.
+Flujo:
+  1. Frontend envía datos del cliente
+  2. Backend crea Customer + Subscription en Stripe (estado: incomplete)
+  3. Backend retorna client_secret
+  4. Frontend usa stripe.confirmPayment(client_secret) para procesar la tarjeta
+  5. Stripe activa la suscripción y cobra mensualmente de forma automática
 """
 
-from flask import Blueprint, jsonify, request, current_app
-import requests as http_requests
+import logging
+from flask import Blueprint, jsonify, request
 
 from src.models.database import db
 from src.models.stripe_payment import Payment
-from src.services.paypal_service import create_subscription, PLAN_NAMES
+from src.services.stripe_service import PLAN_NAMES, create_customer, create_subscription
+
+logger = logging.getLogger("payments")
 
 payments_bp = Blueprint("payments", __name__, url_prefix="/api/payments")
 
 
-@payments_bp.route("/create-checkout-session", methods=["POST"])
-def create_checkout():
+@payments_bp.route("/create-subscription", methods=["POST"])
+def create_subscription_endpoint():
     """
-    POST /api/payments/create-checkout-session
+    POST /api/payments/create-subscription
 
-    Body JSON:
-      plan_code : str  — foundation | professional | enterprise | consultoria
-      email     : str  — email del comprador
-      nombre    : str  — nombre completo
-      empresa   : str  — nombre de la empresa
-      pais      : str  — país
-      telefono  : str  — teléfono (opcional)
-
-    Response:
-      200: { checkout_url: "https://www.paypal.com/..." }
-      400: { error: "..." }
-      502: { error: "Error al conectar con el proveedor de pago" }
-      500: { error: "Error interno del servidor" }
+    Body: { plan_code, email, nombre, empresa, pais, telefono }
+    Response 200: { client_secret, subscription_id }
+    Response 400: { error }
+    Response 502: { error }
     """
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "Payload inválido"}), 400
 
-    plan_code = str(data.get("plan_code", "")).strip()
-    email     = str(data.get("email", "")).strip()[:320]
-    nombre    = str(data.get("nombre", "")).strip()[:255]
-    empresa   = str(data.get("empresa", "")).strip()[:255]
-    pais      = str(data.get("pais", "")).strip()[:100]
-    telefono  = str(data.get("telefono", "")).strip()[:50]
+    plan_code = str(data.get("plan_code", "")).strip().lower()
+    email     = str(data.get("email",     "")).strip()[:320]
+    nombre    = str(data.get("nombre",    "")).strip()[:255]
+    empresa   = str(data.get("empresa",   "")).strip()[:255]
+    pais      = str(data.get("pais",      "")).strip()[:100]
+    telefono  = str(data.get("telefono",  "")).strip()[:50]
 
-    if plan_code not in PLAN_NAMES:
-        return jsonify({"error": "Plan no válido"}), 400
-    if not email or "@" not in email:
-        return jsonify({"error": "Email inválido"}), 400
+    if not plan_code or not email or "@" not in email:
+        return jsonify({"error": "plan_code y email válidos son requeridos"}), 400
     if not nombre:
         return jsonify({"error": "El nombre es requerido"}), 400
     if not empresa:
         return jsonify({"error": "La empresa es requerida"}), 400
 
+    plan_name = PLAN_NAMES.get(plan_code)
+    if not plan_name:
+        return jsonify({"error": "Plan inválido"}), 400
+
     try:
-        subscription_id, approval_url = create_subscription(
-            plan_code=plan_code,
-            email=email,
-            nombre=nombre,
-            empresa=empresa,
-            pais=pais,
-            telefono=telefono,
+        customer_id = create_customer(email, nombre, empresa)
+        subscription_id, client_secret = create_subscription(
+            customer_id,
+            plan_code,
+            metadata={"plan_code": plan_code, "empresa": empresa, "pais": pais},
         )
 
-        # Guardar pre-pago en BD — el webhook buscará por subscription_id
         payment = Payment(
             email=email,
             nombre=nombre,
@@ -74,19 +71,21 @@ def create_checkout():
             pais=pais,
             telefono=telefono,
             plan_code=plan_code,
-            plan_name=PLAN_NAMES[plan_code],
-            paypal_subscription_id=subscription_id,
-            status="pending_approval",
+            plan_name=plan_name,
+            stripe_customer_id=customer_id,
+            stripe_subscription_id=subscription_id,
+            status="pending_payment",
         )
         db.session.add(payment)
         db.session.commit()
 
-        return jsonify({"checkout_url": approval_url}), 200
+        return jsonify({
+            "client_secret":   client_secret,
+            "subscription_id": subscription_id,
+        }), 200
 
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
-    except http_requests.HTTPError:
-        return jsonify({"error": "Error al conectar con el proveedor de pago"}), 502
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
     except Exception:
-        current_app.logger.exception("Error creando suscripción PayPal")
-        return jsonify({"error": "Error interno del servidor"}), 500
+        logger.exception("Error creando suscripción Stripe")
+        return jsonify({"error": "Error al conectar con el proveedor de pago"}), 502

@@ -1,33 +1,25 @@
 """
 STRIPE SERVICE
 ==============
-Lógica de integración con Stripe.
+Integración con Stripe API para suscripciones recurrentes con tarjeta embebida.
 
-Responsabilidades:
-- Crear sesiones de checkout (suscripción mensual)
-- Mapear plan_code → Stripe price_id desde ENV
+Flujo:
+  1. create_customer()      — crea el Customer en Stripe
+  2. create_subscription()  — crea la suscripción incompleta, retorna client_secret
+  3. Frontend confirma el pago con stripe.confirmPayment(client_secret)
+  4. Stripe cobra y activa la suscripción automáticamente cada mes
 
 Variables de entorno requeridas:
-  STRIPE_SECRET_KEY       — clave secreta de Stripe
+  STRIPE_SECRET_KEY
+  STRIPE_WEBHOOK_SECRET
   STRIPE_PRICE_FOUNDATION
   STRIPE_PRICE_PROFESSIONAL
   STRIPE_PRICE_ENTERPRISE
   STRIPE_PRICE_CONSULTORIA
-  FRONTEND_URL            — base URL del frontend (para success/cancel URLs)
 """
 
 import os
-import stripe
-
-stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
-
-# Mapa plan_code → variable de entorno con el price_id de Stripe
-_PRICE_ENV: dict[str, str] = {
-    "foundation":   "STRIPE_PRICE_FOUNDATION",
-    "professional": "STRIPE_PRICE_PROFESSIONAL",
-    "enterprise":   "STRIPE_PRICE_ENTERPRISE",
-    "consultoria":  "STRIPE_PRICE_CONSULTORIA",
-}
+import stripe as stripe_lib
 
 PLAN_NAMES: dict[str, str] = {
     "foundation":   "FinOps Foundation",
@@ -36,52 +28,75 @@ PLAN_NAMES: dict[str, str] = {
     "consultoria":  "Consultoría FinOps Estratégica",
 }
 
+_PRICE_ENV: dict[str, str] = {
+    "foundation":   "STRIPE_PRICE_FOUNDATION",
+    "professional": "STRIPE_PRICE_PROFESSIONAL",
+    "enterprise":   "STRIPE_PRICE_ENTERPRISE",
+    "consultoria":  "STRIPE_PRICE_CONSULTORIA",
+}
+
+
+def _stripe() -> stripe_lib:
+    key = os.getenv("STRIPE_SECRET_KEY", "")
+    if not key:
+        raise ValueError("STRIPE_SECRET_KEY no configurada")
+    stripe_lib.api_key = key
+    return stripe_lib
+
 
 def get_price_id(plan_code: str) -> str | None:
-    """Retorna el Stripe price_id para el plan dado, o None si no está configurado."""
+    """Retorna el Stripe Price ID para el plan dado, o None si no está configurado."""
     env_var = _PRICE_ENV.get(plan_code)
     if not env_var:
         return None
     return os.getenv(env_var) or None
 
 
-def create_checkout_session(
-    plan_code: str,
-    email: str,
-    nombre: str = "",
-    empresa: str = "",
-    pais: str = "",
-    telefono: str = "",
-) -> str:
-    """
-    Crea una sesión de checkout de Stripe tipo 'subscription'.
+def create_customer(email: str, nombre: str = "", empresa: str = "") -> str:
+    """Crea un Customer en Stripe y retorna su ID."""
+    s = _stripe()
+    customer = s.Customer.create(
+        email=email,
+        name=nombre or email,
+        metadata={"empresa": empresa},
+    )
+    return customer["id"]
 
-    Retorna la URL de checkout.
-    Lanza ValueError si el plan no es válido o el price_id no está configurado.
-    Lanza stripe.error.StripeError en caso de error con la API de Stripe.
+
+def create_subscription(
+    customer_id: str,
+    plan_code: str,
+    metadata: dict | None = None,
+) -> tuple[str, str]:
     """
+    Crea una suscripción incompleta en Stripe.
+    El frontend debe confirmar el pago con el client_secret retornado.
+
+    Retorna (subscription_id, client_secret).
+    Lanza ValueError si el price_id no está configurado.
+    """
+    s = _stripe()
     price_id = get_price_id(plan_code)
     if not price_id:
-        raise ValueError(f"price_id no configurado para plan '{plan_code}'")
+        raise ValueError(f"STRIPE price_id no configurado para '{plan_code}'")
 
-    frontend_url = os.getenv("FRONTEND_URL", "https://www.finopslatam.com").rstrip("/")
-    plan_name    = PLAN_NAMES.get(plan_code, plan_code)
-
-    session = stripe.checkout.Session.create(
-        mode="subscription",
-        customer_email=email,
-        line_items=[{"price": price_id, "quantity": 1}],
-        metadata={
-            "plan_code": plan_code,
-            "plan_name": plan_name,
-            "nombre":    nombre,
-            "empresa":   empresa,
-            "pais":      pais,
-            "telefono":  telefono,
-        },
-        success_url=f"{frontend_url}/pago/success?session_id={{CHECKOUT_SESSION_ID}}",
-        cancel_url=f"{frontend_url}/pago/cancel?plan={plan_code}",
-        allow_promotion_codes=True,
+    subscription = s.Subscription.create(
+        customer=customer_id,
+        items=[{"price": price_id}],
+        payment_behavior="default_incomplete",
+        payment_settings={"save_default_payment_method": "on_subscription"},
+        expand=["latest_invoice.payment_intent"],
+        metadata=metadata or {},
     )
 
-    return session.url
+    client_secret = subscription["latest_invoice"]["payment_intent"]["client_secret"]
+    return subscription["id"], client_secret
+
+
+def construct_webhook_event(payload: bytes, sig_header: str) -> dict:
+    """Verifica y parsea un evento de webhook Stripe. Lanza excepción si la firma es inválida."""
+    s = _stripe()
+    webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    if not webhook_secret:
+        raise ValueError("STRIPE_WEBHOOK_SECRET no configurada")
+    return s.Webhook.construct_event(payload, sig_header, webhook_secret)

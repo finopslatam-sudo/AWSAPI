@@ -35,7 +35,7 @@ def build_admin_new_payment_email(
     email: str,
     pais: str,
     plan_name: str,
-    paypal_subscription_id: str,
+    subscription_id: str,
 ) -> str:
     """
     Correo a administradores cuando un cliente completa el pago.
@@ -50,7 +50,7 @@ Empresa        : {empresa}
 Email          : {email}
 País           : {pais}
 Plan           : {plan_name}
-PayPal Suscr.  : {paypal_subscription_id}
+Suscripción    : {subscription_id}
 
 ACCIÓN REQUERIDA
 ----------------

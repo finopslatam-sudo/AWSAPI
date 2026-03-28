@@ -1,22 +1,21 @@
 """
-WEBHOOKS ROUTES — PAYPAL
+WEBHOOKS ROUTES — STRIPE
 ========================
-Recibe eventos de PayPal Subscriptions y ejecuta la lógica post-pago.
+Recibe eventos de Stripe y ejecuta la lógica post-pago.
 
-Flujo para BILLING.SUBSCRIPTION.ACTIVATED:
-  1. Verificar firma del webhook (PAYPAL_WEBHOOK_ID)
-  2. Buscar Payment por paypal_subscription_id y actualizar status
+Flujo para invoice.payment_succeeded (primer pago):
+  1. Verificar firma del webhook (STRIPE_WEBHOOK_SECRET)
+  2. Buscar Payment por stripe_subscription_id y actualizar status a 'active'
   3. Enviar email de bienvenida al cliente
   4. Enviar email de notificación a todos los staff (root/admin/support)
   5. Crear notificación in-app para cada usuario staff
 
 SEGURIDAD:
-  - Sin JWT (PayPal llama directamente)
-  - Firma verificada con la API de PayPal
-  - Idempotencia: status 'pending_activation' previene reprocesamiento
+  - Sin JWT (Stripe llama directamente)
+  - Firma verificada con STRIPE_WEBHOOK_SECRET
+  - Idempotencia: status 'active' previene reprocesamiento
 """
 
-import json
 import logging
 from flask import Blueprint, jsonify, request
 
@@ -29,7 +28,7 @@ from src.services.email_templates import (
     build_payment_welcome_email,
     build_admin_new_payment_email,
 )
-from src.services.paypal_service import verify_webhook_signature
+from src.services.stripe_service import construct_webhook_event
 
 logger = logging.getLogger("webhooks")
 
@@ -56,22 +55,26 @@ def _notify_staff(message: str, title: str, ref_id: int) -> None:
         ))
 
 
-def _handle_subscription_activated(resource: dict) -> None:
-    """Procesa el evento BILLING.SUBSCRIPTION.ACTIVATED."""
-    subscription_id = resource.get("id", "")
+def _handle_payment_succeeded(event_data: dict) -> None:
+    """Procesa invoice.payment_succeeded — activa el registro del pago."""
+    invoice          = event_data.get("object", {})
+    subscription_id  = invoice.get("subscription", "")
+    billing_reason   = invoice.get("billing_reason", "")
 
-    # Buscar el payment pre-guardado cuando se inició el checkout
-    payment = Payment.query.filter_by(paypal_subscription_id=subscription_id).first()
+    # Solo notificar en el primer pago de la suscripción
+    if billing_reason != "subscription_create":
+        return
+
+    payment = Payment.query.filter_by(stripe_subscription_id=subscription_id).first()
     if not payment:
-        logger.warning("Suscripción PayPal no encontrada en BD: %s", subscription_id)
+        logger.warning("Suscripción Stripe no encontrada en BD: %s", subscription_id)
         return
 
     # Idempotencia: si ya fue procesado, ignorar
-    if payment.status == "pending_activation":
-        logger.info("Webhook duplicado ignorado: subscription_id=%s", subscription_id)
+    if payment.status == "active":
         return
 
-    payment.status = "pending_activation"
+    payment.status = "active"
     db.session.flush()
 
     email     = payment.email
@@ -80,7 +83,6 @@ def _handle_subscription_activated(resource: dict) -> None:
     pais      = payment.pais or ""
     plan_name = payment.plan_name
 
-    # Notificaciones in-app para staff
     msg = (
         f"Nuevo cliente ha contratado el plan {plan_name}. "
         f"Email: {email}. Revisar y crear usuario."
@@ -88,7 +90,6 @@ def _handle_subscription_activated(resource: dict) -> None:
     _notify_staff(msg, "Nueva suscripción — acción requerida", payment.id)
     db.session.commit()
 
-    # Email al cliente
     try:
         send_email(
             to=email,
@@ -98,7 +99,6 @@ def _handle_subscription_activated(resource: dict) -> None:
     except Exception:
         logger.exception("Error enviando email de bienvenida a %s", email)
 
-    # Email a staff
     try:
         for staff in _get_staff_users():
             if staff.email:
@@ -111,40 +111,36 @@ def _handle_subscription_activated(resource: dict) -> None:
                         email=email,
                         pais=pais,
                         plan_name=plan_name,
-                        paypal_subscription_id=subscription_id,
+                        subscription_id=subscription_id,
                     ),
                 )
     except Exception:
         logger.exception("Error enviando emails de notificación a staff")
 
 
-@webhooks_bp.route("/paypal", methods=["POST"])
-def paypal_webhook():
+@webhooks_bp.route("/stripe", methods=["POST"])
+def stripe_webhook():
     """
-    POST /api/webhooks/paypal
-
-    Recibe eventos de PayPal y los procesa.
+    POST /api/webhooks/stripe
+    Recibe eventos de Stripe y los procesa.
     Valida la firma antes de procesar cualquier evento.
     """
-    body    = request.get_data()
-    headers = request.headers
-
-    if not verify_webhook_signature(headers, body):
-        logger.warning("Firma de webhook PayPal inválida")
-        return jsonify({"error": "Invalid signature"}), 400
+    payload    = request.get_data()
+    sig_header = request.headers.get("Stripe-Signature", "")
 
     try:
-        event = json.loads(body)
-    except Exception:
-        return jsonify({"error": "Bad payload"}), 400
+        event = construct_webhook_event(payload, sig_header)
+    except Exception as exc:
+        logger.warning("Webhook Stripe inválido: %s", exc)
+        return jsonify({"error": "Invalid signature"}), 400
 
-    event_type = event.get("event_type", "")
+    event_type = event.get("type", "")
 
-    if event_type == "BILLING.SUBSCRIPTION.ACTIVATED":
+    if event_type == "invoice.payment_succeeded":
         try:
-            _handle_subscription_activated(event.get("resource", {}))
+            _handle_payment_succeeded(event.get("data", {}))
         except Exception:
-            logger.exception("Error procesando BILLING.SUBSCRIPTION.ACTIVATED")
-            return jsonify({"error": "Error interno del servidor"}), 500
+            logger.exception("Error procesando invoice.payment_succeeded")
+            return jsonify({"error": "Error interno"}), 500
 
     return jsonify({"received": True}), 200
