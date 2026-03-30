@@ -63,6 +63,6 @@ passlib==1.7.4
 # ===============================
 # PayPal usa requests (ya incluido arriba)
 mercadopago==2.2.1
-transbank==4.0.2
+transbank-sdk==6.1.0
 
 # ===============================
