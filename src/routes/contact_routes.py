@@ -14,6 +14,7 @@ import logging
 from flask import Blueprint, request, jsonify
 
 from src.services.email_service import send_email
+from src.models.user import User
 
 contact_bp = Blueprint("contact", __name__)
 logger = logging.getLogger("contact")
@@ -61,6 +62,21 @@ Mensaje:
         return jsonify({
             "error": "Servicio de correo no disponible"
         }), 500
+
+    # Notificar a todos los usuarios globales (staff)
+    global_users = User.query.filter(
+        User.global_role.isnot(None),
+        User.is_active == True,
+    ).all()
+    notified_emails = {"contacto@finopslatam.com"}
+    for staff_user in global_users:
+        if staff_user.email not in notified_emails:
+            send_email(
+                to=staff_user.email,
+                subject=f"🔔 Nueva solicitud de consultoría – {data['empresa']}",
+                body=body,
+            )
+            notified_emails.add(staff_user.email)
 
     logger.info(
         "Contacto recibido desde %s (%s)",
