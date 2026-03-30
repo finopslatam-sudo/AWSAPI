@@ -54,6 +54,7 @@ def create_inscription_endpoint():
     empresa   = str(data.get("empresa",   "")).strip()[:255]
     pais      = str(data.get("pais",      "")).strip()[:100]
     telefono  = str(data.get("telefono",  "")).strip()[:50]
+    rut       = str(data.get("rut",       "")).strip()[:20]
 
     if not plan_code or not email or "@" not in email:
         return jsonify({"error": "plan_code y email válidos son requeridos"}), 400
@@ -61,6 +62,8 @@ def create_inscription_endpoint():
         return jsonify({"error": "El nombre es requerido"}), 400
     if not empresa:
         return jsonify({"error": "La empresa es requerida"}), 400
+    if not rut:
+        return jsonify({"error": "El RUT es requerido para PatPass"}), 400
 
     plan_name = PLAN_NAMES.get(plan_code)
     if not plan_name:
@@ -70,10 +73,14 @@ def create_inscription_endpoint():
     amount_clp = get_plan_amount(plan_code)
 
     try:
-        redirect_url, token = create_inscription(
-            plan_code=plan_code,
+        redirect_url, _ = create_inscription(
+            plan_name=plan_name,
+            nombre=nombre,
             email=email,
+            rut=rut,
+            telefono=telefono,
             buy_order=buy_order,
+            amount_clp=amount_clp,
         )
 
         inscription = PatpassInscription(
@@ -124,13 +131,9 @@ def confirm_endpoint():
     try:
         result = confirm_inscription(token_ws)
 
-        if result.get("is_inscribed"):
-            inscription.tbk_user           = result.get("tbk_user")
-            inscription.authorization_code  = result.get("authorization_code")
-            inscription.card_type           = result.get("card_type")
-            inscription.card_last_four      = result.get("card_number")
-            inscription.status              = "active"
-            inscription.confirmed_at        = datetime.utcnow()
+        if result.get("authorized"):
+            inscription.status       = "active"
+            inscription.confirmed_at = datetime.utcnow()
         else:
             inscription.status = "rejected"
 

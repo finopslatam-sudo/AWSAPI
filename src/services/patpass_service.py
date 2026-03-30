@@ -7,6 +7,7 @@ Variables de entorno requeridas:
   PATPASS_ENV            — 'integration' | 'production' (default: integration)
   PATPASS_COMMERCE_CODE  — código de comercio productivo
   PATPASS_API_KEY        — llave secreta productiva
+  PATPASS_COMMERCE_EMAIL — email del comercio para Transbank
   PATPASS_AMOUNT_FOUNDATION    — monto mensual en CLP (Foundation)
   PATPASS_AMOUNT_PROFESSIONAL  — monto mensual en CLP (Professional)
   PATPASS_AMOUNT_ENTERPRISE    — monto mensual en CLP (Enterprise)
@@ -19,7 +20,6 @@ Credenciales de integración (pre-configuradas en SDK):
 
 import os
 import logging
-from datetime import datetime
 
 logger = logging.getLogger("patpass")
 
@@ -29,7 +29,6 @@ PLAN_NAMES: dict[str, str] = {
     "enterprise":   "FinOps Enterprise",
 }
 
-# Montos en CLP (configurables por env var)
 _DEFAULT_AMOUNTS_CLP: dict[str, int] = {
     "foundation":   950,
     "professional": 1750,
@@ -59,35 +58,73 @@ def _is_production() -> bool:
 def _get_inscription():
     """Retorna instancia de Inscription configurada según ambiente."""
     from transbank.patpass_comercio.inscription import Inscription
+    from transbank.common.options import PatpassComercioOptions
+    from transbank.common.integration_type import IntegrationType
+
     if _is_production():
-        from transbank.patpass_comercio.schema import PatpassOptions
-        from transbank.common.integration_type import WebpayIntegrationType
         commerce_code = os.getenv("PATPASS_COMMERCE_CODE", "")
         api_key       = os.getenv("PATPASS_API_KEY", "")
         if not commerce_code or not api_key:
             raise ValueError("PATPASS_COMMERCE_CODE y PATPASS_API_KEY son requeridos en producción")
-        return Inscription(PatpassOptions(commerce_code, api_key, WebpayIntegrationType.LIVE))
-    return Inscription()  # credenciales de integración pre-configuradas en SDK
+        opts = PatpassComercioOptions(commerce_code, api_key, IntegrationType.LIVE)
+    else:
+        opts = PatpassComercioOptions("28299257", "cxxXQgGD9vrVe4M41FIt", IntegrationType.TEST)
+
+    return Inscription(opts)
+
+
+def _split_nombre(nombre: str) -> tuple[str, str, str]:
+    """
+    Separa nombre completo en (name, last_name, second_last_name).
+    Ej: 'Juan Pérez García' → ('Juan', 'Pérez', 'García')
+    """
+    parts = nombre.strip().split()
+    if len(parts) == 0:
+        return ("Sin nombre", "", "")
+    if len(parts) == 1:
+        return (parts[0], parts[0], "")
+    if len(parts) == 2:
+        return (parts[0], parts[1], "")
+    return (parts[0], parts[1], " ".join(parts[2:]))
 
 
 def create_inscription(
-    plan_code: str,
+    plan_name: str,
+    nombre: str,
     email: str,
+    rut: str,
+    telefono: str,
     buy_order: str,
+    amount_clp: int,
 ) -> tuple[str, str]:
     """
     Inicia una inscripción PatPass.
     Retorna (redirect_url, token).
     """
-    frontend_url = os.getenv("FRONTEND_URL", "https://www.finopslatam.com").rstrip("/")
-    redirect_url = f"{frontend_url}/pago/patpass-return"
+    frontend_url   = os.getenv("FRONTEND_URL", "https://www.finopslatam.com").rstrip("/")
+    redirect_url   = f"{frontend_url}/pago/patpass-return"
+    commerce_email = os.getenv("PATPASS_COMMERCE_EMAIL", "pagos@finopslatam.com")
+
+    name, last_name, second_last_name = _split_nombre(nombre)
+    cell_phone = (telefono or "").strip() or "000000000"
 
     inscription = _get_inscription()
     response = inscription.start(
-        buy_order=buy_order,
-        email=email,
-        redirect_url=redirect_url,
-        username=email,
+        url=redirect_url,
+        name=name,
+        last_name=last_name,
+        second_last_name=second_last_name,
+        rut=rut,
+        service_id=buy_order,
+        final_url=redirect_url,
+        max_amount=float(amount_clp),
+        phone=cell_phone,
+        cell_phone=cell_phone,
+        patpass_name=plan_name,
+        person_email=email,
+        commerce_email=commerce_email,
+        address="N/A",
+        city="Chile",
     )
     return response.url, response.token
 
@@ -98,40 +135,8 @@ def confirm_inscription(token_ws: str) -> dict:
     Retorna dict con resultado.
     """
     inscription = _get_inscription()
-    response = inscription.finish(token=token_ws)
+    response    = inscription.status(token=token_ws)
     return {
-        "is_inscribed":       getattr(response, "is_inscribed", False),
-        "tbk_user":           getattr(response, "tbk_user", None),
-        "authorization_code": getattr(response, "authorization_code", None),
-        "card_type":          getattr(response, "card_type", None),
-        "card_number":        getattr(response, "card_number", None),
-    }
-
-
-def charge_subscription(tbk_user: str, email: str, amount_clp: int, buy_order: str) -> dict:
-    """
-    Cobra una suscripción activa. Llamar mensualmente por cada inscripción activa.
-    Retorna dict con resultado del cobro.
-    """
-    from transbank.patpass_comercio.transaction import Transaction
-
-    if _is_production():
-        from transbank.patpass_comercio.schema import PatpassOptions
-        from transbank.common.integration_type import WebpayIntegrationType
-        commerce_code = os.getenv("PATPASS_COMMERCE_CODE", "")
-        api_key       = os.getenv("PATPASS_API_KEY", "")
-        tx = Transaction(PatpassOptions(commerce_code, api_key, WebpayIntegrationType.LIVE))
-    else:
-        tx = Transaction()
-
-    response = tx.authorize(
-        buy_order=buy_order,
-        tbk_user=tbk_user,
-        email=email,
-        amount=amount_clp,
-    )
-    return {
-        "authorization_code": getattr(response, "authorization_code", None),
-        "amount":             getattr(response, "amount", None),
-        "response_code":      getattr(response, "response_code", None),
+        "authorized":  getattr(response, "authorized", False),
+        "voucher_url": getattr(response, "voucherUrl", None),
     }
