@@ -148,10 +148,12 @@ from src.routes.assistant_routes import assistant_bp
 from src.routes.payments_routes import payments_bp
 from src.routes.webhooks_routes import webhooks_bp
 from src.routes.mercadopago_routes import mercadopago_bp
+from src.routes.patpass_routes import patpass_bp
 from src.models.notification import Notification  # noqa: F401 — expone tabla a Flask-Migrate
 from src.models.support_ticket import SupportTicket, SupportTicketMessage  # noqa: F401 — expone tablas a Flask-Migrate
 from src.models.payment import Payment  # noqa: F401 — expone tabla a Flask-Migrate
 from src.models.mp_subscription import MPSubscription  # noqa: F401 — expone tabla a Flask-Migrate
+from src.models.patpass_inscription import PatpassInscription  # noqa: F401 — expone tabla a Flask-Migrate
 
 app.register_blueprint(snapshot_bp)
 app.register_blueprint(dashboard_bp)
@@ -178,6 +180,7 @@ app.register_blueprint(assistant_bp)
 app.register_blueprint(payments_bp)
 app.register_blueprint(webhooks_bp)
 app.register_blueprint(mercadopago_bp)
+app.register_blueprint(patpass_bp)
 
 register_admin_clients_routes(app)
 register_admin_report_routes(app)
