@@ -74,7 +74,7 @@ def create_inscription_endpoint():
     amount_clp = get_plan_amount(plan_code)
 
     try:
-        redirect_url, _ = create_inscription(
+        transbank_url, token = create_inscription(
             plan_name=plan_name,
             nombre=nombre,
             email=email,
@@ -83,6 +83,7 @@ def create_inscription_endpoint():
             buy_order=buy_order,
             amount_clp=amount_clp,
         )
+        redirect_url = f"{transbank_url}?tokenComercio={token}"
 
         inscription = PatpassInscription(
             email=email,
