@@ -73,6 +73,22 @@ def _get_inscription():
     return Inscription(opts)
 
 
+def _clean_phone(telefono: str) -> str:
+    """
+    Limpia el teléfono para Transbank: solo dígitos, sin código de país.
+    '+56947788781' → '947788781'
+    '56947788781'  → '947788781'
+    '947788781'    → '947788781'
+    """
+    digits = "".join(c for c in (telefono or "") if c.isdigit())
+    # Quitar código de país Chile (56) si viene al inicio con 11 dígitos
+    if len(digits) == 11 and digits.startswith("56"):
+        digits = digits[2:]
+    # Quitar 0 inicial si quedó
+    digits = digits.lstrip("0") or "000000000"
+    return digits[:9]
+
+
 def _split_nombre(nombre: str) -> tuple[str, str, str]:
     """
     Separa nombre completo en (name, last_name, second_last_name).
@@ -106,7 +122,7 @@ def create_inscription(
     commerce_email = os.getenv("PATPASS_COMMERCE_EMAIL", "pagos@finopslatam.com")
 
     name, last_name, second_last_name = _split_nombre(nombre)
-    cell_phone = (telefono or "").strip() or "000000000"
+    cell_phone = _clean_phone(telefono)
 
     inscription = _get_inscription()
     response = inscription.start(
