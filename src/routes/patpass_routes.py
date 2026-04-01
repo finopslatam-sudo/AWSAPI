@@ -33,8 +33,9 @@ _BUY_ORDER_COUNTER = 0
 
 
 def _generate_buy_order(plan_code: str) -> str:
-    ts = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-    return f"PP-{plan_code[:4].upper()}-{ts}"
+    # Máx ~15 chars — Transbank rechaza service_id largo
+    ts = datetime.utcnow().strftime("%m%d%H%M%S")
+    return f"PP{plan_code[:3].upper()}{ts}"
 
 
 @patpass_bp.route("/create-inscription", methods=["POST"])
