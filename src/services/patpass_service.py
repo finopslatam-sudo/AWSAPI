@@ -132,7 +132,7 @@ def create_inscription(
         rut=rut,
         service_id=buy_order,
         final_url=redirect_url,
-        max_amount=float(amount_clp),
+        max_amount=0.0 if not _is_production() else float(amount_clp),
         phone=cell_phone,
         cell_phone=cell_phone,
         patpass_name=plan_name,
@@ -141,7 +141,7 @@ def create_inscription(
         address="Sin direccion",
         city="Santiago",
     )
-    logger.info("PatPass start params: %s", params)
+    logger.warning("PatPass start params: %s", params)
     inscription = _get_inscription()
     response = inscription.start(**params)
     if isinstance(response, int):
