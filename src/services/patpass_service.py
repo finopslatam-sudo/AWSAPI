@@ -126,7 +126,13 @@ def create_inscription(
         address="N/A",
         city="Chile",
     )
-    return response.url, response.token
+    if isinstance(response, int):
+        logger.error("Transbank retornó body vacío con status %s", response)
+        raise RuntimeError(f"Transbank respondió sin cuerpo (HTTP {response})")
+    if not isinstance(response, dict) or "url" not in response or "token" not in response:
+        logger.error("Respuesta inesperada de Transbank: %s", response)
+        raise RuntimeError("Respuesta inesperada de Transbank")
+    return response["url"], response["token"]
 
 
 def confirm_inscription(token_ws: str) -> dict:
@@ -136,7 +142,13 @@ def confirm_inscription(token_ws: str) -> dict:
     """
     inscription = _get_inscription()
     response    = inscription.status(token=token_ws)
+    if isinstance(response, int):
+        logger.error("Transbank status retornó body vacío con status %s", response)
+        raise RuntimeError(f"Transbank respondió sin cuerpo (HTTP {response})")
+    if not isinstance(response, dict):
+        logger.error("Respuesta inesperada de Transbank status: %s", response)
+        raise RuntimeError("Respuesta inesperada de Transbank")
     return {
-        "authorized":  getattr(response, "authorized", False),
-        "voucher_url": getattr(response, "voucherUrl", None),
+        "authorized":  response.get("authorized", False),
+        "voucher_url": response.get("voucherUrl", None),
     }
