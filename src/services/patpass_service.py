@@ -73,6 +73,17 @@ def _get_inscription():
     return Inscription(opts)
 
 
+def _format_rut(rut: str) -> str:
+    """
+    Asegura formato RUT con guion: '178759701' → '17875970-1'
+    Si ya tiene guion, retorna tal cual.
+    """
+    cleaned = rut.replace(".", "").replace("-", "").strip()
+    if len(cleaned) < 2:
+        return rut
+    return f"{cleaned[:-1]}-{cleaned[-1]}"
+
+
 def _clean_phone(telefono: str) -> str:
     """
     Limpia el teléfono para Transbank: solo dígitos, sin código de país.
@@ -123,6 +134,7 @@ def create_inscription(
 
     name, last_name, second_last_name = _split_nombre(nombre)
     cell_phone = _clean_phone(telefono)
+    rut = _format_rut(rut)
 
     params = dict(
         url=redirect_url,
@@ -132,7 +144,7 @@ def create_inscription(
         rut=rut,
         service_id=buy_order,
         final_url=redirect_url,
-        max_amount=0.0 if not _is_production() else float(amount_clp),
+        max_amount=float(amount_clp),
         phone=cell_phone,
         cell_phone=cell_phone,
         patpass_name=plan_name,
