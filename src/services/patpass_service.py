@@ -124,8 +124,7 @@ def create_inscription(
     name, last_name, second_last_name = _split_nombre(nombre)
     cell_phone = _clean_phone(telefono)
 
-    inscription = _get_inscription()
-    response = inscription.start(
+    params = dict(
         url=redirect_url,
         name=name,
         last_name=last_name,
@@ -139,9 +138,12 @@ def create_inscription(
         patpass_name=plan_name,
         person_email=email,
         commerce_email=commerce_email,
-        address="N/A",
-        city="Chile",
+        address="Sin direccion",
+        city="Santiago",
     )
+    logger.info("PatPass start params: %s", params)
+    inscription = _get_inscription()
+    response = inscription.start(**params)
     if isinstance(response, int):
         logger.error("Transbank retornó body vacío con status %s", response)
         raise RuntimeError(f"Transbank respondió sin cuerpo (HTTP {response})")
