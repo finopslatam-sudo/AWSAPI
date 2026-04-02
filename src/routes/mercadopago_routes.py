@@ -23,6 +23,7 @@ SEGURIDAD:
 """
 
 import logging
+import os
 from flask import Blueprint, jsonify, request
 
 from src.models.database import db
@@ -39,6 +40,7 @@ from src.services.email_templates import (
     build_payment_welcome_email,
     build_admin_new_payment_email,
 )
+from src.security.validation import is_valid_email, normalize_email
 
 logger = logging.getLogger("mercadopago")
 
@@ -141,13 +143,13 @@ def create_mp_subscription():
         return jsonify({"error": "Payload inválido"}), 400
 
     plan_code = str(data.get("plan_code", "")).strip().lower()
-    email     = str(data.get("email",     "")).strip()[:320]
+    email     = normalize_email(str(data.get("email", "")))[:320]
     nombre    = str(data.get("nombre",    "")).strip()[:255]
     empresa   = str(data.get("empresa",   "")).strip()[:255]
     pais      = str(data.get("pais",      "")).strip()[:100]
     telefono  = str(data.get("telefono",  "")).strip()[:50]
 
-    if not plan_code or not email or "@" not in email:
+    if not plan_code or not email or not is_valid_email(email):
         return jsonify({"error": "plan_code y email válidos son requeridos"}), 400
     if not nombre:
         return jsonify({"error": "El nombre es requerido"}), 400
@@ -207,6 +209,13 @@ def mercadopago_webhook():
 
     MP envía: { type, data: { id } }
     """
+    expected_token = (os.getenv("MP_WEBHOOK_TOKEN") or "").strip()
+    if expected_token:
+        got_token = str(request.args.get("token", "")).strip()
+        if got_token != expected_token:
+            logger.warning("Webhook MP token inválido")
+            return jsonify({"error": "Invalid webhook token"}), 401
+
     event = request.get_json(silent=True) or {}
 
     event_type      = event.get("type", "")

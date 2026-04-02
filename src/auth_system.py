@@ -2,7 +2,7 @@ from flask import request, jsonify
 from flask_jwt_extended import (
     JWTManager, create_access_token, jwt_required, get_jwt_identity
 )
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 
 from src.models.database import db
@@ -19,6 +19,8 @@ from src.services.user_events_service import (
     on_root_login,
 )
 from zoneinfo import ZoneInfo
+from src.security.hardening import get_client_ip, rate_limiter
+from src.security.validation import is_valid_email, normalize_email
 
 # ===============================
 # INIT EXTENSIONS
@@ -34,6 +36,10 @@ def init_auth_system(app):
         raise RuntimeError("JWT_SECRET_KEY no está configurado")
 
     app.config["JWT_SECRET_KEY"] = jwt_secret
+    app.config["JWT_TOKEN_LOCATION"] = ["headers"]
+    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(
+        minutes=int(os.getenv("JWT_ACCESS_TOKEN_EXPIRES_MINUTES", "120"))
+    )
     jwt.init_app(app)
 
 # ===============================
@@ -78,19 +84,32 @@ def create_auth_routes(app):
     @app.route("/api/auth/login", methods=["POST"])
     def login():
         data = request.get_json() or {}
-        email = data.get("email")
-        password = data.get("password")
+        email = normalize_email(str(data.get("email", "")))
+        password = str(data.get("password", ""))
 
         if not email or not password:
             return jsonify({"error": "Email y password requeridos"}), 400
+        if not is_valid_email(email):
+            return jsonify({"error": "Credenciales inválidas"}), 401
+
+        ip = get_client_ip()
+        fail_key = f"auth:login:fail:{email}:{ip}"
+        max_fails = int(os.getenv("AUTH_MAX_FAILED_ATTEMPTS", "10"))
+        fail_window = int(os.getenv("AUTH_FAILED_WINDOW_SECONDS", "900"))
+
+        if rate_limiter.count(fail_key, fail_window) >= max_fails:
+            return jsonify({"error": "Demasiados intentos. Intenta nuevamente más tarde."}), 429
 
         user = User.query.filter_by(email=email).first()
 
         if not user or not user.is_active:
+            rate_limiter.add(fail_key)
             return jsonify({"error": "Credenciales inválidas"}), 401
 
         if not user.check_password(password):
+            rate_limiter.add(fail_key)
             return jsonify({"error": "Credenciales inválidas"}), 401
+        rate_limiter.reset(fail_key)
         
         now = datetime.now(ZoneInfo("America/Santiago")).replace(tzinfo=None)
 
@@ -102,10 +121,6 @@ def create_auth_routes(app):
         # Evento especial para root
         if user.global_role == "root":
             try:
-                ip = request.headers.get(
-                    "X-Forwarded-For",
-                    request.remote_addr
-                )
                 on_root_login(user, ip)
             except Exception as e:
                 app.logger.error(f"[ROOT_LOGIN_ERROR] {e}")
@@ -168,7 +183,22 @@ def create_auth_routes(app):
     # -------- FORGOT PASSWORD --------
     @app.route("/api/auth/forgot-password", methods=["POST"])
     def forgot_password():
-        email = (request.get_json() or {}).get("email")
+        email = normalize_email(str((request.get_json() or {}).get("email", "")))
+        ip = get_client_ip()
+
+        if not email or not is_valid_email(email):
+            return jsonify({"message": "Si existe, recibirás instrucciones"}), 200
+
+        allowed, retry_after = rate_limiter.hit(
+            key=f"auth:forgot:{email}:{ip}",
+            limit=int(os.getenv("FORGOT_PASSWORD_MAX_ATTEMPTS", "5")),
+            window_seconds=int(os.getenv("FORGOT_PASSWORD_WINDOW_SECONDS", "900")),
+        )
+        if not allowed:
+            return jsonify({
+                "message": "Si existe, recibirás instrucciones"
+            }), 200, {"Retry-After": str(retry_after)}
+
         user = User.query.filter_by(email=email, is_active=True).first()
 
         if not user:

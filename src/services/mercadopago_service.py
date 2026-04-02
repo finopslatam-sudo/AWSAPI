@@ -77,6 +77,11 @@ def create_subscription(
     currency      = os.getenv("MP_CURRENCY", "CLP")
     frontend_url  = os.getenv("FRONTEND_URL", "https://www.finopslatam.com").rstrip("/")
     backend_url   = os.getenv("API_URL",      "https://api.finopslatam.com").rstrip("/")
+    webhook_token = (os.getenv("MP_WEBHOOK_TOKEN") or "").strip()
+
+    notification_url = f"{backend_url}/api/webhooks/mercadopago"
+    if webhook_token:
+        notification_url = f"{notification_url}?token={webhook_token}"
 
     sdk = _sdk()
 
@@ -91,7 +96,7 @@ def create_subscription(
         "payer_email":       user_email,
         "back_url":          f"{frontend_url}/pago/success?plan={plan_code}",
         "status":            "pending",
-        "notification_url":  f"{backend_url}/api/webhooks/mercadopago",
+        "notification_url":  notification_url,
     }
 
     result = sdk.preapproval().create(preapproval_data)

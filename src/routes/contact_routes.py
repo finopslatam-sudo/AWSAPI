@@ -15,6 +15,7 @@ from flask import Blueprint, request, jsonify
 
 from src.services.email_service import send_email
 from src.models.user import User
+from src.security.validation import is_valid_email, normalize_email
 
 contact_bp = Blueprint("contact", __name__)
 logger = logging.getLogger("contact")
@@ -35,29 +36,39 @@ def contact():
             "error": f"Campos requeridos faltantes: {', '.join(missing)}"
         }), 400
 
+    email = normalize_email(str(data.get("email", "")))
+    if not is_valid_email(email):
+        return jsonify({"error": "Email inválido"}), 400
+
+    nombre = str(data.get("nombre", "")).strip()[:255]
+    empresa = str(data.get("empresa", "")).strip()[:255]
+    servicio = str(data.get("servicio", "")).strip()[:120]
+    telefono = str(data.get("telefono", "No informado")).strip()[:60]
+    mensaje = str(data.get("mensaje", "")).strip()[:4000]
+
     body = f"""
 Nuevo contacto desde FinOpsLatam
 
-Nombre: {data['nombre']}
-Empresa: {data['empresa']}
-Email: {data['email']}
-Teléfono: {data.get('telefono', 'No informado')}
-Servicio de interés: {data['servicio']}
+Nombre: {nombre}
+Empresa: {empresa}
+Email: {email}
+Teléfono: {telefono}
+Servicio de interés: {servicio}
 
 Mensaje:
-{data['mensaje']}
+{mensaje}
 """
 
     sent = send_email(
         to="contacto@finopslatam.com",
-        subject=f"📩 Nuevo contacto – {data['servicio']}",
+        subject=f"📩 Nuevo contacto – {servicio}",
         body=body,
     )
 
     if not sent:
         logger.warning(
             "No se pudo enviar correo de contacto desde %s",
-            data.get("email")
+            email
         )
         return jsonify({
             "error": "Servicio de correo no disponible"
@@ -73,15 +84,15 @@ Mensaje:
         if staff_user.email not in notified_emails:
             send_email(
                 to=staff_user.email,
-                subject=f"🔔 Nueva solicitud de consultoría – {data['empresa']}",
+                subject=f"🔔 Nueva solicitud de consultoría – {empresa}",
                 body=body,
             )
             notified_emails.add(staff_user.email)
 
     logger.info(
         "Contacto recibido desde %s (%s)",
-        data["email"],
-        data["empresa"],
+        email,
+        empresa,
     )
 
     return jsonify({

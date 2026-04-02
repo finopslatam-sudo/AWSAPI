@@ -18,6 +18,7 @@ from flask import Blueprint, jsonify, request
 
 from src.models.database import db
 from src.models.patpass_inscription import PatpassInscription
+from src.security.validation import is_valid_email, normalize_email
 from src.services.patpass_service import (
     PLAN_NAMES,
     confirm_inscription,
@@ -50,14 +51,14 @@ def create_inscription_endpoint():
         return jsonify({"error": "Payload inválido"}), 400
 
     plan_code = str(data.get("plan_code", "")).strip().lower()
-    email     = str(data.get("email",     "")).strip()[:320]
+    email     = normalize_email(str(data.get("email", "")))[:320]
     nombre    = str(data.get("nombre",    "")).strip()[:255]
     empresa   = str(data.get("empresa",   "")).strip()[:255]
     pais      = str(data.get("pais",      "")).strip()[:100]
     telefono  = str(data.get("telefono",  "")).strip()[:50]
     rut       = str(data.get("rut",       "")).strip()[:20]
 
-    if not plan_code or not email or "@" not in email:
+    if not plan_code or not email or not is_valid_email(email):
         return jsonify({"error": "plan_code y email válidos son requeridos"}), 400
     if not nombre:
         return jsonify({"error": "El nombre es requerido"}), 400
