@@ -43,9 +43,16 @@ PLAN_AMOUNTS: dict[str, float] = {
 
 def _sdk() -> mercadopago.SDK:
     """Retorna instancia del SDK autenticada. Lanza ValueError si falta el token."""
-    token = os.getenv("MP_ACCESS_TOKEN", "")
+    raw_token = os.getenv("MP_ACCESS_TOKEN") or os.getenv("MERCADOPAGO_ACCESS_TOKEN", "")
+    token = raw_token.strip().strip('"').strip("'")
     if not token:
         raise ValueError("MP_ACCESS_TOKEN no configurada")
+    if not token.startswith(("APP_USR-", "TEST-")):
+        raise ValueError(
+            "MP_ACCESS_TOKEN tiene formato inválido. "
+            "Debe ser Access Token de Mercado Pago (no Public Key) "
+            "y comenzar con APP_USR- o TEST-."
+        )
     return mercadopago.SDK(token)
 
 
@@ -88,10 +95,21 @@ def create_subscription(
     }
 
     result = sdk.preapproval().create(preapproval_data)
+    status = result.get("status")
 
-    if result["status"] not in (200, 201):
-        error_detail = result.get("response", {})
-        raise ValueError(f"Error Mercado Pago al crear suscripción: {error_detail}")
+    if status not in (200, 201):
+        response = result.get("response", {})
+        if status == 401:
+            raise ValueError(
+                "Mercado Pago devolvió 401 Unauthorized al crear la suscripción. "
+                "Revisa MP_ACCESS_TOKEN: debe ser Access Token válido (no Public Key), "
+                "sin espacios extra y del ambiente correcto (TEST o producción)."
+            )
+
+        error_detail = response.get("message") or response
+        raise ValueError(
+            f"Error Mercado Pago al crear suscripción (HTTP {status}): {error_detail}"
+        )
 
     response       = result["response"]
     preapproval_id = response.get("id", "")
