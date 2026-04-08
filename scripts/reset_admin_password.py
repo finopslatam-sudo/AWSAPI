@@ -1,7 +1,11 @@
 import os
+from src.config.env_loader import load_environment
 
 # 🔐 Evitar que Flask registre rutas
 os.environ["FLASK_SKIP_ROUTES"] = "1"
+
+# Carga ENV desde /etc/finops-api.env (fallback .env en dev)
+load_environment()
 
 # 🔧 Validar ENV
 if not os.getenv("SQLALCHEMY_DATABASE_URI"):

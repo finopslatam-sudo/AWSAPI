@@ -7,7 +7,7 @@ Endpoint interno para disparar el motor de alertas.
 Debe ser llamado por un cron job externo con el header:
   X-Internal-Secret: <INTERNAL_API_SECRET>
 
-Configuración requerida en .env:
+Configuración requerida en /etc/finops-api.env:
   INTERNAL_API_SECRET=un-secreto-largo-y-seguro
 
 Ejemplo de cron (diario a las 08:00 AM):

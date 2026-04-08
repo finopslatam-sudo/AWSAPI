@@ -21,6 +21,13 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # --------------------------------------------------
+# Cargar variables de entorno (prioriza /etc/finops-api.env)
+# --------------------------------------------------
+from src.config.env_loader import load_environment
+
+load_environment()
+
+# --------------------------------------------------
 # Cargar DB (NO app.py)
 # --------------------------------------------------
 from src.models.database import db

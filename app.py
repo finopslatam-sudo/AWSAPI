@@ -1,14 +1,10 @@
 # =====================================================
 #   ENV (SAFE – NO ROMPE PROD)
 # =====================================================
-from dotenv import load_dotenv
 import os
+from src.config.env_loader import load_environment
 
-# Forzar override
-if os.path.exists("/etc/finops-api.env"):
-    load_dotenv("/etc/finops-api.env", override=False)
-else:
-    load_dotenv(override=True)
+load_environment()
 # =====================================================
 #   CORE IMPORTS
 # =====================================================
