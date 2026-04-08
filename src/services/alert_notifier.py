@@ -21,13 +21,20 @@ from src.services.email_templates import build_alert_fired_email
 
 
 def dispatch_alert(policy, context: dict):
-    """Dispara la alerta por el canal configurado en la política."""
+    """Dispara la alerta por el canal configurado en la política.
+
+    Retorna:
+        True  -> notificación enviada correctamente
+        False -> no se envió o falló el canal
+    """
     if policy.channel == "email":
-        _send_email_alert(policy, context)
-    elif policy.channel == "slack":
-        _send_slack_alert(policy, context)
-    elif policy.channel == "teams":
-        _send_teams_alert(policy, context)
+        return _send_email_alert(policy, context)
+    if policy.channel == "slack":
+        return _send_slack_alert(policy, context)
+    if policy.channel == "teams":
+        return _send_teams_alert(policy, context)
+    print(f"[AlertNotifier] Canal no soportado (política {policy.id}): {policy.channel}")
+    return False
 
 
 def _context_as_text(context: dict) -> str:
@@ -47,7 +54,8 @@ def _context_as_text(context: dict) -> str:
 
 def _send_email_alert(policy, context: dict):
     if not policy.email:
-        return
+        print(f"[AlertNotifier] Política {policy.id} sin email destino")
+        return False
 
     body = build_alert_fired_email(
         policy_title=policy.title,
@@ -55,7 +63,7 @@ def _send_email_alert(policy, context: dict):
         context=context,
     )
 
-    send_email(
+    return send_email(
         to=policy.email,
         subject=f"FinOpsLatam — Alerta: {policy.title}",
         body=body,
@@ -67,7 +75,8 @@ def _send_email_alert(policy, context: dict):
 def _send_slack_alert(policy, context: dict):
     webhook_url = policy.email
     if not webhook_url:
-        return
+        print(f"[AlertNotifier] Política {policy.id} sin webhook Slack")
+        return False
 
     context_text = _context_as_text(context)
     payload = {
@@ -79,9 +88,17 @@ def _send_slack_alert(policy, context: dict):
     }
 
     try:
-        requests.post(webhook_url, json=payload, timeout=10)
+        response = requests.post(webhook_url, json=payload, timeout=10)
+        if 200 <= response.status_code < 300:
+            return True
+        print(
+            f"[AlertNotifier] Slack webhook HTTP {response.status_code} "
+            f"(política {policy.id})"
+        )
+        return False
     except Exception as e:
         print(f"[AlertNotifier] Slack webhook error (política {policy.id}): {e}")
+        return False
 
 
 # ── TEAMS ─────────────────────────────────────────────────────────
@@ -89,7 +106,8 @@ def _send_slack_alert(policy, context: dict):
 def _send_teams_alert(policy, context: dict):
     webhook_url = policy.email
     if not webhook_url:
-        return
+        print(f"[AlertNotifier] Política {policy.id} sin webhook Teams")
+        return False
 
     context_text = _context_as_text(context)
     payload = {
@@ -107,6 +125,14 @@ def _send_teams_alert(policy, context: dict):
     }
 
     try:
-        requests.post(webhook_url, json=payload, timeout=10)
+        response = requests.post(webhook_url, json=payload, timeout=10)
+        if 200 <= response.status_code < 300:
+            return True
+        print(
+            f"[AlertNotifier] Teams webhook HTTP {response.status_code} "
+            f"(política {policy.id})"
+        )
+        return False
     except Exception as e:
         print(f"[AlertNotifier] Teams webhook error (política {policy.id}): {e}")
+        return False

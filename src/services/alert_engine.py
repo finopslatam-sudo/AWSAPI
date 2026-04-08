@@ -69,7 +69,7 @@ def run_alert_engine() -> dict:
     cuando se cumplen las condiciones.
     Retorna resumen de ejecución.
     """
-    policies = AlertPolicy.query.filter(AlertPolicy.threshold.isnot(None)).all()
+    policies = AlertPolicy.query.all()
 
     fired_count = 0
     skipped_count = 0
@@ -88,9 +88,16 @@ def run_alert_engine() -> dict:
         try:
             fired, context = evaluator(policy)
             if fired:
-                dispatch_alert(policy, context)
-                _mark_fired(policy)
-                fired_count += 1
+                delivered = dispatch_alert(policy, context)
+                if delivered:
+                    _mark_fired(policy)
+                    fired_count += 1
+                else:
+                    print(
+                        f"[AlertEngine] Alerta no enviada en política "
+                        f"{policy.id} ({policy.policy_id})"
+                    )
+                    error_count += 1
         except Exception as e:
             print(f"[AlertEngine] Error en política {policy.id} ({policy.policy_id}): {e}")
             error_count += 1

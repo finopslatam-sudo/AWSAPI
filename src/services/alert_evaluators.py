@@ -45,6 +45,32 @@ def _annual_cost(account) -> float:
         return 0.0
 
 
+def _annual_previous_cost(account) -> float:
+    try:
+        data = CostExplorerService(account).get_annual_costs()
+        return data.get("previous_year_cost", 0.0)
+    except Exception:
+        return 0.0
+
+
+def _monthly_reference_avg(accounts: list) -> float:
+    """
+    Referencia para comparaciones porcentuales mensuales:
+    promedio de los últimos 3 meses (sin incluir el mes actual),
+    agregado sobre todas las cuentas.
+    """
+    reference = 0.0
+    for account in accounts:
+        try:
+            months = CostExplorerService(account).get_last_6_months_cost()
+            past = [m["amount"] for m in months[:-1][-3:] if m["amount"] > 0]
+            if past:
+                reference += (sum(past) / len(past))
+        except Exception:
+            pass
+    return reference
+
+
 def _exceeds(value: float, threshold: float, t_type: str, reference: float = 0.0) -> bool:
     if t_type == "USD":
         return value >= threshold
@@ -60,36 +86,35 @@ def evaluate_budget_monthly(policy: AlertPolicy):
     total = sum(_monthly_cost(a) for a in accounts)
     threshold = policy.threshold or 0
     t_type = policy.threshold_type or "USD"
-
-    reference = 0.0
-    if t_type == "%" and accounts:
-        try:
-            months = CostExplorerService(accounts[0]).get_last_6_months_cost()
-            past = [m["amount"] for m in months[:-1][-3:] if m["amount"] > 0]
-            reference = sum(past) / len(past) if past else 0
-        except Exception:
-            pass
+    reference = _monthly_reference_avg(accounts) if t_type == "%" else 0.0
 
     fired = _exceeds(total, threshold, t_type, reference)
-    return fired, {
+    context = {
         "costo_actual_mes": f"USD {round(total, 2)}",
         "umbral": f"{threshold} {t_type}",
         "periodo": "Mensual",
     }
+    if t_type == "%":
+        context["referencia_ult_3_meses"] = f"USD {round(reference, 2)}"
+    return fired, context
 
 
 def evaluate_budget_annual(policy: AlertPolicy):
     accounts = _get_accounts(policy)
     total = sum(_annual_cost(a) for a in accounts)
+    reference = sum(_annual_previous_cost(a) for a in accounts)
     threshold = policy.threshold or 0
     t_type = policy.threshold_type or "USD"
 
-    fired = _exceeds(total, threshold, t_type)
-    return fired, {
+    fired = _exceeds(total, threshold, t_type, reference)
+    context = {
         "costo_acumulado_año": f"USD {round(total, 2)}",
         "umbral": f"{threshold} {t_type}",
         "periodo": "Anual",
     }
+    if t_type == "%":
+        context["referencia_año_anterior"] = f"USD {round(reference, 2)}"
+    return fired, context
 
 
 def evaluate_anomaly_spike(policy: AlertPolicy):
@@ -213,13 +238,17 @@ def evaluate_forecast(policy: AlertPolicy):
         projected = (current_cost / days_elapsed) * days_in_month
         threshold = policy.threshold or 0
         t_type = policy.threshold_type or "USD"
-        fired = _exceeds(projected, threshold, t_type)
-        return fired, {
+        reference = _monthly_reference_avg(accounts) if t_type == "%" else 0.0
+        fired = _exceeds(projected, threshold, t_type, reference)
+        context = {
             "proyeccion_fin_de_mes": f"USD {round(projected, 2)}",
             "gasto_actual": f"USD {round(current_cost, 2)}",
             "dias_transcurridos": days_elapsed,
             "umbral": f"{threshold} {t_type}",
         }
+        if t_type == "%":
+            context["referencia_ult_3_meses"] = f"USD {round(reference, 2)}"
+        return fired, context
     except Exception:
         return False, {}
 
