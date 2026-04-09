@@ -71,6 +71,8 @@ def get_clients_with_active_plan():
             Client.phone,
             Client.pais,
             Client.is_active,
+            Client.mfa_policy,
+            Client.mfa_updated_at,
             Client.created_at,
             Plan.name.label("plan"),
             system_clients.c.client_id.label("is_system_client"),
@@ -96,6 +98,11 @@ def get_clients_with_active_plan():
             "phone": r.phone,
             "pais": r.pais,
             "is_active": r.is_active,
+            "mfa_policy": r.mfa_policy,
+            "mfa_updated_at": (
+                r.mfa_updated_at.isoformat()
+                if r.mfa_updated_at else None
+            ),
             "plan": r.plan,
             "created_at": (
                 r.created_at.isoformat()

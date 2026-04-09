@@ -107,6 +107,9 @@ def build_admin_user_view(row, actor: User) -> dict:
         "role": role,
         "is_active": row.is_active,
         "force_password_change": row.force_password_change,
+        "mfa_enabled": getattr(row, "mfa_enabled", False),
+        "mfa_confirmed_at": getattr(row, "mfa_confirmed_at", None).isoformat()
+        if getattr(row, "mfa_confirmed_at", None) else None,
         "company_name": row.company_name,
         "contact_name": row.contact_name,
         "client": (

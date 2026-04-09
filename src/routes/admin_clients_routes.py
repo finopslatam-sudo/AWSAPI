@@ -10,6 +10,8 @@ Este módulo:
 - DELEGA construcción de vistas al service layer
 """
 
+from datetime import datetime
+
 from flask import Blueprint, jsonify, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
@@ -135,6 +137,12 @@ def update_client(client_id):
         if field in data:
             setattr(client, field, data[field])
 
+    if "mfa_policy" in data:
+        if data["mfa_policy"] not in Client.MFA_POLICIES:
+            return jsonify({"error": "mfa_policy inválida"}), 400
+        client.mfa_policy = data["mfa_policy"]
+        client.mfa_updated_at = datetime.utcnow()
+
     db.session.commit()
 
     return jsonify({
@@ -146,6 +154,8 @@ def update_client(client_id):
             "phone": client.phone,
             "pais": client.pais,
             "is_active": client.is_active,
+            "mfa_policy": client.mfa_policy,
+            "mfa_updated_at": client.mfa_updated_at.isoformat() if client.mfa_updated_at else None,
         }
     }), 200
 

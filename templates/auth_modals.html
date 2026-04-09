@@ -12,16 +12,33 @@
                         <label for="loginEmail" class="form-label">Email</label>
                         <input type="email" class="form-control" id="loginEmail" required>
                     </div>
-                    <div class="mb-3">
+                    <div class="mb-3" id="loginPasswordSection">
                         <label for="loginPassword" class="form-label">Contraseña</label>
                         <input type="password" class="form-control" id="loginPassword" required>
+                    </div>
+                    <div id="loginMfaSection" style="display: none;">
+                        <p class="small text-muted mb-2" id="loginMfaInstructions"></p>
+                        <div class="mb-3">
+                            <label for="loginMfaCode" class="form-label">Código MFA</label>
+                            <input type="text" class="form-control" id="loginMfaCode" autocomplete="one-time-code">
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="loginUseRecoveryCode">
+                            <label class="form-check-label" for="loginUseRecoveryCode">
+                                Usar recovery code
+                            </label>
+                        </div>
+                        <div class="alert alert-secondary" id="loginMfaEnrollment" style="display: none;">
+                            <div class="mb-2"><strong>Secreto MFA:</strong> <span id="loginMfaSecret"></span></div>
+                            <a id="loginMfaSetupLink" href="#" target="_blank" rel="noopener">Abrir configuración en tu app</a>
+                        </div>
                     </div>
                     <div class="alert alert-danger" id="loginError" style="display: none;"></div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="login()">Iniciar Sesión</button>
+                <button type="button" class="btn btn-primary" id="loginSubmitButton" onclick="login()">Iniciar Sesión</button>
             </div>
         </div>
     </div>

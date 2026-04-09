@@ -30,7 +30,12 @@ def get_client_users(client_id: int):
             "contact_name": u.contact_name,
             "client_role": u.client_role,
             "is_active": u.is_active,
-            "force_password_change": u.force_password_change
+            "force_password_change": u.force_password_change,
+            "mfa_enabled": u.mfa_enabled,
+            "mfa_confirmed_at": (
+                u.mfa_confirmed_at.isoformat()
+                if u.mfa_confirmed_at else None
+            ),
         })
 
     return result

@@ -125,6 +125,10 @@ def security_guardrails():
     # Endpoints públicos sensibles
     route_limits = {
         "/api/auth/login": (10, 60),
+        "/api/auth/mfa/setup": (10, 300),
+        "/api/auth/mfa/confirm": (10, 300),
+        "/api/auth/mfa/verify": (10, 300),
+        "/api/auth/mfa/recovery": (10, 300),
         "/api/auth/forgot-password": (5, 900),
         "/api/contact": (10, 600),
         "/api/payments/create-subscription": (12, 600),
@@ -207,6 +211,7 @@ from src.routes.client_snapshot_routes import snapshot_bp
 from src.routes.client_finops_routes import finops_bp
 from src.routes.client_aws_connection_routes import client_aws_connection_bp
 from src.routes.client_user_routes import client_users_bp
+from src.routes.client_security_routes import client_security_bp
 from src.routes.client_subscription_routes import client_subscription_bp
 from src.routes.client_info_routes import client_info_bp
 from src.routes.admin_plan_upgrade_routes import admin_plan_upgrade_bp
@@ -239,6 +244,7 @@ app.register_blueprint(admin_users_bp)
 app.register_blueprint(admin_user_access_bp)
 app.register_blueprint(alert_policy_bp)
 app.register_blueprint(client_users_bp)
+app.register_blueprint(client_security_bp)
 app.register_blueprint(client_subscription_bp)
 app.register_blueprint(client_info_bp)
 app.register_blueprint(admin_plan_upgrade_bp)

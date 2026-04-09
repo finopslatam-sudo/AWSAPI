@@ -42,6 +42,8 @@ def list_users():
                 User.client_id,
                 User.is_active,
                 User.force_password_change,
+                User.mfa_enabled,
+                User.mfa_confirmed_at,
                 User.contact_name,
                 Client.company_name,
             )
@@ -78,6 +80,8 @@ def list_users():
                     "client_id": u.client_id,
                     "is_active": u.is_active,
                     "force_password_change": u.force_password_change,
+                    "mfa_enabled": u.mfa_enabled,
+                    "mfa_confirmed_at": u.mfa_confirmed_at,
                     "contact_name": u.contact_name,
                     "company_name": client.company_name,
                 })(),

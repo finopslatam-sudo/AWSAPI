@@ -46,6 +46,14 @@ class User(db.Model):
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     force_password_change = db.Column(db.Boolean, default=False, nullable=False)
     password_expires_at = db.Column(db.DateTime, nullable=True)
+    mfa_enabled = db.Column(db.Boolean, default=False, nullable=False)
+    mfa_secret_encrypted = db.Column(db.Text, nullable=True)
+    mfa_pending_secret_encrypted = db.Column(db.Text, nullable=True)
+    mfa_confirmed_at = db.Column(db.DateTime, nullable=True)
+    mfa_recovery_codes_hash = db.Column(db.Text, nullable=True)
+    mfa_last_used_at = db.Column(db.DateTime, nullable=True)
+    mfa_failed_attempts = db.Column(db.Integer, default=0, nullable=False)
+    mfa_locked_until = db.Column(db.DateTime, nullable=True)
 
     # ==========================
     # AUDIT

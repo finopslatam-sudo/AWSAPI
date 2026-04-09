@@ -1,28 +1,178 @@
 let authToken = localStorage.getItem('auth_token');
 let currentUser = null;
+let pendingMfaChallenge = null;
+let pendingMfaEnrollment = false;
 
-// Verificar estado de autenticación al cargar la página
 document.addEventListener('DOMContentLoaded', function() {
     checkAuthStatus();
 });
 
-// Mostrar modal de login
 function showLoginModal() {
+    resetLoginFlow();
     const modal = new bootstrap.Modal(document.getElementById('loginModal'));
     modal.show();
 }
 
-// Mostrar modal de registro
 function showRegisterModal() {
     const modal = new bootstrap.Modal(document.getElementById('registerModal'));
     modal.show();
 }
 
-// Función de login
+function getLoginErrorDiv() {
+    return document.getElementById('loginError');
+}
+
+function showLoginError(message) {
+    const errorDiv = getLoginErrorDiv();
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+}
+
+function clearLoginError() {
+    const errorDiv = getLoginErrorDiv();
+    errorDiv.textContent = '';
+    errorDiv.style.display = 'none';
+}
+
+function resetLoginFlow() {
+    pendingMfaChallenge = null;
+    pendingMfaEnrollment = false;
+    clearLoginError();
+
+    const passwordSection = document.getElementById('loginPasswordSection');
+    const mfaSection = document.getElementById('loginMfaSection');
+    const enrollmentSection = document.getElementById('loginMfaEnrollment');
+    const submitButton = document.getElementById('loginSubmitButton');
+    const codeInput = document.getElementById('loginMfaCode');
+    const recoveryToggle = document.getElementById('loginUseRecoveryCode');
+
+    passwordSection.style.display = 'block';
+    mfaSection.style.display = 'none';
+    enrollmentSection.style.display = 'none';
+    submitButton.textContent = 'Iniciar Sesión';
+    codeInput.value = '';
+    recoveryToggle.checked = false;
+}
+
+function renderMfaStep(data, enrollment = false) {
+    pendingMfaChallenge = data.challenge_token;
+    pendingMfaEnrollment = enrollment;
+
+    document.getElementById('loginPasswordSection').style.display = 'none';
+    document.getElementById('loginMfaSection').style.display = 'block';
+    document.getElementById('loginSubmitButton').textContent = enrollment
+        ? 'Confirmar MFA'
+        : 'Verificar Código';
+
+    const instructions = document.getElementById('loginMfaInstructions');
+    instructions.textContent = enrollment
+        ? 'Configura tu aplicación autenticadora y luego ingresa el código de 6 dígitos.'
+        : 'Ingresa el código de tu aplicación autenticadora o un recovery code.';
+}
+
+function renderMfaEnrollment(setupData) {
+    const enrollmentSection = document.getElementById('loginMfaEnrollment');
+    enrollmentSection.style.display = 'block';
+    document.getElementById('loginMfaSecret').textContent = setupData.secret;
+
+    const setupLink = document.getElementById('loginMfaSetupLink');
+    setupLink.href = setupData.otpauth_url;
+    setupLink.textContent = 'Abrir configuración en tu app';
+}
+
+function completeLogin(data) {
+    authToken = data.access_token;
+    currentUser = data.user || data.client;
+
+    localStorage.setItem('auth_token', authToken);
+    localStorage.setItem('user_data', JSON.stringify(currentUser));
+
+    updateUI();
+
+    const modal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
+    modal.hide();
+    resetLoginFlow();
+
+    showAlert('Login exitoso', 'success');
+
+    if (Array.isArray(data.recovery_codes) && data.recovery_codes.length) {
+        showAlert(`Guarda tus recovery codes: ${data.recovery_codes.join(', ')}`, 'warning');
+    }
+}
+
+async function beginMfaEnrollment(challengeToken) {
+    const response = await fetch('/api/auth/mfa/setup', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            challenge_token: challengeToken
+        })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+        throw new Error(data.error || 'No fue posible iniciar MFA');
+    }
+
+    renderMfaStep(data, true);
+    renderMfaEnrollment(data);
+}
+
+async function submitMfaStep() {
+    const code = document.getElementById('loginMfaCode').value.trim();
+    const useRecoveryCode = document.getElementById('loginUseRecoveryCode').checked;
+
+    if (!pendingMfaChallenge) {
+        showLoginError('No existe un desafío MFA activo.');
+        return;
+    }
+
+    if (!code) {
+        showLoginError('Ingresa tu código MFA.');
+        return;
+    }
+
+    const endpoint = pendingMfaEnrollment
+        ? '/api/auth/mfa/confirm'
+        : (useRecoveryCode ? '/api/auth/mfa/recovery' : '/api/auth/mfa/verify');
+
+    const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            challenge_token: pendingMfaChallenge,
+            code: code
+        })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        showLoginError(data.error || 'Código MFA inválido');
+        return;
+    }
+
+    completeLogin(data);
+}
+
 async function login() {
+    clearLoginError();
+
+    if (pendingMfaChallenge) {
+        try {
+            await submitMfaStep();
+        } catch (error) {
+            showLoginError('Error de conexión: ' + error.message);
+        }
+        return;
+    }
+
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
-    const errorDiv = document.getElementById('loginError');
 
     try {
         const response = await fetch('/api/auth/login', {
@@ -38,35 +188,27 @@ async function login() {
 
         const data = await response.json();
 
-        if (response.ok) {
-            // Login exitoso
-            authToken = data.access_token;
-            currentUser = data.client;
-            
-            localStorage.setItem('auth_token', authToken);
-            localStorage.setItem('user_data', JSON.stringify(data.client));
-            
-            updateUI();
-            
-            // Cerrar modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
-            modal.hide();
-            
-            // Mostrar mensaje de éxito
-            showAlert('✅ Login exitoso!', 'success');
-            
-        } else {
-            // Error de login
-            errorDiv.textContent = data.error || 'Error en el login';
-            errorDiv.style.display = 'block';
+        if (!response.ok) {
+            showLoginError(data.error || 'Error en el login');
+            return;
         }
+
+        if (data.mfa_enrollment_required) {
+            await beginMfaEnrollment(data.challenge_token);
+            return;
+        }
+
+        if (data.mfa_required) {
+            renderMfaStep(data, false);
+            return;
+        }
+
+        completeLogin(data);
     } catch (error) {
-        errorDiv.textContent = 'Error de conexión: ' + error.message;
-        errorDiv.style.display = 'block';
+        showLoginError('Error de conexión: ' + error.message);
     }
 }
 
-// Función de registro
 async function register() {
     const company = document.getElementById('registerCompany').value;
     const email = document.getElementById('registerEmail').value;
@@ -91,24 +233,19 @@ async function register() {
         const data = await response.json();
 
         if (response.ok) {
-            // Registro exitoso
             authToken = data.access_token;
-            currentUser = data.client;
-            
+            currentUser = data.user || data.client;
+
             localStorage.setItem('auth_token', authToken);
-            localStorage.setItem('user_data', JSON.stringify(data.client));
-            
+            localStorage.setItem('user_data', JSON.stringify(currentUser));
+
             updateUI();
-            
-            // Cerrar modal
+
             const modal = bootstrap.Modal.getInstance(document.getElementById('registerModal'));
             modal.hide();
-            
-            // Mostrar mensaje de éxito
-            showAlert('🎉 Cuenta creada exitosamente!', 'success');
-            
+
+            showAlert('Cuenta creada exitosamente', 'success');
         } else {
-            // Error de registro
             errorDiv.textContent = data.error || 'Error en el registro';
             errorDiv.style.display = 'block';
         }
@@ -118,28 +255,25 @@ async function register() {
     }
 }
 
-// Función de logout
 function logout() {
     authToken = null;
     currentUser = null;
-    
+
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user_data');
-    
+
     updateUI();
-    showAlert('👋 Sesión cerrada', 'info');
+    showAlert('Sesión cerrada', 'info');
 }
 
-// Verificar estado de autenticación
 async function checkAuthStatus() {
     const token = localStorage.getItem('auth_token');
     const userData = localStorage.getItem('user_data');
-    
+
     if (token && userData) {
         authToken = token;
         currentUser = JSON.parse(userData);
-        
-        // Verificar si el token sigue siendo válido
+
         try {
             const response = await fetch('/api/auth/profile', {
                 method: 'GET',
@@ -148,53 +282,49 @@ async function checkAuthStatus() {
                     'Content-Type': 'application/json'
                 }
             });
-            
+
             if (!response.ok) {
-                // Token inválido, hacer logout
                 logout();
                 return;
             }
+
+            const data = await response.json();
+            currentUser = data.user || currentUser;
+            localStorage.setItem('user_data', JSON.stringify(currentUser));
         } catch (error) {
             console.error('Error verificando token:', error);
         }
     }
-    
+
     updateUI();
 }
 
-// Actualizar la UI según el estado de autenticación
 function updateUI() {
     const guestButtons = document.getElementById('guest-buttons');
     const userButtons = document.getElementById('user-buttons');
     const userEmail = document.getElementById('user-email');
-    
+
     if (authToken && currentUser) {
-        // Usuario logueado
         guestButtons.style.display = 'none';
         userButtons.style.display = 'block';
         userEmail.textContent = currentUser.email;
     } else {
-        // Usuario no logueado
         guestButtons.style.display = 'block';
         userButtons.style.display = 'none';
     }
 }
 
-// Mostrar alertas
 function showAlert(message, type = 'info') {
-    // Crear elemento de alerta
     const alertDiv = document.createElement('div');
     alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
     alertDiv.innerHTML = `
         ${message}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
-    
-    // Insertar al inicio del container
+
     const container = document.querySelector('.container');
     container.insertBefore(alertDiv, container.firstChild);
-    
-    // Auto-remover después de 5 segundos
+
     setTimeout(() => {
         if (alertDiv.parentNode) {
             alertDiv.remove();
@@ -202,22 +332,21 @@ function showAlert(message, type = 'info') {
     }, 5000);
 }
 
-// Función para hacer requests autenticados
 async function authenticatedFetch(url, options = {}) {
     if (!authToken) {
-        showAlert('🔐 Debes iniciar sesión para acceder a esta función', 'warning');
+        showAlert('Debes iniciar sesión para acceder a esta función', 'warning');
         return null;
     }
-    
+
     const defaultOptions = {
         headers: {
             'Authorization': 'Bearer ' + authToken,
             'Content-Type': 'application/json'
         }
     };
-    
+
     const mergedOptions = { ...defaultOptions, ...options };
-    
+
     try {
         const response = await fetch(url, mergedOptions);
         return response;

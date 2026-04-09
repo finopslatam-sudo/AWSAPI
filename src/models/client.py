@@ -17,6 +17,13 @@ from src.models.database import db
 class Client(db.Model):
     __tablename__ = "clients"
 
+    MFA_POLICIES = (
+        "disabled",
+        "optional",
+        "required",
+        "required_for_admins",
+    )
+
     # ==========================
     # PRIMARY KEY
     # ==========================
@@ -63,6 +70,17 @@ class Client(db.Model):
     is_active = db.Column(
         db.Boolean,
         default=True,
+        nullable=True
+    )
+
+    mfa_policy = db.Column(
+        db.String(30),
+        nullable=False,
+        default="disabled"
+    )
+
+    mfa_updated_at = db.Column(
+        db.DateTime,
         nullable=True
     )
 
