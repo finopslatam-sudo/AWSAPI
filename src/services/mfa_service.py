@@ -19,8 +19,6 @@ from datetime import datetime, timedelta
 from typing import Any
 from urllib.parse import quote
 
-from cryptography.fernet import Fernet, InvalidToken
-
 from src.models.client import Client
 from src.models.user import User, pwd_context
 
@@ -44,9 +42,28 @@ def _load_secret_material() -> str:
     return secret
 
 
-def _build_fernet() -> Fernet:
-    digest = hashlib.sha256(_load_secret_material().encode("utf-8")).digest()
-    return Fernet(base64.urlsafe_b64encode(digest))
+def _urlsafe_b64encode(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).decode("utf-8").rstrip("=")
+
+
+def _urlsafe_b64decode(value: str) -> bytes:
+    return base64.urlsafe_b64decode(value + ("=" * (-len(value) % 4)))
+
+
+def _keystream(secret: bytes, nonce: bytes, length: int) -> bytes:
+    output = bytearray()
+    counter = 0
+
+    while len(output) < length:
+        block = hmac.new(
+            secret,
+            nonce + counter.to_bytes(4, "big"),
+            hashlib.sha256,
+        ).digest()
+        output.extend(block)
+        counter += 1
+
+    return bytes(output[:length])
 
 
 def _normalize_base32(secret: str) -> str:
@@ -96,15 +113,46 @@ def verify_totp_code(secret: str, code: str, *, window: int = 1, step: int = 30)
 
 
 def encrypt_secret(raw_secret: str) -> str:
-    return _build_fernet().encrypt(raw_secret.encode("utf-8")).decode("utf-8")
+    secret_key = hashlib.sha256(_load_secret_material().encode("utf-8")).digest()
+    nonce = secrets.token_bytes(16)
+    plaintext = raw_secret.encode("utf-8")
+    stream = _keystream(secret_key, nonce, len(plaintext))
+    ciphertext = bytes(a ^ b for a, b in zip(plaintext, stream))
+    signature = hmac.new(secret_key, nonce + ciphertext, hashlib.sha256).digest()
+    return ".".join([
+        "v1",
+        _urlsafe_b64encode(nonce),
+        _urlsafe_b64encode(ciphertext),
+        _urlsafe_b64encode(signature),
+    ])
 
 
 def decrypt_secret(token: str | None) -> str | None:
     if not token:
         return None
+
     try:
-        return _build_fernet().decrypt(token.encode("utf-8")).decode("utf-8")
-    except (InvalidToken, ValueError):
+        version, encoded_nonce, encoded_ciphertext, encoded_signature = token.split(".", 3)
+        if version != "v1":
+            return None
+
+        secret_key = hashlib.sha256(_load_secret_material().encode("utf-8")).digest()
+        nonce = _urlsafe_b64decode(encoded_nonce)
+        ciphertext = _urlsafe_b64decode(encoded_ciphertext)
+        signature = _urlsafe_b64decode(encoded_signature)
+        expected_signature = hmac.new(
+            secret_key,
+            nonce + ciphertext,
+            hashlib.sha256,
+        ).digest()
+
+        if not hmac.compare_digest(signature, expected_signature):
+            return None
+
+        stream = _keystream(secret_key, nonce, len(ciphertext))
+        plaintext = bytes(a ^ b for a, b in zip(ciphertext, stream))
+        return plaintext.decode("utf-8")
+    except (ValueError, TypeError):
         return None
 
 
@@ -154,15 +202,15 @@ def issue_login_challenge(user: User) -> str:
         "client_id": user.client_id,
         "iat": int(time.time()),
     }
-    encoded_payload = base64.urlsafe_b64encode(
+    encoded_payload = _urlsafe_b64encode(
         json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
-    ).decode("utf-8").rstrip("=")
+    )
     signature = hmac.new(
         _load_secret_material().encode("utf-8"),
         encoded_payload.encode("utf-8"),
         hashlib.sha256,
     ).digest()
-    encoded_signature = base64.urlsafe_b64encode(signature).decode("utf-8").rstrip("=")
+    encoded_signature = _urlsafe_b64encode(signature)
     return f"{encoded_payload}.{encoded_signature}"
 
 
@@ -179,17 +227,13 @@ def parse_login_challenge(token: str, *, max_age_seconds: int | None = None) -> 
         encoded_payload.encode("utf-8"),
         hashlib.sha256,
     ).digest()
-    actual_signature = base64.urlsafe_b64decode(
-        encoded_signature + ("=" * (-len(encoded_signature) % 4))
-    )
+    actual_signature = _urlsafe_b64decode(encoded_signature)
 
     if not hmac.compare_digest(expected_signature, actual_signature):
         raise ValueError("challenge_invalid")
 
     try:
-        raw_payload = base64.urlsafe_b64decode(
-            encoded_payload + ("=" * (-len(encoded_payload) % 4))
-        ).decode("utf-8")
+        raw_payload = _urlsafe_b64decode(encoded_payload).decode("utf-8")
         data = json.loads(raw_payload)
     except (ValueError, json.JSONDecodeError) as exc:
         raise ValueError("challenge_invalid") from exc
