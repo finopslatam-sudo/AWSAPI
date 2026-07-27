@@ -111,7 +111,7 @@ fi
 echo ""
 echo "🧪 Running API healthcheck..."
 
-HEALTH=$(curl -s http://127.0.0.1:5001/api/health || true)
+HEALTH=$(curl -s -H "Host: api.finopslatam.com" http://127.0.0.1:5001/api/health || true)
 
 if [[ "$HEALTH" != *"healthy"* ]]; then
 
