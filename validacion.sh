@@ -85,7 +85,7 @@ echo "♻️ Restarting FinOps API..."
 
 sudo systemctl restart finops-api
 
-sleep 5
+sleep 10
 
 # =====================================================
 # VERIFICAR SERVICIO
