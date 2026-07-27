@@ -10,6 +10,7 @@ env/
 # ============================================
 .env
 .env.*
+!.env.*.example
 .env.production
 .env.produccion
 .secrets
@@ -77,13 +78,6 @@ Thumbs.db
 .mypy_cache/
 *.cache/
 __pypackages__/
-
-# ============================================
-# Node / Frontend
-# ============================================
-node_modules/
-package.json
-package-lock.json
 
 # ============================================
 # Reportes generados

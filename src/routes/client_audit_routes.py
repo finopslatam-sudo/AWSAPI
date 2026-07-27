@@ -1,12 +1,12 @@
 from flask import Blueprint, jsonify, current_app
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required
 
 from concurrent.futures import ThreadPoolExecutor
 import logging
 from datetime import datetime
 
+from src.auth.decorators import require_client_user_role
 from src.models.database import db
-from src.models.user import User
 from src.models.aws_account import AWSAccount
 from src.aws.finops_auditor import FinOpsAuditor
 from src.services.cost_explorer_cache_service import CostExplorerCacheService
@@ -28,16 +28,8 @@ audit_executor = ThreadPoolExecutor(max_workers=5)
 # =====================================================
 @client_audit_bp.route("/run", methods=["POST"])
 @jwt_required()
-def run_client_audit():
-
-    identity = get_jwt_identity()
-    user = User.query.get(identity)
-
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    if user.client_role not in ["owner", "finops_admin"]:
-        return jsonify({"error": "Unauthorized"}), 403
+@require_client_user_role(["owner", "finops_admin"])
+def run_client_audit(user):
 
     # Obtener cuenta AWS activa
     aws_accounts = AWSAccount.query.filter_by(
@@ -51,7 +43,7 @@ def run_client_audit():
     # Evitar ejecución simultánea
     accounts_to_scan = []
 
-    for account in accounts_to_scan:
+    for account in aws_accounts:
 
         if account.audit_status == "running":
             continue
@@ -117,7 +109,7 @@ def run_client_audit():
     # =====================================================
     # RUN THREAD
     # =====================================================
-    for account in aws_accounts:
+    for account in accounts_to_scan:
 
         audit_executor.submit(
             background_audit,
@@ -137,13 +129,8 @@ def run_client_audit():
 # =====================================================
 @client_audit_bp.route("/status", methods=["GET"])
 @jwt_required()
-def audit_status():
-
-    identity = get_jwt_identity()
-    user = User.query.get(identity)
-
-    if not user:
-        return jsonify({"error": "User not found"}), 404
+@require_client_user_role()
+def audit_status(user):
 
     aws_accounts = AWSAccount.query.filter_by(
         client_id=user.client_id,

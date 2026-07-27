@@ -5,6 +5,19 @@ class AWSResourceInventory(db.Model):
 
     __tablename__ = "aws_resource_inventory"
 
+    __table_args__ = (
+        db.UniqueConstraint(
+            "client_id", "resource_id", name="uq_client_resource"
+        ),
+        db.Index("idx_inventory_client_id", "client_id"),
+        db.Index("idx_inventory_client_active", "client_id", "is_active"),
+        db.Index("idx_inventory_type", "client_id", "resource_type"),
+        db.Index(
+            "idx_inventory_client_service", "client_id", "service_name",
+            postgresql_where=db.text("is_active = true")
+        ),
+    )
+
     id = db.Column(db.Integer, primary_key=True)
 
     client_id = db.Column(

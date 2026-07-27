@@ -15,6 +15,13 @@ from src.models.database import db
 class ClientSubscription(db.Model):
     __tablename__ = "client_subscriptions"
 
+    __table_args__ = (
+        db.Index(
+            "uq_client_subscription_active", "client_id",
+            unique=True, postgresql_where=db.text("is_active = true")
+        ),
+    )
+
     id = db.Column(db.Integer, primary_key=True)
 
     client_id = db.Column(

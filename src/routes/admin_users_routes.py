@@ -10,7 +10,13 @@ from src.models.database import db
 from src.models.user import User
 from src.models.client import Client
 from src.services.password_service import generate_temp_password
-from src.routes.admin_user_helpers import require_staff, build_admin_user_view
+from src.routes.admin_user_helpers import (
+    require_staff,
+    build_admin_user_view,
+    validate_new_user_payload,
+    build_global_user,
+    build_client_user,
+)
 
 # =====================================================
 # BLUEPRINT
@@ -109,8 +115,6 @@ def list_users():
 @admin_users_bp.route("", methods=["POST"])
 @jwt_required()
 def create_user():
-    contact_name = (data.get("contact_name") or "").strip()
-
     actor = User.query.get(int(get_jwt_identity()))
     if not actor or not actor.is_active:
         return jsonify({"error": "Unauthorized"}), 403
@@ -119,6 +123,7 @@ def create_user():
         return jsonify({"error": "Unauthorized"}), 403
 
     data = request.get_json() or {}
+    contact_name = (data.get("contact_name") or "").strip()
 
     email = data.get("email")
     client_id = data.get("client_id")
@@ -185,87 +190,19 @@ def create_user_with_password():
     password_confirm = data.get("password_confirm")
     force_change = bool(data.get("force_password_change", True))
 
-    # =====================================================
-    # VALIDACIONES BASE
-    # =====================================================
-    if user_type not in ("global", "client"):
-        return jsonify({"error": "type inválido"}), 400
+    validation_error = validate_new_user_payload(
+        actor, user_type, email, contact_name, password, password_confirm
+    )
+    if validation_error:
+        return validation_error
 
-    if not email or not contact_name:
-        return jsonify({"error": "Email y contact_name son obligatorios"}), 400
-
-    if not password or len(password) < 8:
-        return jsonify({"error": "Password inválida"}), 400
-
-    if password != password_confirm:
-        return jsonify({"error": "Las contraseñas no coinciden"}), 400
-
-    if User.query.filter_by(email=email).first():
-        return jsonify({"error": "El usuario ya existe"}), 409
-
-    # =====================================================
-    # CASO 1 — USUARIO GLOBAL
-    # =====================================================
     if user_type == "global":
-        global_role = data.get("global_role")
-
-        if not global_role:
-            return jsonify({"error": "global_role es obligatorio"}), 400
-
-        # 🔴 ROOT puede crear cualquiera
-        if actor.global_role == "root":
-            if global_role not in ("root", "admin", "support"):
-                return jsonify({"error": "global_role inválido"}), 400
-
-        # 🔵 ADMIN puede crear admin y support
-        elif actor.global_role == "admin":
-            if global_role not in ("admin", "support"):
-                return jsonify({"error": "Admin solo puede crear admin o support"}), 403
-
-        # 🟢 SUPPORT no puede crear globales
-        else:
-            return jsonify({"error": "No tienes permiso para crear usuarios globales"}), 403
-
-        user = User(
-            email=email,
-            contact_name=contact_name,
-            global_role=global_role,
-            client_id=None,
-            client_role=None,
-            is_active=True,
-            force_password_change=force_change,
-        )
-
-    # =====================================================
-    # CASO 2 — USUARIO CLIENTE
-    # =====================================================
+        user, build_error = build_global_user(actor, data, email, contact_name, force_change)
     else:
-        # Solo staff puede crear cliente
-        if actor.global_role not in ("root", "admin", "support"):
-            return jsonify({"error": "No tienes permiso para crear usuarios cliente"}), 403
+        user, build_error = build_client_user(actor, data, email, contact_name, force_change)
 
-        client_id = data.get("client_id")
-        client_role = data.get("client_role")
-
-        if not client_id or not client_role:
-            return jsonify({"error": "Datos incompletos"}), 400
-
-        if client_role not in ("owner", "finops_admin", "viewer"):
-            return jsonify({"error": "client_role inválido"}), 400
-
-        client = Client.query.get(client_id)
-        if not client:
-            return jsonify({"error": "Cliente no existe"}), 404
-
-        user = User(
-            email=email,
-            contact_name=contact_name,
-            global_role=None,
-            client_id=client_id,
-            client_role=client_role,
-            is_active=True,
-            force_password_change=force_change,
-        )
+    if build_error:
+        return build_error
 
     # =====================================================
     # PERSISTENCIA SEGURA

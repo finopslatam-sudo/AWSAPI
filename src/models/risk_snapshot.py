@@ -4,8 +4,16 @@ from src.models.database import db
 class RiskSnapshot(db.Model):
     __tablename__ = "risk_snapshots"
 
+    __table_args__ = (
+        db.Index("idx_risk_snapshot_client_date", "client_id", "created_at"),
+    )
+
     id = db.Column(db.Integer, primary_key=True)
-    client_id = db.Column(db.Integer, nullable=False)
+    client_id = db.Column(
+        db.Integer,
+        db.ForeignKey("clients.id", name="fk_risk_snapshot_client"),
+        nullable=False
+    )
 
     # -------------------------------
     # RISK ENGINE SCORE

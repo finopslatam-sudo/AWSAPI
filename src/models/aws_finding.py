@@ -6,6 +6,19 @@ from datetime import datetime
 class AWSFinding(db.Model):
     __tablename__ = "aws_findings"
 
+    __table_args__ = (
+        db.UniqueConstraint(
+            "client_id", "resource_id", "finding_type",
+            name="uq_client_resource_type"
+        ),
+        db.Index("idx_findings_client_resolved", "client_id", "resolved"),
+        db.Index("idx_findings_resource_client", "resource_id", "client_id"),
+        db.Index(
+            "idx_findings_resource_client_resolved",
+            "resource_id", "client_id", "resolved"
+        ),
+    )
+
     id = db.Column(db.Integer, primary_key=True)
 
     # ---------------- TENANT RELATION ----------------

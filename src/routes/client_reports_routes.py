@@ -1,7 +1,7 @@
 from flask import Response, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from src.models.user import User
+from src.auth.decorators import require_client_user
 from src.reports.client.client_stats_provider import get_client_stats
 from src.reports.client.client_pdf_report import build_client_pdf
 from src.reports.client.client_csv_report import build_client_csv
@@ -14,25 +14,6 @@ from src.reports.client.risk_xlsx_report import build_risk_xlsx
 from src.reports.client.inventory_stats_provider import get_inventory_stats
 from src.reports.client.inventory_csv_report import build_inventory_csv
 from src.reports.client.inventory_xlsx_report import build_inventory_xlsx
-
-
-def require_client_user(user_id: int) -> User | None:
-    user = User.query.get(user_id)
-    if not user:
-        return None
-
-    # No debe ser staff
-    if user.global_role is not None:
-        return None
-
-    # Debe tener cliente asociado
-    if not user.client_id:
-        return None
-
-    if not user.is_active:
-        return None
-
-    return user
 
 
 def register_client_report_routes(app):

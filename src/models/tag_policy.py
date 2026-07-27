@@ -5,6 +5,10 @@ from datetime import datetime
 class TagPolicy(db.Model):
     __tablename__ = "tag_policies"
 
+    __table_args__ = (
+        db.UniqueConstraint("client_id", "tag_key", name="uq_client_tag_key"),
+    )
+
     id = db.Column(db.Integer, primary_key=True)
 
     client_id = db.Column(

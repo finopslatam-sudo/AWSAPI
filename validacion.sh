@@ -12,7 +12,7 @@ echo ""
 # IR AL PROYECTO
 # =====================================================
 
-cd /opt/finops-api/AWSAPI
+cd /opt/apps/finopslatam/AWSAPI
 
 echo "📂 Project directory:"
 pwd
