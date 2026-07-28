@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required
 
-from src.models.user import User
+from src.auth.decorators import require_client_user_role
 from src.services.dashboard.facade import ClientDashboardFacade
 from src.services.risk_snapshot_service import RiskSnapshotService
 
@@ -11,44 +11,14 @@ dashboard_bp = Blueprint(
     url_prefix="/api/client/dashboard"
 )
 
-# =====================================================
-# INTERNAL CLIENT RESOLUTION (HARDENED)
-# =====================================================
-
-def get_client_id():
-    identity = get_jwt_identity()
-
-    if not identity:
-        return None
-
-    user = User.query.get(identity)
-
-    if not user:
-        return None
-
-    return user.client_id
-
-
-def require_client_id():
-    client_id = get_client_id()
-
-    if not client_id:
-        return None, jsonify({"error": "Invalid token"}), 401
-
-    return client_id, None, None
-
 
 # =====================================================
 # FULL DASHBOARD (Single Call Enterprise)
 # =====================================================
 @dashboard_bp.route("/", methods=["GET"])
 @jwt_required()
-def get_full_dashboard():
-
-    client_id, error_response, status = require_client_id()
-
-    if error_response:
-        return error_response, status
+@require_client_user_role()
+def get_full_dashboard(user):
 
     # =====================================================
     # OPTIONAL ACCOUNT FILTER
@@ -57,7 +27,7 @@ def get_full_dashboard():
     aws_account_id = request.args.get("aws_account_id", type=int)
 
     data = ClientDashboardFacade.get_summary(
-        client_id,
+        user.client_id,
         aws_account_id
     )
 
@@ -69,14 +39,10 @@ def get_full_dashboard():
 
 @dashboard_bp.route("/last-scan", methods=["GET"])
 @jwt_required()
-def get_last_scan():
+@require_client_user_role()
+def get_last_scan(user):
 
-    client_id, error_response, status = require_client_id()
-
-    if error_response:
-        return error_response, status
-
-    last_scan = RiskSnapshotService.get_last_scan(client_id)
+    last_scan = RiskSnapshotService.get_last_scan(user.client_id)
 
     return jsonify({
         "last_scan": last_scan.isoformat() if last_scan else None

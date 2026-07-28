@@ -5,6 +5,7 @@ import os
 import boto3
 from botocore.exceptions import ClientError
 
+from src.auth.decorators import require_client_user_role
 from src.models.user import User
 from src.models.aws_account import AWSAccount
 from src.services.aws_connection_service import AWSConnectionService
@@ -25,13 +26,8 @@ client_aws_connection_bp = Blueprint(
 
 @client_aws_connection_bp.route("/connect", methods=["POST"])
 @jwt_required()
-def generate_connection():
-
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-
-    if not user or user.client_role != "owner":
-        return jsonify({"error": "Unauthorized"}), 403
+@require_client_user_role(["owner"])
+def generate_connection(user):
 
     external_id = AWSConnectionService.generate_external_id()
 
@@ -51,13 +47,8 @@ def generate_connection():
 
 @client_aws_connection_bp.route("/validate", methods=["POST"])
 @jwt_required()
-def validate_connection():
-
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-
-    if not user or user.client_role != "owner":
-        return jsonify({"error": "Unauthorized"}), 403
+@require_client_user_role(["owner"])
+def validate_connection(user):
 
     data = request.json
 
@@ -164,13 +155,8 @@ def aws_connection_status():
 
 @client_aws_connection_bp.route("/accounts", methods=["GET"])
 @jwt_required()
-def list_accounts():
-
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-
-    if not user:
-        return jsonify({"error": "Unauthorized"}), 403
+@require_client_user_role()
+def list_accounts(user):
 
     accounts = AWSAccount.query.filter_by(
         client_id=user.client_id,
@@ -192,13 +178,8 @@ def list_accounts():
 
 @client_aws_connection_bp.route("/accounts/<int:account_id>", methods=["DELETE"])
 @jwt_required()
-def delete_account(account_id):
-
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-
-    if not user or user.client_role != "owner":
-        return jsonify({"error": "Unauthorized"}), 403
+@require_client_user_role(["owner"])
+def delete_account(user, account_id):
 
     account = AWSAccount.query.get(account_id)
 

@@ -6,9 +6,9 @@ Información general de la organización cliente.
 """
 
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required
 
-from src.models.user import User
+from src.auth.decorators import require_client_user_role
 from src.models.client import Client
 from src.models.aws_account import AWSAccount
 from src.models.subscription import ClientSubscription
@@ -24,22 +24,8 @@ client_info_bp = Blueprint(
 
 @client_info_bp.route("", methods=["GET"])
 @jwt_required()
-def get_client_info():
-
-    # ==========================
-    # USER VALIDATION
-    # ==========================
-
-    user = User.query.get(int(get_jwt_identity()))
-
-    if not user:
-        return jsonify({"error": "Unauthorized"}), 403
-
-    if not user.is_active:
-        return jsonify({"error": "Unauthorized"}), 403
-
-    if not user.client_id:
-        return jsonify({"error": "Unauthorized"}), 403
+@require_client_user_role()
+def get_client_info(user):
 
     # ==========================
     # CLIENT DATA
@@ -129,15 +115,8 @@ def get_client_info():
 
 @client_info_bp.route("/info", methods=["PATCH"])
 @jwt_required()
-def update_client_info():
-
-    user = User.query.get(int(get_jwt_identity()))
-
-    if not user or not user.is_active or not user.client_id:
-        return jsonify({"error": "Acceso denegado"}), 403
-
-    if user.client_role not in ("owner", "finops_admin"):
-        return jsonify({"error": "Acceso denegado"}), 403
+@require_client_user_role(["owner", "finops_admin"])
+def update_client_info(user):
 
     client = Client.query.get(user.client_id)
 

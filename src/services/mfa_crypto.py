@@ -3,10 +3,14 @@ MFA CRYPTO
 ==========
 
 Primitivas de cifrado/firma para el secreto TOTP y los challenge
-tokens de login. Cifrado por stream (HMAC-SHA256 keystream) + firma
-HMAC — no es AES-GCM/Fernet de una librería estándar, pero mantiene
-exactamente el mismo formato ("v1.<nonce>.<ciphertext>.<sig>") que ya
-existe en producción, así que descifra los secretos ya guardados.
+tokens de login.
+
+Formato dual de encrypt_secret/decrypt_secret:
+- "v1.<nonce>.<ciphertext>.<sig>": cifrado stream casero (HMAC-SHA256
+  keystream + firma HMAC) — legacy, ya existe en producción. Se mantiene
+  para siempre (sin migración de datos ni re-enrollment forzado).
+- "v2.<fernet_token>": cifrado estándar (cryptography.Fernet), usado para
+  todo secreto nuevo a partir de esta versión.
 """
 
 from __future__ import annotations
@@ -23,6 +27,7 @@ from typing import Any
 from urllib.parse import quote
 
 from src.models.user import User
+from src.services.crypto_utils import get_fernet
 
 
 def _load_secret_material() -> str:
@@ -107,24 +112,14 @@ def verify_totp_code(secret: str, code: str, *, window: int = 1, step: int = 30)
 
 
 def encrypt_secret(raw_secret: str) -> str:
-    secret_key = hashlib.sha256(_load_secret_material().encode("utf-8")).digest()
-    nonce = secrets.token_bytes(16)
-    plaintext = raw_secret.encode("utf-8")
-    stream = _keystream(secret_key, nonce, len(plaintext))
-    ciphertext = bytes(a ^ b for a, b in zip(plaintext, stream))
-    signature = hmac.new(secret_key, nonce + ciphertext, hashlib.sha256).digest()
-    return ".".join([
-        "v1",
-        _urlsafe_b64encode(nonce),
-        _urlsafe_b64encode(ciphertext),
-        _urlsafe_b64encode(signature),
-    ])
+    fernet = get_fernet(primary_env="MFA_SECRET_ENCRYPTION_KEY")
+    token = fernet.encrypt(raw_secret.encode("utf-8")).decode("utf-8")
+    return f"v2.{token}"
 
 
-def decrypt_secret(token: str | None) -> str | None:
-    if not token:
-        return None
-
+def _decrypt_secret_v1(token: str) -> str | None:
+    """Path legacy — stream cipher casero. Se mantiene para siempre para
+    poder descifrar secretos MFA ya guardados en producción."""
     try:
         version, encoded_nonce, encoded_ciphertext, encoded_signature = token.split(".", 3)
         if version != "v1":
@@ -148,6 +143,20 @@ def decrypt_secret(token: str | None) -> str | None:
         return plaintext.decode("utf-8")
     except (ValueError, TypeError):
         return None
+
+
+def decrypt_secret(token: str | None) -> str | None:
+    if not token:
+        return None
+
+    if token.startswith("v2."):
+        try:
+            fernet = get_fernet(primary_env="MFA_SECRET_ENCRYPTION_KEY")
+            return fernet.decrypt(token[3:].encode("utf-8")).decode("utf-8")
+        except Exception:
+            return None
+
+    return _decrypt_secret_v1(token)
 
 
 def generate_recovery_codes(total: int = 8) -> list[str]:

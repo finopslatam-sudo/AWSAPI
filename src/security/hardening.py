@@ -10,6 +10,7 @@ Includes:
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 import threading
@@ -17,6 +18,8 @@ from collections import defaultdict, deque
 from typing import Deque
 
 from flask import request
+
+logger = logging.getLogger(__name__)
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -129,5 +132,29 @@ class SlidingWindowRateLimiter:
             return True, 0
 
 
+def _build_rate_limiter():
+    """
+    Usa Redis si REDIS_URL está seteado y responde; si no, o si falla la
+    conexión por cualquier motivo, cae de vuelta al limiter en memoria
+    sin interrumpir el arranque de la app (mismo patrón opcional-con-
+    fallback que init_observability() para Sentry).
+    """
+    redis_url = os.getenv("REDIS_URL")
+    if not redis_url:
+        return SlidingWindowRateLimiter()
+
+    try:
+        import redis
+        from src.security.redis_rate_limiter import RedisSlidingWindowRateLimiter
+
+        client = redis.Redis.from_url(redis_url, socket_connect_timeout=2, socket_timeout=2)
+        client.ping()
+        logger.info("Rate limiter: usando backend Redis (%s)", redis_url)
+        return RedisSlidingWindowRateLimiter(client)
+    except Exception:
+        logger.exception("Rate limiter: Redis no disponible, usando fallback en memoria")
+        return SlidingWindowRateLimiter()
+
+
 # Shared process-level limiter instance
-rate_limiter = SlidingWindowRateLimiter()
+rate_limiter = _build_rate_limiter()

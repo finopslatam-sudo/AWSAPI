@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required
 
-from src.models.user import User
+from src.auth.decorators import require_client_user_role
 from src.services.alert_policy_service import AlertPolicyService
 from src.auth.plan_permissions import has_feature
 
@@ -35,16 +35,8 @@ def _parse_account_id(payload):
 
 @alert_policy_bp.route("/", methods=["GET"])
 @jwt_required()
-def list_policies():
-    identity = get_jwt_identity()
-    user = User.query.get(identity)
-
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    if user.client_role not in ["owner", "finops_admin", "viewer"]:
-        return jsonify({"error": "Unauthorized"}), 403
-
+@require_client_user_role(["owner", "finops_admin", "viewer"])
+def list_policies(user):
     if not has_feature(user.client_id, "alertas"):
         return jsonify({"error": "Feature not available in current plan"}), 403
 
@@ -59,16 +51,8 @@ def list_policies():
 
 @alert_policy_bp.route("/", methods=["POST"])
 @jwt_required()
-def create_policy():
-    identity = get_jwt_identity()
-    user = User.query.get(identity)
-
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    if user.client_role not in ["owner", "finops_admin"]:
-        return jsonify({"error": "Unauthorized"}), 403
-
+@require_client_user_role(["owner", "finops_admin"])
+def create_policy(user):
     if not has_feature(user.client_id, "alertas"):
         return jsonify({"error": "Feature not available in current plan"}), 403
 
@@ -109,16 +93,8 @@ def create_policy():
 
 @alert_policy_bp.route("/<int:policy_db_id>", methods=["PUT"])
 @jwt_required()
-def update_policy(policy_db_id):
-    identity = get_jwt_identity()
-    user = User.query.get(identity)
-
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    if user.client_role not in ["owner", "finops_admin"]:
-        return jsonify({"error": "Unauthorized"}), 403
-
+@require_client_user_role(["owner", "finops_admin"])
+def update_policy(user, policy_db_id):
     if not has_feature(user.client_id, "alertas"):
         return jsonify({"error": "Feature not available in current plan"}), 403
 
@@ -158,16 +134,8 @@ def update_policy(policy_db_id):
 
 @alert_policy_bp.route("/<int:policy_db_id>", methods=["DELETE"])
 @jwt_required()
-def delete_policy(policy_db_id):
-    identity = get_jwt_identity()
-    user = User.query.get(identity)
-
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    if user.client_role not in ["owner", "finops_admin"]:
-        return jsonify({"error": "Unauthorized"}), 403
-
+@require_client_user_role(["owner", "finops_admin"])
+def delete_policy(user, policy_db_id):
     if not has_feature(user.client_id, "alertas"):
         return jsonify({"error": "Feature not available in current plan"}), 403
 

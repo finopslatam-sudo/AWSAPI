@@ -71,3 +71,9 @@ transbank-sdk==6.1.0
 sentry-sdk[flask]==2.19.2
 
 # ===============================
+# CRIPTOGRAFÍA / RATE LIMITER DISTRIBUIDO
+# ===============================
+cryptography==49.0.0
+redis==8.0.1
+
+# ===============================

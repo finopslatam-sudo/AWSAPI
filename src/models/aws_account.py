@@ -1,4 +1,5 @@
 from src.models.database import db
+from src.models.encrypted_types import EncryptedString
 from datetime import datetime
 
 
@@ -16,11 +17,15 @@ class AWSAccount(db.Model):
     account_id = db.Column(db.String(12), nullable=False)
     account_name = db.Column(db.String(100), nullable=False)
 
-    role_arn = db.Column(db.String(255), nullable=False)
+    # Cifrados en reposo (Fernet, ver encrypted_types.EncryptedString).
+    # NOTA: el índice ya no acelera lookups por valor exacto (el
+    # ciphertext de Fernet es no-determinístico) — se mantiene solo
+    # porque nada hoy hace filter_by(external_id=...) de todas formas.
+    role_arn = db.Column(EncryptedString(512, env_var="AWS_SECRET_ENCRYPTION_KEY"), nullable=False)
     external_id = db.Column(
-    db.String(64),
-    nullable=False,
-    index=True
+        EncryptedString(255, env_var="AWS_SECRET_ENCRYPTION_KEY"),
+        nullable=False,
+        index=True
     )
 
     is_active = db.Column(db.Boolean, default=True)

@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required
 
-from src.models.user import User
+from src.auth.decorators import require_client_user_role
 from src.services.client_snapshot_service import ClientSnapshotService
 
 snapshot_bp = Blueprint(
@@ -11,22 +11,15 @@ snapshot_bp = Blueprint(
 )
 
 
-def get_client_id():
-    identity = get_jwt_identity()
-    user = User.query.get(identity)
-    return user.client_id
-
-
 # =====================================================
 # GET LATEST SNAPSHOT
 # =====================================================
 @snapshot_bp.route("/latest", methods=["GET"])
 @jwt_required()
-def latest_snapshot():
+@require_client_user_role()
+def latest_snapshot(user):
 
-    client_id = get_client_id()
-
-    data = ClientSnapshotService.get_latest_snapshot(client_id)
+    data = ClientSnapshotService.get_latest_snapshot(user.client_id)
 
     if not data:
         return jsonify({"message": "No snapshots available"}), 404
@@ -39,15 +32,14 @@ def latest_snapshot():
 # =====================================================
 @snapshot_bp.route("/", methods=["GET"])
 @jwt_required()
-def list_snapshots():
-
-    client_id = get_client_id()
+@require_client_user_role()
+def list_snapshots(user):
 
     page = int(request.args.get("page", 1))
     per_page = int(request.args.get("per_page", 30))
 
     data = ClientSnapshotService.list_snapshots(
-        client_id=client_id,
+        client_id=user.client_id,
         page=page,
         per_page=per_page
     )
@@ -60,13 +52,12 @@ def list_snapshots():
 # =====================================================
 @snapshot_bp.route("/trend", methods=["GET"])
 @jwt_required()
-def get_trend():
-
-    client_id = get_client_id()
+@require_client_user_role()
+def get_trend(user):
 
     days = int(request.args.get("days", 30))
 
-    data = ClientSnapshotService.get_trend(client_id, days)
+    data = ClientSnapshotService.get_trend(user.client_id, days)
 
     return jsonify(data), 200
 
@@ -76,11 +67,10 @@ def get_trend():
 # =====================================================
 @snapshot_bp.route("/delta", methods=["GET"])
 @jwt_required()
-def get_delta():
+@require_client_user_role()
+def get_delta(user):
 
-    client_id = get_client_id()
-
-    data = ClientSnapshotService.get_delta(client_id)
+    data = ClientSnapshotService.get_delta(user.client_id)
 
     if not data:
         return jsonify({"message": "Not enough data to calculate delta"}), 404

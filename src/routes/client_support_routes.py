@@ -10,8 +10,9 @@ PATCH /api/client/support/tickets/<id>/close    → cerrar ticket
 
 from datetime import datetime
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required
 
+from src.auth.decorators import require_client_user_role
 from src.models.database import db
 from src.models.user import User
 from src.models.support_ticket import SupportTicket, SupportTicketMessage
@@ -29,17 +30,6 @@ client_support_bp.strict_slashes = False
 # ─────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────
-
-def _require_client(user_id: int) -> User | None:
-    user = User.query.get(int(user_id))
-    if not user or not user.is_active:
-        return None
-    if user.global_role is not None:
-        return None
-    if not user.client_id:
-        return None
-    return user
-
 
 def _notify_staff(title: str, message: str, ntype: str, reference_id: int,
                   assigned_to_id: int | None = None) -> None:
@@ -65,11 +55,8 @@ def _notify_staff(title: str, message: str, ntype: str, reference_id: int,
 
 @client_support_bp.route("/tickets", methods=["GET"])
 @jwt_required()
-def list_tickets():
-    user = _require_client(get_jwt_identity())
-    if not user:
-        return jsonify({"error": "Acceso denegado"}), 403
-
+@require_client_user_role()
+def list_tickets(user):
     status_filter = request.args.get("status", "").strip()
 
     q = SupportTicket.query.filter_by(client_id=user.client_id)
@@ -87,11 +74,8 @@ def list_tickets():
 
 @client_support_bp.route("/tickets", methods=["POST"])
 @jwt_required()
-def create_ticket():
-    user = _require_client(get_jwt_identity())
-    if not user:
-        return jsonify({"error": "Acceso denegado"}), 403
-
+@require_client_user_role()
+def create_ticket(user):
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "Payload inválido"}), 400
@@ -146,11 +130,8 @@ def create_ticket():
 
 @client_support_bp.route("/tickets/<int:ticket_id>", methods=["GET"])
 @jwt_required()
-def get_ticket(ticket_id: int):
-    user = _require_client(get_jwt_identity())
-    if not user:
-        return jsonify({"error": "Acceso denegado"}), 403
-
+@require_client_user_role()
+def get_ticket(user, ticket_id: int):
     ticket = SupportTicket.query.filter_by(
         id=ticket_id, client_id=user.client_id
     ).first()
@@ -167,11 +148,8 @@ def get_ticket(ticket_id: int):
 
 @client_support_bp.route("/tickets/<int:ticket_id>/messages", methods=["POST"])
 @jwt_required()
-def add_message(ticket_id: int):
-    user = _require_client(get_jwt_identity())
-    if not user:
-        return jsonify({"error": "Acceso denegado"}), 403
-
+@require_client_user_role()
+def add_message(user, ticket_id: int):
     ticket = SupportTicket.query.filter_by(
         id=ticket_id, client_id=user.client_id
     ).first()
@@ -232,11 +210,8 @@ def add_message(ticket_id: int):
 
 @client_support_bp.route("/tickets/<int:ticket_id>/close", methods=["PATCH"])
 @jwt_required()
-def close_ticket(ticket_id: int):
-    user = _require_client(get_jwt_identity())
-    if not user:
-        return jsonify({"error": "Acceso denegado"}), 403
-
+@require_client_user_role()
+def close_ticket(user, ticket_id: int):
     ticket = SupportTicket.query.filter_by(
         id=ticket_id, client_id=user.client_id
     ).first()

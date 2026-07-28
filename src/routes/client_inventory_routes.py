@@ -1,9 +1,9 @@
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required
 from sqlalchemy import func
 
+from src.auth.decorators import require_client_user_role
 from src.models.database import db
-from src.models.user import User
 from src.models.aws_resource_inventory import AWSResourceInventory
 from src.models.aws_finding import AWSFinding
 from src.auth.plan_permissions import has_feature
@@ -35,21 +35,19 @@ def normalize_state(state):
     return {"raw": state, "label": label, "category": category}
 
 
-def require_assets_user(user_id):
-    user = User.query.get(user_id)
-    if not user or not user.client_id:
-        return None, ({"status": "error", "message": "Invalid user"}, 400)
-    if not has_feature(user.client_id, "assets"):
-        return None, ({"status": "error", "message": "Feature not available in current plan"}, 403)
-    return user, None
+def require_assets_feature(client_id):
+    if not has_feature(client_id, "assets"):
+        return jsonify({"status": "error", "message": "Feature not available in current plan"}), 403
+    return None
 
 
 @client_inventory_bp.route("/", methods=["GET"], strict_slashes=False)
 @jwt_required()
-def get_inventory():
-    user, err = require_assets_user(get_jwt_identity())
+@require_client_user_role()
+def get_inventory(user):
+    err = require_assets_feature(user.client_id)
     if err:
-        return jsonify(err[0]), err[1]
+        return err
 
     client_id = user.client_id
     service_filter = request.args.get("service")
@@ -124,10 +122,11 @@ def get_inventory():
 
 @client_inventory_bp.route("/services", methods=["GET"])
 @jwt_required()
-def get_inventory_services():
-    user, err = require_assets_user(get_jwt_identity())
+@require_client_user_role()
+def get_inventory_services(user):
+    err = require_assets_feature(user.client_id)
     if err:
-        return jsonify(err[0]), err[1]
+        return err
 
     from src.services.inventory.inventory_service import InventoryService
     data = InventoryService.get_services_summary(client_id=user.client_id)
@@ -136,10 +135,11 @@ def get_inventory_services():
 
 @client_inventory_bp.route("/health", methods=["GET"])
 @jwt_required()
-def get_global_health_score():
-    user, err = require_assets_user(get_jwt_identity())
+@require_client_user_role()
+def get_global_health_score(user):
+    err = require_assets_feature(user.client_id)
     if err:
-        return jsonify(err[0]), err[1]
+        return err
 
     from src.services.inventory.inventory_service import InventoryService
     data = InventoryService.get_global_health_score(client_id=user.client_id)

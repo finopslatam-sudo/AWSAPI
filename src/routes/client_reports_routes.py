@@ -1,7 +1,7 @@
 from flask import Response, jsonify, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required
 
-from src.auth.decorators import require_client_user
+from src.auth.decorators import require_client_user_role
 from src.reports.client.client_stats_provider import get_client_stats
 from src.reports.client.client_pdf_report import build_client_pdf
 from src.reports.client.client_csv_report import build_client_csv
@@ -23,11 +23,8 @@ def register_client_report_routes(app):
     # ===============================
     @app.route("/api/v1/reports/client/stats", methods=["GET"])
     @jwt_required()
-    def client_stats():
-        user = require_client_user(int(get_jwt_identity()))
-        if not user:
-            return jsonify({"error": "Acceso denegado"}), 403
-
+    @require_client_user_role()
+    def client_stats(user):
         stats = get_client_stats(user.client_id)
 
         return jsonify(stats), 200
@@ -38,11 +35,8 @@ def register_client_report_routes(app):
     # ===============================
     @app.route("/api/client/reports/pdf", methods=["GET"])
     @jwt_required()
-    def client_pdf_report():
-        user = require_client_user(int(get_jwt_identity()))
-        if not user:
-            return jsonify({"error": "Acceso denegado"}), 403
-
+    @require_client_user_role()
+    def client_pdf_report(user):
         stats = get_client_stats(user.client_id)
         pdf_data = build_client_pdf(stats)
 
@@ -60,11 +54,8 @@ def register_client_report_routes(app):
     # ===============================
     @app.route("/api/client/reports/csv", methods=["GET"])
     @jwt_required()
-    def client_csv_report():
-        user = require_client_user(int(get_jwt_identity()))
-        if not user:
-            return jsonify({"error": "Acceso denegado"}), 403
-
+    @require_client_user_role()
+    def client_csv_report(user):
         stats = get_client_stats(user.client_id)
         csv_data = build_client_csv(stats)
 
@@ -82,11 +73,8 @@ def register_client_report_routes(app):
     # ===============================
     @app.route("/api/client/reports/xlsx", methods=["GET"])
     @jwt_required()
-    def client_xlsx_report():
-        user = require_client_user(int(get_jwt_identity()))
-        if not user:
-            return jsonify({"error": "Acceso denegado"}), 403
-
+    @require_client_user_role()
+    def client_xlsx_report(user):
         stats = get_client_stats(user.client_id)
         xlsx_data = build_client_xlsx(stats)
 
@@ -104,11 +92,8 @@ def register_client_report_routes(app):
     # ===============================
     @app.route("/api/client/reports/executive/pdf", methods=["GET"])
     @jwt_required()
-    def client_executive_pdf():
-        user = require_client_user(int(get_jwt_identity()))
-        if not user:
-            return jsonify({"error": "Acceso denegado"}), 403
-
+    @require_client_user_role()
+    def client_executive_pdf(user):
         account_id_raw = request.args.get("account_id")
         aws_account_id = int(account_id_raw) if account_id_raw else None
 
@@ -128,11 +113,8 @@ def register_client_report_routes(app):
     # ===============================
     @app.route("/api/client/reports/costs/pdf", methods=["GET"])
     @jwt_required()
-    def client_costs_pdf():
-        user = require_client_user(int(get_jwt_identity()))
-        if not user:
-            return jsonify({"error": "Acceso denegado"}), 403
-
+    @require_client_user_role()
+    def client_costs_pdf(user):
         account_id_raw = request.args.get("account_id")
         aws_account_id = int(account_id_raw) if account_id_raw else None
 
@@ -152,11 +134,8 @@ def register_client_report_routes(app):
     # ===============================
     @app.route("/api/client/reports/costs/xlsx", methods=["GET"])
     @jwt_required()
-    def client_costs_xlsx():
-        user = require_client_user(int(get_jwt_identity()))
-        if not user:
-            return jsonify({"error": "Acceso denegado"}), 403
-
+    @require_client_user_role()
+    def client_costs_xlsx(user):
         account_id_raw = request.args.get("account_id")
         aws_account_id = int(account_id_raw) if account_id_raw else None
 
@@ -176,11 +155,8 @@ def register_client_report_routes(app):
     # ===============================
     @app.route("/api/client/reports/risk/pdf", methods=["GET"])
     @jwt_required()
-    def client_risk_pdf():
-        user = require_client_user(int(get_jwt_identity()))
-        if not user:
-            return jsonify({"error": "Acceso denegado"}), 403
-
+    @require_client_user_role()
+    def client_risk_pdf(user):
         account_id_raw = request.args.get("account_id")
         aws_account_id = int(account_id_raw) if account_id_raw else None
 
@@ -200,11 +176,8 @@ def register_client_report_routes(app):
     # ===============================
     @app.route("/api/client/reports/risk/xlsx", methods=["GET"])
     @jwt_required()
-    def client_risk_xlsx():
-        user = require_client_user(int(get_jwt_identity()))
-        if not user:
-            return jsonify({"error": "Acceso denegado"}), 403
-
+    @require_client_user_role()
+    def client_risk_xlsx(user):
         account_id_raw = request.args.get("account_id")
         aws_account_id = int(account_id_raw) if account_id_raw else None
 
@@ -224,11 +197,8 @@ def register_client_report_routes(app):
     # ===============================
     @app.route("/api/client/reports/inventory/csv", methods=["GET"])
     @jwt_required()
-    def client_inventory_csv():
-        user = require_client_user(int(get_jwt_identity()))
-        if not user:
-            return jsonify({"error": "Acceso denegado"}), 403
-
+    @require_client_user_role()
+    def client_inventory_csv(user):
         account_id_raw = request.args.get("account_id")
         aws_account_id = int(account_id_raw) if account_id_raw else None
 
@@ -249,11 +219,8 @@ def register_client_report_routes(app):
     # ===============================
     @app.route("/api/client/reports/inventory/xlsx", methods=["GET"])
     @jwt_required()
-    def client_inventory_xlsx():
-        user = require_client_user(int(get_jwt_identity()))
-        if not user:
-            return jsonify({"error": "Acceso denegado"}), 403
-
+    @require_client_user_role()
+    def client_inventory_xlsx(user):
         account_id_raw = request.args.get("account_id")
         aws_account_id = int(account_id_raw) if account_id_raw else None
 

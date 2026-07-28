@@ -1,30 +1,20 @@
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import get_jwt_identity, jwt_required
+from flask_jwt_extended import jwt_required
 
+from src.auth.decorators import require_client_user_role
 from src.models.client import Client
 from src.models.database import db
-from src.models.user import User
 
 
 client_security_bp = Blueprint("client_security", __name__, url_prefix="/api/client/security")
 
 
-def require_owner(user_id: int):
-    user = User.query.get(user_id)
-    if not user or not user.is_active or not user.client_id or user.client_role != "owner":
-        return None
-    return user
-
-
 @client_security_bp.route("", methods=["GET"])
 @jwt_required()
-def get_client_security():
-    actor = require_owner(int(get_jwt_identity()))
-    if not actor:
-        return jsonify({"error": "Forbidden"}), 403
-
+@require_client_user_role(["owner"])
+def get_client_security(actor):
     client = Client.query.get_or_404(actor.client_id)
     return jsonify({
         "data": {
@@ -38,11 +28,8 @@ def get_client_security():
 
 @client_security_bp.route("", methods=["PATCH"])
 @jwt_required()
-def update_client_security():
-    actor = require_owner(int(get_jwt_identity()))
-    if not actor:
-        return jsonify({"error": "Forbidden"}), 403
-
+@require_client_user_role(["owner"])
+def update_client_security(actor):
     data = request.get_json() or {}
     mfa_policy = data.get("mfa_policy")
 

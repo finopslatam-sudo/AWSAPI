@@ -6,9 +6,9 @@ Solo el OWNER puede administrar usuarios.
 """
 
 from flask import Blueprint, jsonify, request, current_app
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required
 
-from src.models.user import User
+from src.auth.decorators import require_client_user_role
 from src.services.client_users_service import get_client_users
 from src.services.user_events_service import on_admin_reset_password, on_user_deactivated, on_user_reactivated
 from src.auth.plan_permissions import get_plan_limit
@@ -24,20 +24,10 @@ from src.services.client_user_management_service import (
 client_users_bp = Blueprint("client_users", __name__, url_prefix="/api/client/users")
 
 
-def require_owner(user_id: int):
-    user = User.query.get(user_id)
-    if not user or not user.is_active or not user.client_id or user.client_role != "owner":
-        return None
-    return user
-
-
 @client_users_bp.route("", methods=["GET"])
 @jwt_required()
-def list_client_users():
-    actor = require_owner(int(get_jwt_identity()))
-    if not actor:
-        return jsonify({"error": "Forbidden"}), 403
-
+@require_client_user_role(["owner"])
+def list_client_users(actor):
     users = get_client_users(actor.client_id)
     user_limit = get_plan_limit(actor.client_id, "users")
     return jsonify({
@@ -52,11 +42,8 @@ def list_client_users():
 
 @client_users_bp.route("", methods=["POST"])
 @jwt_required()
-def create_client_user_route():
-    actor = require_owner(int(get_jwt_identity()))
-    if not actor:
-        return jsonify({"error": "Forbidden"}), 403
-
+@require_client_user_role(["owner"])
+def create_client_user_route(actor):
     data = request.get_json() or {}
     name = data.get("name")
     email = data.get("email")
@@ -82,11 +69,8 @@ def create_client_user_route():
 
 @client_users_bp.route("/<int:user_id>", methods=["PUT"])
 @jwt_required()
-def update_client_user_route(user_id):
-    actor = require_owner(int(get_jwt_identity()))
-    if not actor:
-        return jsonify({"error": "Forbidden"}), 403
-
+@require_client_user_role(["owner"])
+def update_client_user_route(actor, user_id):
     data = request.get_json() or {}
     try:
         result = update_client_user(actor, user_id, data)
@@ -101,11 +85,8 @@ def update_client_user_route(user_id):
 
 @client_users_bp.route("/<int:user_id>", methods=["DELETE"])
 @jwt_required()
-def delete_client_user(user_id):
-    actor = require_owner(int(get_jwt_identity()))
-    if not actor:
-        return jsonify({"error": "Forbidden"}), 403
-
+@require_client_user_role(["owner"])
+def delete_client_user(actor, user_id):
     try:
         user = deactivate_client_user(actor, user_id)
     except ValueError as e:
@@ -126,11 +107,8 @@ def delete_client_user(user_id):
 
 @client_users_bp.route("/<int:user_id>/reset-password", methods=["POST"])
 @jwt_required()
-def client_reset_password(user_id):
-    actor = User.query.get(get_jwt_identity())
-    if not actor or actor.client_role != "owner":
-        return jsonify({"error": "Unauthorized"}), 403
-
+@require_client_user_role(["owner"])
+def client_reset_password(actor, user_id):
     try:
         user, temp_password = reset_client_user_password(actor, user_id)
     except ValueError as e:
@@ -149,11 +127,8 @@ def client_reset_password(user_id):
 
 @client_users_bp.route("/<int:user_id>/activate", methods=["PATCH"])
 @jwt_required()
-def activate_user(user_id):
-    actor = User.query.get(get_jwt_identity())
-    if not actor or actor.client_role != "owner":
-        return jsonify({"error": "Unauthorized"}), 403
-
+@require_client_user_role(["owner"])
+def activate_user(actor, user_id):
     try:
         user = activate_client_user(actor, user_id)
     except ValueError as e:

@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required
 
-from src.models.user import User
+from src.auth.decorators import require_client_user_role
 from src.services.finops.rightsizing_service import RightsizingService
 from src.services.finops.ri_service import RIService
 from src.services.finops.sp_service import SavingsPlansService
@@ -14,20 +14,15 @@ finops_bp = Blueprint(
 )
 
 
-def get_client_id():
-    identity = get_jwt_identity()
-    user = User.query.get(identity)
-    return user.client_id
-
-
 # ===============================
 # RIGHTSIZING
 # ===============================
 @finops_bp.route("/rightsizing", methods=["GET"])
 @jwt_required()
-def get_rightsizing():
+@require_client_user_role()
+def get_rightsizing(user):
 
-    client_id = get_client_id()
+    client_id = user.client_id
     aws_account_id = request.args.get("aws_account_id", type=int)
 
     if not has_feature(client_id, "optimization"):
@@ -47,9 +42,10 @@ def get_rightsizing():
 # ===============================
 @finops_bp.route("/ri-coverage", methods=["GET"])
 @jwt_required()
-def get_ri_coverage():
+@require_client_user_role()
+def get_ri_coverage(user):
 
-    client_id = get_client_id()
+    client_id = user.client_id
     aws_account_id = request.args.get("aws_account_id", type=int)
 
     if not has_feature(client_id, "optimization"):
@@ -66,9 +62,10 @@ def get_ri_coverage():
 # ===============================
 @finops_bp.route("/sp-coverage", methods=["GET"])
 @jwt_required()
-def get_sp_coverage():
+@require_client_user_role()
+def get_sp_coverage(user):
 
-    client_id = get_client_id()
+    client_id = user.client_id
     aws_account_id = request.args.get("aws_account_id", type=int)
 
     if not has_feature(client_id, "optimization"):

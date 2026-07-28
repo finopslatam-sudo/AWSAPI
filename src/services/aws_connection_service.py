@@ -1,11 +1,13 @@
+import logging
 import uuid
-import boto3
 
 from botocore.exceptions import ClientError
 
+logger = logging.getLogger(__name__)
+
 from src.models.aws_account import AWSAccount
 from src.models.database import db
-from src.aws.sts_service import STSService
+from src.cloud.aws_provider import AWSCloudProvider
 from src.auth.plan_permissions import get_plan_limit
 from src.aws.anomaly_monitor_service import AnomalyMonitorService
 from src.services.default_policy_service import create_default_anomaly_policy
@@ -46,32 +48,26 @@ class AWSConnectionService:
         validate_role_arn(role_arn)
         AWSConnectionService.check_account_limit(client_id)
 
-        print("Attempting STS AssumeRole")
-        print("Role ARN:", role_arn)
-        print("External ID:", external_id)
+        logger.info("Attempting STS AssumeRole for account_id=%s", account_id)
 
+        provider = AWSCloudProvider(role_arn=role_arn, external_id=external_id)
         try:
-            creds = STSService.assume_role(role_arn, external_id)
-        except ClientError as e:
-            error_code = e.response["Error"]["Code"]
-            if error_code == "AccessDenied":
+            provider.assume_role()
+        except Exception as e:
+            if "AccessDenied" in str(e):
                 raise RuntimeError(
                     "AccessDenied: FinOpsLatam No puede asumir el rol. "
                     "Verificar External ID y la política de confianza.."
                 )
             raise RuntimeError(f"AWS STS error: {str(e)}")
 
-        session = boto3.Session(
-            aws_access_key_id=creds["AccessKeyId"],
-            aws_secret_access_key=creds["SecretAccessKey"],
-            aws_session_token=creds["SessionToken"],
-        )
-        sts = session.client("sts")
+        session = provider.get_session()
+        sts = provider.get_client("sts")
 
         try:
             identity = sts.get_caller_identity()
             verified_account_id = identity["Account"]
-            print("Connected AWS account:", verified_account_id)
+            logger.info("Connected AWS account: %s", verified_account_id)
         except ClientError as e:
             raise RuntimeError(f"Failed to verify AWS identity: {str(e)}")
 
@@ -85,7 +81,7 @@ class AWSConnectionService:
         account_name = resolve_account_name(session, verified_account_id)
 
         if existing:
-            print("Updating existing AWS account name:", account_name)
+            logger.info("Updating existing AWS account name: %s", account_name)
             existing.account_name = account_name
             try:
                 db.session.commit()
@@ -119,7 +115,7 @@ class AWSConnectionService:
 
         try:
             create_default_anomaly_policy(client_id, aws_account)
-        except Exception as e:
-            print(f"[AWSConnection] Error creando política por defecto: {e}")
+        except Exception:
+            logger.exception("[AWSConnection] Error creando política por defecto")
 
         return verified_account_id

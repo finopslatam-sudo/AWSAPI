@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required
 
-from src.models.user import User
+from src.auth.decorators import require_client_user_role
 from src.services.client_findings_service import ClientFindingsService
 from src.services.client_dashboard_service import ClientDashboardService
 from src.auth.plan_permissions import has_feature
@@ -17,17 +17,9 @@ client_findings_bp.strict_slashes = False
 
 @client_findings_bp.route("/", methods=["GET"])
 @jwt_required()
-def get_client_findings():
+@require_client_user_role(["owner", "finops_admin", "viewer"])
+def get_client_findings(user):
 
-    identity = get_jwt_identity()
-    user = User.query.get(identity)
-
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    if user.client_role not in ["owner", "finops_admin", "viewer"]:
-        return jsonify({"error": "Unauthorized"}), 403
-    
     # PLAN CHECK
     if not has_feature(user.client_id, "findings"):
         return jsonify({"error": "Feature not available in current plan"}), 403
@@ -72,17 +64,9 @@ def get_client_findings():
 
 @client_findings_bp.route("/stats", methods=["GET"])
 @jwt_required()
-def get_client_findings_stats():
+@require_client_user_role(["owner", "finops_admin", "viewer"])
+def get_client_findings_stats(user):
 
-    identity = get_jwt_identity()
-    user = User.query.get(identity)
-
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    if user.client_role not in ["owner", "finops_admin", "viewer"]:
-        return jsonify({"error": "Unauthorized"}), 403
-    
     # PLAN CHECK
     if not has_feature(user.client_id, "findings"):
         return jsonify({"error": "Feature not available in current plan"}), 403
@@ -112,17 +96,8 @@ def get_client_findings_stats():
     })
 @client_findings_bp.route("/<int:finding_id>/resolve", methods=["PATCH"])
 @jwt_required()
-def resolve_finding(finding_id):
-
-    identity = get_jwt_identity()
-    user = User.query.get(identity)
-
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    # Solo owner y finops_admin pueden resolver
-    if user.client_role not in ["owner", "finops_admin"]:
-        return jsonify({"error": "Unauthorized"}), 403
+@require_client_user_role(["owner", "finops_admin"])
+def resolve_finding(user, finding_id):
 
     finding = ClientFindingsService.resolve_finding(
         client_id=user.client_id,
@@ -146,17 +121,9 @@ def resolve_finding(finding_id):
 
 @client_findings_bp.route("/summary-by-service", methods=["GET"])
 @jwt_required()
-def get_findings_summary_by_service():
+@require_client_user_role()
+def get_findings_summary_by_service(user):
 
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-
-    if not user or not user.client_id:
-        return jsonify({
-            "status": "error",
-            "message": "Invalid user"
-        }), 400
-    
     if not has_feature(user.client_id, "findings"):
         return jsonify({"error": "Feature not available in current plan"}), 403
 

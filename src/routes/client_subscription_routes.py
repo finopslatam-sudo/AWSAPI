@@ -6,8 +6,9 @@ Devuelve información del plan actual del cliente.
 """
 
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required
 
+from src.auth.decorators import require_client_user_role
 from src.models.user import User
 from src.services.client_subscription_service import get_client_subscription
 from src.models.subscription import ClientSubscription
@@ -33,18 +34,8 @@ client_subscription_bp = Blueprint(
 
 @client_subscription_bp.route("", methods=["GET"])
 @jwt_required()
-def get_subscription():
-
-    user = User.query.get(int(get_jwt_identity()))
-
-    if not user:
-        return jsonify({"error": "Unauthorized"}), 403
-
-    if not user.is_active:
-        return jsonify({"error": "Unauthorized"}), 403
-
-    if not user.client_id:
-        return jsonify({"error": "Unauthorized"}), 403
+@require_client_user_role()
+def get_subscription(user):
 
     subscription = get_client_subscription(user.client_id)
 
@@ -59,15 +50,8 @@ def get_subscription():
 
 @client_subscription_bp.route("/upgrade", methods=["POST"])
 @jwt_required()
-def upgrade_subscription():
-
-    user = User.query.get(int(get_jwt_identity()))
-
-    if not user or not user.client_id:
-        return jsonify({"error": "Unauthorized"}), 403
-
-    if user.client_role != "owner":
-        return jsonify({"error": "Only owner can upgrade plan"}), 403
+@require_client_user_role(["owner"])
+def upgrade_subscription(user):
 
     data = request.get_json() or {}
     new_plan_code = data.get("plan_code")
