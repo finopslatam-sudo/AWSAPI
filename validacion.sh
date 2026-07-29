@@ -2,6 +2,14 @@
 
 set -e
 
+# =====================================================
+# Este script es invocado por el workflow de GitHub
+# Actions (.github/workflows/ci.yml, job "deploy") vía
+# SSH como el usuario "deploy". NO está pensado para
+# ejecución manual ad-hoc — el único camino de deploy
+# soportado es push a "main" en GitHub.
+# =====================================================
+
 echo ""
 echo "========================================="
 echo "🚀 FinOpsLatam Safe Deploy"
@@ -54,6 +62,15 @@ echo ""
 echo "📦 Deploying commit:"
 git log -1 --pretty=format:"%h - %s (%ci)"
 echo ""
+
+# =====================================================
+# INSTALAR DEPENDENCIAS
+# =====================================================
+
+echo ""
+echo "📦 Installing dependencies..."
+
+pip install -q -r requirements.txt
 
 # =====================================================
 # VALIDAR BACKEND

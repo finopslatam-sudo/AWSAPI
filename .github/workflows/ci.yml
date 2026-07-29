@@ -32,3 +32,17 @@ jobs:
 
       - name: Smoke check — sintaxis e imports
         run: python -m compileall -q src app.py
+
+  deploy:
+    needs: lint-and-smoke-check
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy a producción vía SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: bash /opt/apps/finopslatam/AWSAPI/validacion.sh
