@@ -48,16 +48,46 @@ jobs:
           script: |
             set -e
             cd /opt/apps/finopslatam/AWSAPI
+
+            rollback() {
+              echo "❌ $1"
+              echo "↩️ Rolling back a $CURRENT_COMMIT..."
+              git reset --hard "$CURRENT_COMMIT"
+              sudo systemctl restart finops-api
+              exit 1
+            }
+
             CURRENT_COMMIT=$(git rev-parse HEAD)
+
             echo "📥 Fetching latest code..."
             git fetch origin
             git reset --hard origin/main
             echo "📦 Deploying commit:"
             git log -1 --pretty=format:"%h - %s (%ci)"
             echo ""
-            if ! bash validacion.sh; then
-              echo "❌ Deploy falló, haciendo rollback a $CURRENT_COMMIT"
-              git reset --hard "$CURRENT_COMMIT"
-              sudo systemctl restart finops-api
-              exit 1
+
+            source venv/bin/activate
+
+            echo "📦 Installing dependencies..."
+            pip install -q -r requirements.txt || rollback "pip install falló"
+
+            echo "🔍 Running backend validation..."
+            python scripts/validate_backend.py || rollback "Backend validation falló"
+
+            echo "♻️ Restarting FinOps API..."
+            sudo systemctl restart finops-api
+            sleep 10
+
+            if ! systemctl is-active --quiet finops-api; then
+              rollback "API failed to start"
             fi
+
+            echo "🧪 Running API healthcheck..."
+            HEALTH=$(curl -s -H "Host: api.finopslatam.com" http://127.0.0.1:5001/api/health || true)
+
+            if [[ "$HEALTH" != *"healthy"* ]]; then
+              rollback "Healthcheck falló"
+            fi
+
+            echo "$HEALTH"
+            echo "✅ DEPLOY COMPLETED SUCCESSFULLY"
