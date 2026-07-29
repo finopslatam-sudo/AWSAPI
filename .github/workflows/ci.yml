@@ -45,4 +45,19 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: bash /opt/apps/finopslatam/AWSAPI/validacion.sh
+          script: |
+            set -e
+            cd /opt/apps/finopslatam/AWSAPI
+            CURRENT_COMMIT=$(git rev-parse HEAD)
+            echo "📥 Fetching latest code..."
+            git fetch origin
+            git reset --hard origin/main
+            echo "📦 Deploying commit:"
+            git log -1 --pretty=format:"%h - %s (%ci)"
+            echo ""
+            if ! bash validacion.sh; then
+              echo "❌ Deploy falló, haciendo rollback a $CURRENT_COMMIT"
+              git reset --hard "$CURRENT_COMMIT"
+              sudo systemctl restart finops-api
+              exit 1
+            fi
