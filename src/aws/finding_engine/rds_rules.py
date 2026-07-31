@@ -18,6 +18,7 @@ class RDSRules:
         total += RDSRules.gp2_storage_rule(client_id)
         total += RDSRules.multi_az_rule(client_id)
         total += RDSRules.orphaned_snapshot_rule(client_id)
+        total += RDSRules.aurora_backup_retention_rule(client_id)
 
         return total
 
@@ -158,6 +159,62 @@ class RDSRules:
                     if created:
                         findings_created += 1
 
+            else:
+                if existing and not existing.resolved:
+                    existing.resolved = True
+
+        return findings_created
+
+    # =====================================================
+    # AURORA: BACKUP RETENTION DESHABILITADO (MOTOR PROPIO)
+    # =====================================================
+    @staticmethod
+    def aurora_backup_retention_rule(client_id: int):
+
+        finding_type = "AURORA_NO_BACKUP_RETENTION"
+        severity = "HIGH"
+        message = "Cluster Aurora con backup retention en 0 días; sin respaldo automático ante una falla o borrado accidental."
+        savings = 0
+
+        clusters = AWSResourceInventory.query.filter_by(
+            client_id=client_id,
+            service_name="Aurora",
+            resource_type="Cluster",
+            is_active=True
+        ).all()
+
+        findings_created = 0
+
+        for cluster in clusters:
+            metadata = cluster.resource_metadata or {}
+            no_backup = (metadata.get("backup_retention_period") or 0) == 0
+
+            existing = AWSFinding.query.filter_by(
+                client_id=client_id,
+                resource_id=cluster.resource_id,
+                finding_type=finding_type
+            ).first()
+
+            if no_backup:
+                if existing:
+                    existing.resolved = False
+                    existing.message = message
+                    existing.severity = severity
+                else:
+                    created = AWSFinding.upsert_finding(
+                        client_id=client_id,
+                        aws_account_id=cluster.aws_account_id,
+                        resource_id=cluster.resource_id,
+                        resource_type="Cluster",
+                        region=cluster.region,
+                        aws_service="Aurora",
+                        finding_type=finding_type,
+                        severity=severity,
+                        message=message,
+                        estimated_monthly_savings=savings
+                    )
+                    if created:
+                        findings_created += 1
             else:
                 if existing and not existing.resolved:
                     existing.resolved = True

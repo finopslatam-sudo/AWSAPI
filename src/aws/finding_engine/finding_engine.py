@@ -9,6 +9,14 @@ from src.aws.finding_engine.cloudwatch_rules import CloudWatchRules
 from src.aws.finding_engine.rightsizing_rules import RightsizingRules
 from src.aws.finding_engine.ri_rules import ReservedInstanceRules
 from src.aws.finding_engine.savings_plan_rules import SavingsPlanRules
+from src.aws.finding_engine.elb_rules import ELBRules
+from src.aws.finding_engine.elasticache_rules import ElastiCacheRules
+from src.aws.finding_engine.cloudfront_rules import CloudFrontRules
+from src.aws.finding_engine.sagemaker_rules import SageMakerRules
+from src.aws.finding_engine.route53_rules import Route53Rules
+from src.aws.finding_engine.messaging_rules import MessagingRules
+from src.aws.finding_engine.kinesis_rules import KinesisRules
+from src.aws.finding_engine.opensearch_rules import OpenSearchRules
 
 from src.aws.finops.rightsizing_engine import RightsizingEngine
 from src.aws.finops.coverage_engine import CoverageEngine
@@ -121,6 +129,14 @@ class FindingEngine:
             total_findings += LambdaRules.run_all(client_id)
             total_findings += DynamoDBRules.run_all(client_id)
             total_findings += CloudWatchRules.run_all(client_id)
+            total_findings += ELBRules.run_all(client_id)
+            total_findings += ElastiCacheRules.run_all(client_id)
+            total_findings += CloudFrontRules.run_all(client_id)
+            total_findings += SageMakerRules.run_all(client_id)
+            total_findings += Route53Rules.run_all(client_id)
+            total_findings += MessagingRules.run_all(client_id)
+            total_findings += KinesisRules.run_all(client_id)
+            total_findings += OpenSearchRules.run_all(client_id)
 
             # =====================================================
             # 4️⃣ FINOPS CLASSIC RULES

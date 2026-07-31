@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class RDSScanner(BaseScanner):
-    """Handles RDS instances, Redshift clusters, and DynamoDB tables."""
+    """Handles RDS instances, Aurora clusters, Redshift clusters, and DynamoDB tables."""
 
     # ------------------------------------------------------------------
     # RDS
@@ -65,6 +65,41 @@ class RDSScanner(BaseScanner):
 
         except Exception:
             logger.exception(f"RDS snapshot scan failed | region={region}")
+            raise
+
+    # ------------------------------------------------------------------
+    # AURORA CLUSTERS (motor propio, distinto de RDS instance-level)
+    # ------------------------------------------------------------------
+    def scan_aurora_clusters(self, region):
+        try:
+            rds = self.aws_session.client("rds", region_name=region)
+            paginator = rds.get_paginator("describe_db_clusters")
+
+            for page in paginator.paginate():
+                for cluster in page.get("DBClusters", []):
+                    engine = cluster.get("Engine", "")
+                    if not engine.startswith("aurora"):
+                        continue
+
+                    self.upsert_resource(
+                        service_name="Aurora",
+                        resource_type="Cluster",
+                        resource_id=cluster["DBClusterArn"],
+                        region=region,
+                        state=cluster.get("Status"),
+                        tags={},
+                        resource_metadata={
+                            "identifier": cluster.get("DBClusterIdentifier"),
+                            "engine": engine,
+                            "engine_mode": cluster.get("EngineMode"),
+                            "backup_retention_period": cluster.get("BackupRetentionPeriod"),
+                            "multi_az": cluster.get("MultiAZ"),
+                            "member_count": len(cluster.get("DBClusterMembers", [])),
+                        }
+                    )
+
+        except Exception:
+            logger.exception(f"Aurora cluster scan failed | region={region}")
             raise
 
     # ------------------------------------------------------------------

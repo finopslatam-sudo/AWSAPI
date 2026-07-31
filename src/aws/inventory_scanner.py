@@ -2,11 +2,18 @@
 inventory_scanner.py — thin orchestrator.
 
 All service-specific scanning logic lives in src/aws/scanners/:
-  - ec2_scanner.py     : EC2, EBS, Elastic IPs, EBS Snapshots, NAT Gateways, Reserved Instances
-  - rds_scanner.py     : RDS, RDS Snapshots, Redshift, DynamoDB
-  - lambda_scanner.py  : Lambda, CloudWatch Logs, ECS, EKS
-  - storage_scanner.py : S3, Savings Plans
-  - shared.py          : BaseScanner (session bootstrap + upsert_resource)
+  - ec2_scanner.py          : EC2, EBS, Elastic IPs, EBS Snapshots, NAT Gateways, Reserved Instances
+  - rds_scanner.py          : RDS, RDS Snapshots, Aurora, Redshift, DynamoDB
+  - lambda_scanner.py       : Lambda, CloudWatch Logs, ECS, EKS
+  - storage_scanner.py      : S3, Savings Plans
+  - elb_scanner.py          : ALB/NLB, Classic ELB
+  - elasticache_scanner.py  : ElastiCache
+  - cloudfront_scanner.py   : CloudFront, Route53 (global)
+  - sagemaker_scanner.py    : SageMaker Endpoints, Notebook Instances
+  - messaging_scanner.py    : SNS, SQS
+  - kinesis_scanner.py      : Kinesis Data Streams
+  - opensearch_scanner.py   : OpenSearch
+  - shared.py               : BaseScanner (session bootstrap + upsert_resource)
 """
 
 import logging
@@ -19,20 +26,27 @@ from src.aws.scanners.ec2_scanner import EC2Scanner
 from src.aws.scanners.rds_scanner import RDSScanner
 from src.aws.scanners.lambda_scanner import LambdaScanner
 from src.aws.scanners.storage_scanner import StorageScanner
+from src.aws.scanners.elb_scanner import ELBScanner
+from src.aws.scanners.elasticache_scanner import ElastiCacheScanner
+from src.aws.scanners.cloudfront_scanner import CloudFrontScanner
+from src.aws.scanners.sagemaker_scanner import SageMakerScanner
+from src.aws.scanners.messaging_scanner import MessagingScanner
+from src.aws.scanners.kinesis_scanner import KinesisScanner
+from src.aws.scanners.opensearch_scanner import OpenSearchScanner
 
 
 logger = logging.getLogger(__name__)
 
 
-class InventoryScanner(EC2Scanner, RDSScanner, LambdaScanner, StorageScanner):
+class InventoryScanner(
+    EC2Scanner, RDSScanner, LambdaScanner, StorageScanner,
+    ELBScanner, ElastiCacheScanner, CloudFrontScanner, SageMakerScanner,
+    MessagingScanner, KinesisScanner, OpenSearchScanner,
+):
     """
     Composes all service scanners into a single class and exposes
     the public `run()` entry-point.
 
-    The MRO is:
-      InventoryScanner -> EC2Scanner -> RDSScanner
-                       -> LambdaScanner -> StorageScanner
-                       -> BaseScanner
     All mixins inherit from BaseScanner, so __init__ and the shared
     helpers (upsert_resource, get_enabled_regions) are available
     to every method.
@@ -65,6 +79,16 @@ class InventoryScanner(EC2Scanner, RDSScanner, LambdaScanner, StorageScanner):
                 ("ElasticIP",        self.scan_elastic_ips),
                 ("EBSSnapshot",      self.scan_ebs_snapshots),
                 ("RDSSnapshot",      self.scan_rds_snapshots),
+                ("Aurora",           self.scan_aurora_clusters),
+                ("ELB",              self.scan_load_balancers),
+                ("ClassicELB",       self.scan_classic_load_balancers),
+                ("ElastiCache",      self.scan_elasticache),
+                ("SageMakerEndpoint", self.scan_sagemaker_endpoints),
+                ("SageMakerNotebook", self.scan_sagemaker_notebooks),
+                ("SNS",              self.scan_sns),
+                ("SQS",              self.scan_sqs),
+                ("Kinesis",          self.scan_kinesis),
+                ("OpenSearch",       self.scan_opensearch),
             ]
 
             for service_name, service_method in regional_services:
@@ -81,6 +105,8 @@ class InventoryScanner(EC2Scanner, RDSScanner, LambdaScanner, StorageScanner):
         for label, fn, args in [
             ("S3",           self.scan_s3,           []),
             ("SavingsPlans", self.scan_savings_plans, [None]),
+            ("CloudFront",   self.scan_cloudfront,   []),
+            ("Route53",      self.scan_route53,      []),
         ]:
             try:
                 fn(*args)
