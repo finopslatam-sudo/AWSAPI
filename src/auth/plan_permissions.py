@@ -33,45 +33,19 @@ PLAN_CODE_MAP = {
 
 # =====================================================
 # FEATURE MATRIX
+#
+# Único plan comercial: FinOps Enterprise. Todo cliente
+# (nuevo o existente, sin importar el plan_code que tenga
+# en la BD) tiene siempre el set completo de features.
 # =====================================================
 
 PLAN_FEATURES = {
-
-    "foundation": {
-
-        "findings": True,
-        "assets": True,
-        "costos": True,
-        "alertas": False,
-
-        "gobernanza": False,
-        "optimization": False,
-
-    },
-
-    "professional": {
-
-        "findings": True,
-        "assets": True,
-        "costos": True,
-        "alertas": False,
-
-        "gobernanza": True,
-        "optimization": True,
-
-    },
-
-    "enterprise": {
-
-        "findings": True,
-        "assets": True,
-        "costos": True,
-        "alertas": True,
-
-        "gobernanza": True,
-        "optimization": True,
-
-    }
+    "findings": True,
+    "assets": True,
+    "costos": True,
+    "alertas": True,
+    "gobernanza": True,
+    "optimization": True,
 }
 
 
@@ -80,21 +54,8 @@ PLAN_FEATURES = {
 # =====================================================
 
 PLAN_LIMITS = {
-
-    "foundation": {
-        "aws_accounts": 1,
-        "users": 3
-    },
-
-    "professional": {
-        "aws_accounts": 5,
-        "users": 9
-    },
-
-    "enterprise": {
-        "aws_accounts": 10,
-        "users": 12
-    }
+    "aws_accounts": 10,
+    "users": 12,
 }
 
 
@@ -141,19 +102,11 @@ def has_feature(client_id: int, feature: str) -> bool:
     """
     Verifica si el plan del cliente tiene habilitada
     una funcionalidad específica del SaaS.
+
+    Único plan comercial (Enterprise): todo feature está
+    habilitado para todo cliente activo.
     """
-
-    plan_code = get_client_plan(client_id)
-
-    if not plan_code:
-        return False
-
-    features = PLAN_FEATURES.get(plan_code)
-
-    if not features:
-        return False
-
-    return features.get(feature, False)
+    return PLAN_FEATURES.get(feature, False)
 
 
 # =====================================================
@@ -162,22 +115,13 @@ def has_feature(client_id: int, feature: str) -> bool:
 
 def get_plan_limit(client_id: int, limit_name: str) -> int:
     """
-    Retorna el límite permitido para un recurso
-    según el plan del cliente.
+    Retorna el límite permitido para un recurso.
 
     Ejemplos:
     - users
     - aws_accounts
+
+    Único plan comercial (Enterprise): el límite es el
+    mismo para todo cliente activo.
     """
-
-    plan_code = get_client_plan(client_id)
-
-    if not plan_code:
-        return 0
-
-    limits = PLAN_LIMITS.get(plan_code)
-
-    if not limits:
-        return 0
-
-    return limits.get(limit_name, 0)
+    return PLAN_LIMITS.get(limit_name, 0)

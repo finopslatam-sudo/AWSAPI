@@ -22,21 +22,19 @@ def _validate_create_payload(data: dict):
     phone = data.get("phone")
     pais = data.get("pais")
     is_active = data.get("is_active", True)
-    plan_id = data.get("plan_id")
     owner_data = data.get("owner") or {}
 
     if not company_name:
         return None, (jsonify({"error": "company_name es obligatorio"}), 400)
     if not email:
         return None, (jsonify({"error": "email es obligatorio"}), 400)
-    if not plan_id:
-        return None, (jsonify({"error": "plan_id es obligatorio"}), 400)
     if not owner_data:
         return None, (jsonify({"error": "Owner obligatorio"}), 400)
 
-    plan = Plan.query.get(plan_id)
+    # Único plan disponible: todo cliente nuevo recibe FinOps Enterprise completo.
+    plan = Plan.query.filter_by(code="FINOPS_ENTERPRISE").first()
     if not plan:
-        return None, (jsonify({"error": "Plan no válido"}), 400)
+        return None, (jsonify({"error": "Plan Enterprise no configurado"}), 500)
 
     if Client.query.filter_by(email=email.strip().lower()).first():
         return None, (jsonify({"error": "Ya existe un cliente con ese email"}), 409)
