@@ -37,6 +37,37 @@ class RDSScanner(BaseScanner):
                 )
 
     # ------------------------------------------------------------------
+    # RDS SNAPSHOTS (manuales + automáticas, incluye la snapshot final
+    # que AWS conserva al eliminar una instancia)
+    # ------------------------------------------------------------------
+    def scan_rds_snapshots(self, region):
+        try:
+            rds = self.aws_session.client("rds", region_name=region)
+            paginator = rds.get_paginator("describe_db_snapshots")
+
+            for page in paginator.paginate():
+                for snapshot in page.get("DBSnapshots", []):
+                    self.upsert_resource(
+                        service_name="RDS",
+                        resource_type="Snapshot",
+                        resource_id=snapshot["DBSnapshotIdentifier"],
+                        region=region,
+                        state=snapshot.get("Status"),
+                        tags={},
+                        resource_metadata={
+                            "db_instance_identifier": snapshot.get("DBInstanceIdentifier"),
+                            "engine": snapshot.get("Engine"),
+                            "allocated_storage": snapshot.get("AllocatedStorage"),
+                            "snapshot_type": snapshot.get("SnapshotType"),
+                            "snapshot_create_time": str(snapshot.get("SnapshotCreateTime")),
+                        }
+                    )
+
+        except Exception:
+            logger.exception(f"RDS snapshot scan failed | region={region}")
+            raise
+
+    # ------------------------------------------------------------------
     # REDSHIFT
     # ------------------------------------------------------------------
     def scan_redshift(self, region):

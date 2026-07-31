@@ -2,8 +2,8 @@
 inventory_scanner.py — thin orchestrator.
 
 All service-specific scanning logic lives in src/aws/scanners/:
-  - ec2_scanner.py     : EC2, EBS, NAT Gateways, Reserved Instances
-  - rds_scanner.py     : RDS, Redshift, DynamoDB
+  - ec2_scanner.py     : EC2, EBS, Elastic IPs, EBS Snapshots, NAT Gateways, Reserved Instances
+  - rds_scanner.py     : RDS, RDS Snapshots, Redshift, DynamoDB
   - lambda_scanner.py  : Lambda, CloudWatch Logs, ECS, EKS
   - storage_scanner.py : S3, Savings Plans
   - shared.py          : BaseScanner (session bootstrap + upsert_resource)
@@ -62,6 +62,9 @@ class InventoryScanner(EC2Scanner, RDSScanner, LambdaScanner, StorageScanner):
                 ("Redshift",         self.scan_redshift),
                 ("EKS",              self.scan_eks),
                 ("ReservedInstances", self.scan_reserved_instances),
+                ("ElasticIP",        self.scan_elastic_ips),
+                ("EBSSnapshot",      self.scan_ebs_snapshots),
+                ("RDSSnapshot",      self.scan_rds_snapshots),
             ]
 
             for service_name, service_method in regional_services:

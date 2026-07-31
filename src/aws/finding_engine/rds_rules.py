@@ -17,6 +17,7 @@ class RDSRules:
         total += RDSRules.encryption_rule(client_id)
         total += RDSRules.gp2_storage_rule(client_id)
         total += RDSRules.multi_az_rule(client_id)
+        total += RDSRules.orphaned_snapshot_rule(client_id)
 
         return total
 
@@ -94,6 +95,74 @@ class RDSRules:
             message="Multi-AZ is disabled. High availability not ensured.",
             savings=0
         )
+
+    # =====================================================
+    # SNAPSHOT HUÉRFANO (la instancia de origen ya no existe)
+    # =====================================================
+    @staticmethod
+    def orphaned_snapshot_rule(client_id: int):
+
+        finding_type = "RDS_ORPHANED_SNAPSHOT"
+        severity = "LOW"
+        message = "Snapshot de RDS cuya instancia de origen ya no existe; sigue generando costo de almacenamiento."
+
+        active_db_instance_ids = {
+            r.resource_id
+            for r in AWSResourceInventory.query.filter_by(
+                client_id=client_id,
+                service_name="RDS",
+                resource_type="DBInstance",
+                is_active=True
+            ).all()
+        }
+
+        snapshots = AWSResourceInventory.query.filter_by(
+            client_id=client_id,
+            service_name="RDS",
+            resource_type="Snapshot",
+            is_active=True
+        ).all()
+
+        findings_created = 0
+
+        for snapshot in snapshots:
+
+            source_db_id = (snapshot.resource_metadata or {}).get("db_instance_identifier")
+            is_orphaned = source_db_id not in active_db_instance_ids
+
+            existing = AWSFinding.query.filter_by(
+                client_id=client_id,
+                resource_id=snapshot.resource_id,
+                finding_type=finding_type
+            ).first()
+
+            if is_orphaned:
+
+                if existing:
+                    existing.resolved = False
+                    existing.message = message
+                    existing.severity = severity
+                else:
+                    created = AWSFinding.upsert_finding(
+                        client_id=client_id,
+                        aws_account_id=snapshot.aws_account_id,
+                        resource_id=snapshot.resource_id,
+                        resource_type="Snapshot",
+                        region=snapshot.region,
+                        aws_service="RDS",
+                        finding_type=finding_type,
+                        severity=severity,
+                        message=message,
+                        estimated_monthly_savings=0
+                    )
+                    if created:
+                        findings_created += 1
+
+            else:
+                if existing and not existing.resolved:
+                    existing.resolved = True
+
+        return findings_created
 
     # =====================================================
     # CORE ENGINE (IDEMPOTENT)

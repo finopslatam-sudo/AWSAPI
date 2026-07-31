@@ -1,5 +1,6 @@
 from src.aws.finding_engine.ec2_rules import EC2Rules
 from src.aws.finding_engine.ebs_rules import EBSRules
+from src.aws.finding_engine.eip_rules import EIPRules
 from src.aws.finding_engine.tag_rules import TagRules
 from src.aws.finding_engine.rds_rules import RDSRules
 from src.aws.finding_engine.lambda_rules import LambdaRules
@@ -113,6 +114,8 @@ class FindingEngine:
 
             total_findings += EC2Rules.stopped_instances_rule(client_id)
             total_findings += EBSRules.unattached_volumes_rule(client_id)
+            total_findings += EBSRules.orphaned_snapshot_rule(client_id)
+            total_findings += EIPRules.unassociated_eip_rule(client_id)
             total_findings += TagRules.missing_required_tags_rule(client_id)
             total_findings += RDSRules.run_all(client_id)
             total_findings += LambdaRules.run_all(client_id)

@@ -106,6 +106,79 @@ class EC2Scanner(BaseScanner):
             raise
 
     # ------------------------------------------------------------------
+    # ELASTIC IPs
+    # ------------------------------------------------------------------
+    def scan_elastic_ips(self, region):
+        try:
+            ec2 = self.aws_session.client("ec2", region_name=region)
+            response = ec2.describe_addresses()
+
+            for address in response.get("Addresses", []):
+
+                tags = {
+                    tag["Key"]: tag["Value"]
+                    for tag in address.get("Tags", [])
+                }
+
+                resource_id = address.get("AllocationId") or address.get("PublicIp")
+                is_associated = bool(address.get("AssociationId") or address.get("InstanceId"))
+
+                self.upsert_resource(
+                    service_name="EIP",
+                    resource_type="ElasticIP",
+                    resource_id=resource_id,
+                    region=region,
+                    state="associated" if is_associated else "unassociated",
+                    tags=tags,
+                    resource_metadata={
+                        "public_ip": address.get("PublicIp"),
+                        "domain": address.get("Domain"),
+                        "instance_id": address.get("InstanceId"),
+                        "network_interface_id": address.get("NetworkInterfaceId"),
+                    }
+                )
+
+        except Exception:
+            logger.exception(f"Elastic IP scan failed | region={region}")
+            raise
+
+    # ------------------------------------------------------------------
+    # EBS SNAPSHOTS
+    # ------------------------------------------------------------------
+    def scan_ebs_snapshots(self, region):
+        try:
+            ec2 = self.aws_session.client("ec2", region_name=region)
+            paginator = ec2.get_paginator("describe_snapshots")
+
+            for page in paginator.paginate(OwnerIds=["self"]):
+                for snapshot in page.get("Snapshots", []):
+
+                    tags = {
+                        tag["Key"]: tag["Value"]
+                        for tag in snapshot.get("Tags", [])
+                    }
+
+                    self.upsert_resource(
+                        service_name="EBS",
+                        resource_type="Snapshot",
+                        resource_id=snapshot["SnapshotId"],
+                        region=region,
+                        state=snapshot.get("State"),
+                        tags=tags,
+                        resource_metadata={
+                            "volume_id": snapshot.get("VolumeId"),
+                            "volume_size": snapshot.get("VolumeSize"),
+                            "start_time": str(snapshot.get("StartTime")),
+                            "description": snapshot.get("Description"),
+                            "encrypted": snapshot.get("Encrypted"),
+                        }
+                    )
+
+        except Exception:
+            logger.exception(f"EBS snapshot scan failed | region={region}")
+            raise
+
+    # ------------------------------------------------------------------
     # RESERVED INSTANCES
     # ------------------------------------------------------------------
     def scan_reserved_instances(self, region):
