@@ -16,9 +16,11 @@ Servicios cubiertos hoy:
   - functions_scanner.py : Azure Functions
   - container_instance_scanner.py : Azure Container Instances (ACI)
   - container_registry_scanner.py : Azure Container Registry (ACR)
-  - network_scanner.py : Azure Virtual Network + Load Balancer + Application Gateway
+  - network_scanner.py : Azure Virtual Network + Load Balancer + Application
+                         Gateway + Public IP + NAT Gateway + Azure Firewall
   - keyvault_scanner.py : Azure Key Vault
   - monitor_scanner.py : Azure Monitor (Log Analytics Workspaces)
+  - cosmosdb_scanner.py : Azure Cosmos DB
 """
 
 import logging
@@ -40,6 +42,7 @@ from src.azure.scanners.container_registry_scanner import ContainerRegistryScann
 from src.azure.scanners.network_scanner import NetworkScanner
 from src.azure.scanners.keyvault_scanner import KeyVaultScanner
 from src.azure.scanners.monitor_scanner import MonitorScanner
+from src.azure.scanners.cosmosdb_scanner import CosmosDBScanner
 
 
 logger = logging.getLogger(__name__)
@@ -48,7 +51,7 @@ logger = logging.getLogger(__name__)
 class AzureInventoryScanner(
     ComputeScanner, StorageScanner, SQLScanner, PostgreSQLScanner, MySQLScanner, AKSScanner,
     AppServiceScanner, FunctionsScanner, ContainerInstanceScanner, ContainerRegistryScanner,
-    NetworkScanner, KeyVaultScanner, MonitorScanner,
+    NetworkScanner, KeyVaultScanner, MonitorScanner, CosmosDBScanner,
 ):
     """
     Compone todos los scanners de servicios Azure y expone `run()`.
@@ -78,6 +81,11 @@ class AzureInventoryScanner(
             ("ApplicationGateway", self.scan_application_gateways),
             ("KeyVault", self.scan_key_vaults),
             ("Monitor", self.scan_log_analytics_workspaces),
+            ("CosmosDB", self.scan_cosmosdb_accounts),
+            ("ManagedDisks", self.scan_managed_disks),
+            ("PublicIP", self.scan_public_ips),
+            ("NATGateway", self.scan_nat_gateways),
+            ("Firewall", self.scan_firewalls),
         ]
 
         for service_name, service_method in services:

@@ -21,6 +21,11 @@ from src.azure.finding_engine.load_balancer_rules import LoadBalancerRules
 from src.azure.finding_engine.app_gateway_rules import AppGatewayRules
 from src.azure.finding_engine.keyvault_rules import KeyVaultRules
 from src.azure.finding_engine.monitor_rules import MonitorRules
+from src.azure.finding_engine.cosmosdb_rules import CosmosDBRules
+from src.azure.finding_engine.managed_disk_rules import ManagedDiskRules
+from src.azure.finding_engine.public_ip_rules import PublicIPRules
+from src.azure.finding_engine.nat_gateway_rules import NATGatewayRules
+from src.azure.finding_engine.firewall_rules import FirewallRules
 from src.models.database import db
 
 
@@ -47,6 +52,11 @@ class AzureFindingEngine:
             total_findings += AppGatewayRules.run_all(client_id)
             total_findings += KeyVaultRules.run_all(client_id)
             total_findings += MonitorRules.run_all(client_id)
+            total_findings += CosmosDBRules.run_all(client_id)
+            total_findings += ManagedDiskRules.run_all(client_id)
+            total_findings += PublicIPRules.run_all(client_id)
+            total_findings += NATGatewayRules.run_all(client_id)
+            total_findings += FirewallRules.run_all(client_id)
 
             db.session.commit()
 

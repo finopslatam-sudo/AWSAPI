@@ -9,9 +9,10 @@ logger = logging.getLogger(__name__)
 
 
 class NetworkScanner(AzureBaseScanner):
-    """Handles Azure Virtual Network (VNet), Load Balancer y Application Gateway.
+    """Handles Azure Virtual Network (VNet), Load Balancer, Application
+    Gateway, Public IP, NAT Gateway y Azure Firewall.
 
-    Los tres recursos viven bajo el mismo namespace de management
+    Los seis recursos viven bajo el mismo namespace de management
     (Microsoft.Network) y se consultan con el mismo cliente
     (NetworkManagementClient), así que comparten scanner igual que
     SQL Server/Database comparten uno solo.
@@ -123,4 +124,101 @@ class NetworkScanner(AzureBaseScanner):
 
         except Exception:
             logger.exception(f"Azure Application Gateway scan failed | subscription={self.subscription_id}")
+            raise
+
+    # ------------------------------------------------------------------
+    # PUBLIC IP
+    # ------------------------------------------------------------------
+    def scan_public_ips(self):
+        try:
+            network_client = NetworkManagementClient(self.credential, self.subscription_id)
+
+            for ip in network_client.public_ip_addresses.list_all():
+                resource_group = ip.id.split("/")[4]
+
+                self.upsert_resource(
+                    service_name="PublicIP",
+                    resource_type="PublicIPAddress",
+                    resource_id=ip.id,
+                    region=ip.location,
+                    state="associated" if ip.ip_configuration else "unassociated",
+                    tags=ip.tags or {},
+                    resource_metadata={
+                        "name": ip.name,
+                        "resource_group": resource_group,
+                        "sku_name": ip.sku.name if ip.sku else None,
+                        "ip_address": ip.ip_address,
+                        "allocation_method": ip.public_ip_allocation_method,
+                    }
+                )
+
+        except Exception:
+            logger.exception(f"Azure Public IP scan failed | subscription={self.subscription_id}")
+            raise
+
+    # ------------------------------------------------------------------
+    # NAT GATEWAY
+    # ------------------------------------------------------------------
+    def scan_nat_gateways(self):
+        try:
+            network_client = NetworkManagementClient(self.credential, self.subscription_id)
+
+            for nat in network_client.nat_gateways.list_all():
+                resource_group = nat.id.split("/")[4]
+
+                subnets = nat.subnets or []
+                public_ips = nat.public_ip_addresses or []
+
+                self.upsert_resource(
+                    service_name="NATGateway",
+                    resource_type="NatGateway",
+                    resource_id=nat.id,
+                    region=nat.location,
+                    state=nat.provisioning_state,
+                    tags=nat.tags or {},
+                    resource_metadata={
+                        "name": nat.name,
+                        "resource_group": resource_group,
+                        "sku_name": nat.sku.name if nat.sku else None,
+                        "subnet_count": len(subnets),
+                        "public_ip_count": len(public_ips),
+                    }
+                )
+
+        except Exception:
+            logger.exception(f"Azure NAT Gateway scan failed | subscription={self.subscription_id}")
+            raise
+
+    # ------------------------------------------------------------------
+    # AZURE FIREWALL
+    # ------------------------------------------------------------------
+    def scan_firewalls(self):
+        try:
+            network_client = NetworkManagementClient(self.credential, self.subscription_id)
+
+            for fw in network_client.azure_firewalls.list_all():
+                resource_group = fw.id.split("/")[4]
+
+                ip_configs = fw.ip_configurations or []
+                hub_ip_addresses = fw.hub_ip_addresses
+
+                self.upsert_resource(
+                    service_name="Firewall",
+                    resource_type="AzureFirewall",
+                    resource_id=fw.id,
+                    region=fw.location,
+                    state=fw.provisioning_state,
+                    tags=fw.tags or {},
+                    resource_metadata={
+                        "name": fw.name,
+                        "resource_group": resource_group,
+                        "sku_name": fw.sku.name if fw.sku else None,
+                        "sku_tier": fw.sku.tier if fw.sku else None,
+                        "ip_configuration_count": len(ip_configs),
+                        "has_hub_ip": hub_ip_addresses is not None,
+                    }
+                )
+
+        except Exception:
+            logger.exception(f"Azure Firewall scan failed | subscription={self.subscription_id}")
             raise
