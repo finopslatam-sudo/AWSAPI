@@ -16,6 +16,8 @@ from src.azure.finding_engine.app_service_rules import AppServiceRules
 from src.azure.finding_engine.functions_rules import FunctionsRules
 from src.azure.finding_engine.container_instance_rules import ContainerInstanceRules
 from src.azure.finding_engine.container_registry_rules import ContainerRegistryRules
+from src.azure.finding_engine.vnet_rules import VNetRules
+from src.azure.finding_engine.load_balancer_rules import LoadBalancerRules
 from src.models.database import db
 
 
@@ -37,6 +39,8 @@ class AzureFindingEngine:
             total_findings += FunctionsRules.run_all(client_id)
             total_findings += ContainerInstanceRules.run_all(client_id)
             total_findings += ContainerRegistryRules.run_all(client_id)
+            total_findings += VNetRules.run_all(client_id)
+            total_findings += LoadBalancerRules.run_all(client_id)
 
             db.session.commit()
 

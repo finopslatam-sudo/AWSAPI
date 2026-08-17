@@ -16,6 +16,7 @@ Servicios cubiertos hoy:
   - functions_scanner.py : Azure Functions
   - container_instance_scanner.py : Azure Container Instances (ACI)
   - container_registry_scanner.py : Azure Container Registry (ACR)
+  - network_scanner.py : Azure Virtual Network + Load Balancer
 """
 
 import logging
@@ -34,6 +35,7 @@ from src.azure.scanners.app_service_scanner import AppServiceScanner
 from src.azure.scanners.functions_scanner import FunctionsScanner
 from src.azure.scanners.container_instance_scanner import ContainerInstanceScanner
 from src.azure.scanners.container_registry_scanner import ContainerRegistryScanner
+from src.azure.scanners.network_scanner import NetworkScanner
 
 
 logger = logging.getLogger(__name__)
@@ -42,6 +44,7 @@ logger = logging.getLogger(__name__)
 class AzureInventoryScanner(
     ComputeScanner, StorageScanner, SQLScanner, PostgreSQLScanner, MySQLScanner, AKSScanner,
     AppServiceScanner, FunctionsScanner, ContainerInstanceScanner, ContainerRegistryScanner,
+    NetworkScanner,
 ):
     """
     Compone todos los scanners de servicios Azure y expone `run()`.
@@ -66,6 +69,8 @@ class AzureInventoryScanner(
             ("Functions", self.scan_functions),
             ("ContainerInstances", self.scan_container_instances),
             ("ContainerRegistry", self.scan_container_registries),
+            ("VirtualNetwork", self.scan_virtual_networks),
+            ("LoadBalancer", self.scan_load_balancers),
         ]
 
         for service_name, service_method in services:
