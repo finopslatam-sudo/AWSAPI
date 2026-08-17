@@ -14,6 +14,7 @@ from src.azure.finding_engine.mysql_rules import MySQLRules
 from src.azure.finding_engine.aks_rules import AKSRules
 from src.azure.finding_engine.app_service_rules import AppServiceRules
 from src.azure.finding_engine.functions_rules import FunctionsRules
+from src.azure.finding_engine.container_instance_rules import ContainerInstanceRules
 from src.models.database import db
 
 
@@ -33,6 +34,7 @@ class AzureFindingEngine:
             total_findings += AKSRules.run_all(client_id)
             total_findings += AppServiceRules.run_all(client_id)
             total_findings += FunctionsRules.run_all(client_id)
+            total_findings += ContainerInstanceRules.run_all(client_id)
 
             db.session.commit()
 
