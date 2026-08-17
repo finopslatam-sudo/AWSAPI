@@ -12,6 +12,7 @@ Servicios cubiertos hoy:
   - postgresql_scanner.py : Azure Database for PostgreSQL (Flexible Server)
   - mysql_scanner.py   : Azure Database for MySQL (Flexible Server)
   - aks_scanner.py     : Azure Kubernetes Service (AKS)
+  - app_service_scanner.py : Azure App Service (Web Apps)
 """
 
 import logging
@@ -26,13 +27,15 @@ from src.azure.scanners.sql_scanner import SQLScanner
 from src.azure.scanners.postgresql_scanner import PostgreSQLScanner
 from src.azure.scanners.mysql_scanner import MySQLScanner
 from src.azure.scanners.aks_scanner import AKSScanner
+from src.azure.scanners.app_service_scanner import AppServiceScanner
 
 
 logger = logging.getLogger(__name__)
 
 
 class AzureInventoryScanner(
-    ComputeScanner, StorageScanner, SQLScanner, PostgreSQLScanner, MySQLScanner, AKSScanner
+    ComputeScanner, StorageScanner, SQLScanner, PostgreSQLScanner, MySQLScanner, AKSScanner,
+    AppServiceScanner,
 ):
     """
     Compone todos los scanners de servicios Azure y expone `run()`.
@@ -53,6 +56,7 @@ class AzureInventoryScanner(
             ("PostgreSQL", self.scan_postgresql_servers),
             ("MySQL", self.scan_mysql_servers),
             ("AKS", self.scan_aks_clusters),
+            ("AppService", self.scan_app_services),
         ]
 
         for service_name, service_method in services:
