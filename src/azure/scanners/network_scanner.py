@@ -9,9 +9,9 @@ logger = logging.getLogger(__name__)
 
 
 class NetworkScanner(AzureBaseScanner):
-    """Handles Azure Virtual Network (VNet) y Load Balancer.
+    """Handles Azure Virtual Network (VNet), Load Balancer y Application Gateway.
 
-    Ambos recursos viven bajo el mismo namespace de management
+    Los tres recursos viven bajo el mismo namespace de management
     (Microsoft.Network) y se consultan con el mismo cliente
     (NetworkManagementClient), así que comparten scanner igual que
     SQL Server/Database comparten uno solo.
@@ -86,4 +86,41 @@ class NetworkScanner(AzureBaseScanner):
 
         except Exception:
             logger.exception(f"Azure Load Balancer scan failed | subscription={self.subscription_id}")
+            raise
+
+    # ------------------------------------------------------------------
+    # APPLICATION GATEWAY
+    # ------------------------------------------------------------------
+    def scan_application_gateways(self):
+        try:
+            network_client = NetworkManagementClient(self.credential, self.subscription_id)
+
+            for gw in network_client.application_gateways.list_all():
+                resource_group = gw.id.split("/")[4]
+
+                backend_pools = gw.backend_address_pools or []
+                total_backend_addresses = sum(
+                    len(pool.backend_addresses or []) for pool in backend_pools
+                )
+
+                self.upsert_resource(
+                    service_name="ApplicationGateway",
+                    resource_type="ApplicationGateway",
+                    resource_id=gw.id,
+                    region=gw.location,
+                    state=gw.operational_state or gw.provisioning_state,
+                    tags=gw.tags or {},
+                    resource_metadata={
+                        "name": gw.name,
+                        "resource_group": resource_group,
+                        "sku_name": gw.sku.name if gw.sku else None,
+                        "sku_tier": gw.sku.tier if gw.sku else None,
+                        "autoscale_enabled": gw.autoscale_configuration is not None,
+                        "backend_pool_count": len(backend_pools),
+                        "total_backend_addresses": total_backend_addresses,
+                    }
+                )
+
+        except Exception:
+            logger.exception(f"Azure Application Gateway scan failed | subscription={self.subscription_id}")
             raise

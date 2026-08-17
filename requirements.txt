@@ -56,6 +56,8 @@ azure-mgmt-web==8.0.0
 azure-mgmt-containerinstance==10.1.0
 azure-mgmt-containerregistry==11.0.0
 azure-mgmt-network==32.0.0
+azure-mgmt-keyvault==12.1.1
+azure-mgmt-loganalytics==13.1.1
 
 # ===============================
 # DATA (FUTURO / BI)

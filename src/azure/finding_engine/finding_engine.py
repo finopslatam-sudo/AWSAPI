@@ -18,6 +18,9 @@ from src.azure.finding_engine.container_instance_rules import ContainerInstanceR
 from src.azure.finding_engine.container_registry_rules import ContainerRegistryRules
 from src.azure.finding_engine.vnet_rules import VNetRules
 from src.azure.finding_engine.load_balancer_rules import LoadBalancerRules
+from src.azure.finding_engine.app_gateway_rules import AppGatewayRules
+from src.azure.finding_engine.keyvault_rules import KeyVaultRules
+from src.azure.finding_engine.monitor_rules import MonitorRules
 from src.models.database import db
 
 
@@ -41,6 +44,9 @@ class AzureFindingEngine:
             total_findings += ContainerRegistryRules.run_all(client_id)
             total_findings += VNetRules.run_all(client_id)
             total_findings += LoadBalancerRules.run_all(client_id)
+            total_findings += AppGatewayRules.run_all(client_id)
+            total_findings += KeyVaultRules.run_all(client_id)
+            total_findings += MonitorRules.run_all(client_id)
 
             db.session.commit()
 

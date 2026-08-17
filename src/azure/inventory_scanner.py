@@ -16,7 +16,9 @@ Servicios cubiertos hoy:
   - functions_scanner.py : Azure Functions
   - container_instance_scanner.py : Azure Container Instances (ACI)
   - container_registry_scanner.py : Azure Container Registry (ACR)
-  - network_scanner.py : Azure Virtual Network + Load Balancer
+  - network_scanner.py : Azure Virtual Network + Load Balancer + Application Gateway
+  - keyvault_scanner.py : Azure Key Vault
+  - monitor_scanner.py : Azure Monitor (Log Analytics Workspaces)
 """
 
 import logging
@@ -36,6 +38,8 @@ from src.azure.scanners.functions_scanner import FunctionsScanner
 from src.azure.scanners.container_instance_scanner import ContainerInstanceScanner
 from src.azure.scanners.container_registry_scanner import ContainerRegistryScanner
 from src.azure.scanners.network_scanner import NetworkScanner
+from src.azure.scanners.keyvault_scanner import KeyVaultScanner
+from src.azure.scanners.monitor_scanner import MonitorScanner
 
 
 logger = logging.getLogger(__name__)
@@ -44,7 +48,7 @@ logger = logging.getLogger(__name__)
 class AzureInventoryScanner(
     ComputeScanner, StorageScanner, SQLScanner, PostgreSQLScanner, MySQLScanner, AKSScanner,
     AppServiceScanner, FunctionsScanner, ContainerInstanceScanner, ContainerRegistryScanner,
-    NetworkScanner,
+    NetworkScanner, KeyVaultScanner, MonitorScanner,
 ):
     """
     Compone todos los scanners de servicios Azure y expone `run()`.
@@ -71,6 +75,9 @@ class AzureInventoryScanner(
             ("ContainerRegistry", self.scan_container_registries),
             ("VirtualNetwork", self.scan_virtual_networks),
             ("LoadBalancer", self.scan_load_balancers),
+            ("ApplicationGateway", self.scan_application_gateways),
+            ("KeyVault", self.scan_key_vaults),
+            ("Monitor", self.scan_log_analytics_workspaces),
         ]
 
         for service_name, service_method in services:
