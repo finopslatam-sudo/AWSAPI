@@ -16,3 +16,6 @@ from .plan_upgrade_request import PlanUpgradeRequest  # noqa: F401 — registra 
 from .risk_snapshot import RiskSnapshot  # noqa: F401 — registra tabla en SQLAlchemy
 from .support_ticket import SupportTicket, SupportTicketMessage  # noqa: F401 — registra tabla en SQLAlchemy
 from .tag_policy import TagPolicy  # noqa: F401 — registra tabla en SQLAlchemy
+from .azure_account import AzureAccount  # noqa: F401 — registra tabla en SQLAlchemy
+from .azure_resource_inventory import AzureResourceInventory  # noqa: F401 — registra tabla en SQLAlchemy
+from .azure_finding import AzureFinding  # noqa: F401 — registra tabla en SQLAlchemy
