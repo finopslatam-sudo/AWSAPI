@@ -51,6 +51,7 @@ azure-mgmt-storage==21.2.1
 azure-mgmt-sql==4.0.0b21
 azure-mgmt-postgresqlflexibleservers==1.1.0
 azure-mgmt-mysqlflexibleservers==1.0.0
+azure-mgmt-containerservice==33.0.0
 
 # ===============================
 # DATA (FUTURO / BI)
