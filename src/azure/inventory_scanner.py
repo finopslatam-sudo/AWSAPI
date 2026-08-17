@@ -15,6 +15,7 @@ Servicios cubiertos hoy:
   - app_service_scanner.py : Azure App Service (Web Apps)
   - functions_scanner.py : Azure Functions
   - container_instance_scanner.py : Azure Container Instances (ACI)
+  - container_registry_scanner.py : Azure Container Registry (ACR)
 """
 
 import logging
@@ -32,6 +33,7 @@ from src.azure.scanners.aks_scanner import AKSScanner
 from src.azure.scanners.app_service_scanner import AppServiceScanner
 from src.azure.scanners.functions_scanner import FunctionsScanner
 from src.azure.scanners.container_instance_scanner import ContainerInstanceScanner
+from src.azure.scanners.container_registry_scanner import ContainerRegistryScanner
 
 
 logger = logging.getLogger(__name__)
@@ -39,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 class AzureInventoryScanner(
     ComputeScanner, StorageScanner, SQLScanner, PostgreSQLScanner, MySQLScanner, AKSScanner,
-    AppServiceScanner, FunctionsScanner, ContainerInstanceScanner,
+    AppServiceScanner, FunctionsScanner, ContainerInstanceScanner, ContainerRegistryScanner,
 ):
     """
     Compone todos los scanners de servicios Azure y expone `run()`.
@@ -63,6 +65,7 @@ class AzureInventoryScanner(
             ("AppService", self.scan_app_services),
             ("Functions", self.scan_functions),
             ("ContainerInstances", self.scan_container_instances),
+            ("ContainerRegistry", self.scan_container_registries),
         ]
 
         for service_name, service_method in services:
