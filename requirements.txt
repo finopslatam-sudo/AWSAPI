@@ -47,6 +47,7 @@ boto3==1.28.62
 # ===============================
 azure-identity==1.17.1
 azure-mgmt-compute==31.0.0
+azure-mgmt-storage==21.2.1
 
 # ===============================
 # DATA (FUTURO / BI)

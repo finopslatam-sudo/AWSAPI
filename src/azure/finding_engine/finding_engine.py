@@ -7,6 +7,7 @@ cuando exista el flujo real de conexión de cuenta Azure.
 """
 
 from src.azure.finding_engine.vm_rules import VMRules
+from src.azure.finding_engine.storage_rules import StorageRules
 from src.models.database import db
 
 
@@ -19,6 +20,7 @@ class AzureFindingEngine:
 
         try:
             total_findings += VMRules.run_all(client_id)
+            total_findings += StorageRules.run_all(client_id)
 
             db.session.commit()
 

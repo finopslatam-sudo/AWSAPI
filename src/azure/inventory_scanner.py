@@ -7,6 +7,7 @@ real de conexión de cuenta Azure (fuera de alcance de esta etapa).
 
 Servicios cubiertos hoy:
   - compute_scanner.py : Azure Virtual Machines
+  - storage_scanner.py : Azure Storage Accounts
 """
 
 import logging
@@ -16,12 +17,13 @@ from src.models.database import db
 from src.models.azure_resource_inventory import AzureResourceInventory
 
 from src.azure.scanners.compute_scanner import ComputeScanner
+from src.azure.scanners.storage_scanner import StorageScanner
 
 
 logger = logging.getLogger(__name__)
 
 
-class AzureInventoryScanner(ComputeScanner):
+class AzureInventoryScanner(ComputeScanner, StorageScanner):
     """
     Compone todos los scanners de servicios Azure y expone `run()`.
 
@@ -36,6 +38,7 @@ class AzureInventoryScanner(ComputeScanner):
 
         services = [
             ("VirtualMachines", self.scan_virtual_machines),
+            ("StorageAccounts", self.scan_storage_accounts),
         ]
 
         for service_name, service_method in services:
