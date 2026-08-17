@@ -49,6 +49,7 @@ azure-identity==1.17.1
 azure-mgmt-compute==31.0.0
 azure-mgmt-storage==21.2.1
 azure-mgmt-sql==4.0.0b21
+azure-mgmt-postgresqlflexibleservers==1.1.0
 
 # ===============================
 # DATA (FUTURO / BI)
