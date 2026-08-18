@@ -8,9 +8,10 @@ logger = logging.getLogger(__name__)
 
 class NetworkScanner(GCPBaseScanner):
     """Handles VPC Networks, Firewall Rules, Cloud Load Balancing
-    (forwarding rules) y Cloud NAT (routers) — los 4 bajo la API
-    `compute` v1, mismo patrón de consolidación que VNet+LB+AppGW+NAT+
-    Firewall en el network_scanner.py de Azure."""
+    (forwarding rules), Cloud NAT (routers) y Cloud CDN (backend
+    services con CDN habilitado) — los 5 bajo la API `compute` v1,
+    mismo patrón de consolidación que VNet+LB+AppGW+NAT+Firewall en el
+    network_scanner.py de Azure."""
 
     def scan_networks(self):
         try:
@@ -140,4 +141,40 @@ class NetworkScanner(GCPBaseScanner):
 
         except Exception:
             logger.exception(f"GCP Cloud NAT scan failed | project={self.project_id}")
+            raise
+
+    # ------------------------------------------------------------------
+    # CLOUD CDN (backend services globales con CDN habilitado —
+    # equivalente a CloudFront en AWS, gap real detectado en la
+    # comparativa multi-cloud)
+    # ------------------------------------------------------------------
+    def scan_cdn_backend_services(self):
+        try:
+            compute = self._client("compute", "v1")
+
+            for page in self._paginate(
+                compute.backendServices(), "list", project=self.project_id
+            ):
+                for backend_service in page.get("items", []):
+                    if not backend_service.get("enableCDN"):
+                        continue
+
+                    cdn_policy = backend_service.get("cdnPolicy") or {}
+
+                    self.upsert_resource(
+                        service_name="CloudCDN",
+                        resource_type="BackendService",
+                        resource_id=backend_service["selfLink"],
+                        region="global",
+                        state=None,
+                        tags={},
+                        resource_metadata={
+                            "name": backend_service.get("name"),
+                            "backend_count": len(backend_service.get("backends") or []),
+                            "cache_mode": cdn_policy.get("cacheMode"),
+                        }
+                    )
+
+        except Exception:
+            logger.exception(f"GCP Cloud CDN scan failed | project={self.project_id}")
             raise

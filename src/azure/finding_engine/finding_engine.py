@@ -26,6 +26,9 @@ from src.azure.finding_engine.managed_disk_rules import ManagedDiskRules
 from src.azure.finding_engine.public_ip_rules import PublicIPRules
 from src.azure.finding_engine.nat_gateway_rules import NATGatewayRules
 from src.azure.finding_engine.firewall_rules import FirewallRules
+from src.azure.finding_engine.cdn_rules import CDNRules
+from src.azure.finding_engine.dns_rules import DNSRules
+from src.azure.finding_engine.servicebus_rules import ServiceBusRules
 from src.models.database import db
 
 
@@ -57,6 +60,9 @@ class AzureFindingEngine:
             total_findings += PublicIPRules.run_all(client_id)
             total_findings += NATGatewayRules.run_all(client_id)
             total_findings += FirewallRules.run_all(client_id)
+            total_findings += CDNRules.run_all(client_id)
+            total_findings += DNSRules.run_all(client_id)
+            total_findings += ServiceBusRules.run_all(client_id)
 
             db.session.commit()
 

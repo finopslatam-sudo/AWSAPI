@@ -22,6 +22,7 @@ Servicios cubiertos hoy:
   - firestore_scanner.py  : Firestore
   - dns_scanner.py        : Cloud DNS
   - filestore_scanner.py  : Filestore
+  - logging_scanner.py    : Cloud Logging
 """
 
 import logging
@@ -45,6 +46,7 @@ from src.gcp.scanners.redis_scanner import RedisScanner
 from src.gcp.scanners.firestore_scanner import FirestoreScanner
 from src.gcp.scanners.dns_scanner import DNSScanner
 from src.gcp.scanners.filestore_scanner import FilestoreScanner
+from src.gcp.scanners.logging_scanner import LoggingScanner
 
 
 logger = logging.getLogger(__name__)
@@ -54,6 +56,7 @@ class GCPInventoryScanner(
     ComputeScanner, NetworkScanner, StorageScanner, SQLScanner, GKEScanner,
     RunScanner, FunctionsScanner, BigQueryScanner, KMSScanner, ArtifactRegistryScanner,
     PubSubScanner, RedisScanner, FirestoreScanner, DNSScanner, FilestoreScanner,
+    LoggingScanner,
 ):
     """
     Compone todos los scanners de servicios GCP y expone `run()`.
@@ -88,6 +91,8 @@ class GCPInventoryScanner(
             ("Firestore", self.scan_databases),
             ("CloudDNS", self.scan_managed_zones),
             ("Filestore", self.scan_filestore_instances),
+            ("CloudCDN", self.scan_cdn_backend_services),
+            ("CloudLogging", self.scan_log_buckets),
         ]
 
         for service_name, service_method in services:

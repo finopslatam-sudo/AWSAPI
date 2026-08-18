@@ -27,6 +27,8 @@ from src.gcp.finding_engine.dns_rules import DNSRules
 from src.gcp.finding_engine.filestore_rules import FilestoreRules
 from src.gcp.finding_engine.kms_rules import KMSRules
 from src.gcp.finding_engine.bigquery_rules import BigQueryRules
+from src.gcp.finding_engine.cdn_rules import CDNRules
+from src.gcp.finding_engine.logging_rules import LoggingRules
 from src.models.database import db
 
 
@@ -58,6 +60,8 @@ class GCPFindingEngine:
             total_findings += FilestoreRules.run_all(client_id)
             total_findings += KMSRules.run_all(client_id)
             total_findings += BigQueryRules.run_all(client_id)
+            total_findings += CDNRules.run_all(client_id)
+            total_findings += LoggingRules.run_all(client_id)
 
             db.session.commit()
 

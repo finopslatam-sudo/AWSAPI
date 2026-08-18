@@ -21,6 +21,9 @@ Servicios cubiertos hoy:
   - keyvault_scanner.py : Azure Key Vault
   - monitor_scanner.py : Azure Monitor (Log Analytics Workspaces)
   - cosmosdb_scanner.py : Azure Cosmos DB
+  - cdn_scanner.py : Azure CDN / Front Door
+  - dns_scanner.py : Azure DNS
+  - servicebus_scanner.py : Azure Service Bus
 """
 
 import logging
@@ -43,6 +46,9 @@ from src.azure.scanners.network_scanner import NetworkScanner
 from src.azure.scanners.keyvault_scanner import KeyVaultScanner
 from src.azure.scanners.monitor_scanner import MonitorScanner
 from src.azure.scanners.cosmosdb_scanner import CosmosDBScanner
+from src.azure.scanners.cdn_scanner import CDNScanner
+from src.azure.scanners.dns_scanner import DNSScanner
+from src.azure.scanners.servicebus_scanner import ServiceBusScanner
 
 
 logger = logging.getLogger(__name__)
@@ -52,6 +58,7 @@ class AzureInventoryScanner(
     ComputeScanner, StorageScanner, SQLScanner, PostgreSQLScanner, MySQLScanner, AKSScanner,
     AppServiceScanner, FunctionsScanner, ContainerInstanceScanner, ContainerRegistryScanner,
     NetworkScanner, KeyVaultScanner, MonitorScanner, CosmosDBScanner,
+    CDNScanner, DNSScanner, ServiceBusScanner,
 ):
     """
     Compone todos los scanners de servicios Azure y expone `run()`.
@@ -86,6 +93,9 @@ class AzureInventoryScanner(
             ("PublicIP", self.scan_public_ips),
             ("NATGateway", self.scan_nat_gateways),
             ("Firewall", self.scan_firewalls),
+            ("CDN", self.scan_cdn_profiles),
+            ("DNS", self.scan_dns_zones),
+            ("ServiceBus", self.scan_namespaces),
         ]
 
         for service_name, service_method in services:

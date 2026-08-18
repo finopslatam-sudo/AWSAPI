@@ -60,6 +60,9 @@ azure-mgmt-keyvault==12.1.1
 azure-mgmt-loganalytics==13.1.1
 azure-mgmt-cosmosdb==10.0.0
 azure-mgmt-subscription==3.1.1
+azure-mgmt-cdn==14.0.0
+azure-mgmt-dns==9.0.0
+azure-mgmt-servicebus==10.0.0
 
 # ===============================
 # GCP / FINOPS
