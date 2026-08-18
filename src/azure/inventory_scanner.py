@@ -24,6 +24,7 @@ Servicios cubiertos hoy:
   - cdn_scanner.py : Azure CDN / Front Door
   - dns_scanner.py : Azure DNS
   - servicebus_scanner.py : Azure Service Bus
+  - snapshot_scanner.py : Azure Managed Disk Snapshots
 """
 
 import logging
@@ -49,6 +50,7 @@ from src.azure.scanners.cosmosdb_scanner import CosmosDBScanner
 from src.azure.scanners.cdn_scanner import CDNScanner
 from src.azure.scanners.dns_scanner import DNSScanner
 from src.azure.scanners.servicebus_scanner import ServiceBusScanner
+from src.azure.scanners.snapshot_scanner import SnapshotScanner
 
 
 logger = logging.getLogger(__name__)
@@ -58,7 +60,7 @@ class AzureInventoryScanner(
     ComputeScanner, StorageScanner, SQLScanner, PostgreSQLScanner, MySQLScanner, AKSScanner,
     AppServiceScanner, FunctionsScanner, ContainerInstanceScanner, ContainerRegistryScanner,
     NetworkScanner, KeyVaultScanner, MonitorScanner, CosmosDBScanner,
-    CDNScanner, DNSScanner, ServiceBusScanner,
+    CDNScanner, DNSScanner, ServiceBusScanner, SnapshotScanner,
 ):
     """
     Compone todos los scanners de servicios Azure y expone `run()`.
@@ -96,6 +98,7 @@ class AzureInventoryScanner(
             ("CDN", self.scan_cdn_profiles),
             ("DNS", self.scan_dns_zones),
             ("ServiceBus", self.scan_namespaces),
+            ("Snapshots", self.scan_snapshots),
         ]
 
         for service_name, service_method in services:

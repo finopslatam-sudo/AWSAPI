@@ -29,6 +29,7 @@ from src.azure.finding_engine.firewall_rules import FirewallRules
 from src.azure.finding_engine.cdn_rules import CDNRules
 from src.azure.finding_engine.dns_rules import DNSRules
 from src.azure.finding_engine.servicebus_rules import ServiceBusRules
+from src.azure.finding_engine.snapshot_rules import SnapshotRules
 from src.models.database import db
 
 
@@ -63,6 +64,7 @@ class AzureFindingEngine:
             total_findings += CDNRules.run_all(client_id)
             total_findings += DNSRules.run_all(client_id)
             total_findings += ServiceBusRules.run_all(client_id)
+            total_findings += SnapshotRules.run_all(client_id)
 
             db.session.commit()
 
