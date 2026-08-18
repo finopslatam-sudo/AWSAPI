@@ -74,6 +74,8 @@ from src.routes.client_finops_routes import finops_bp
 from src.routes.client_aws_connection_routes import client_aws_connection_bp
 from src.routes.client_azure_connection_routes import client_azure_connection_bp
 from src.routes.client_azure_audit_routes import client_azure_audit_bp
+from src.routes.client_gcp_connection_routes import client_gcp_connection_bp
+from src.routes.client_gcp_audit_routes import client_gcp_audit_bp
 from src.routes.client_user_routes import client_users_bp
 from src.routes.client_security_routes import client_security_bp
 from src.routes.client_subscription_routes import client_subscription_bp
@@ -95,6 +97,8 @@ app.register_blueprint(finops_bp)
 app.register_blueprint(client_aws_connection_bp)
 app.register_blueprint(client_azure_connection_bp)
 app.register_blueprint(client_azure_audit_bp)
+app.register_blueprint(client_gcp_connection_bp)
+app.register_blueprint(client_gcp_audit_bp)
 app.register_blueprint(client_inventory_bp)
 app.register_blueprint(client_audit_bp)
 app.register_blueprint(me_bp)

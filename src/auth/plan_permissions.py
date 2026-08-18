@@ -56,6 +56,7 @@ PLAN_FEATURES = {
 PLAN_LIMITS = {
     "aws_accounts": 10,
     "azure_accounts": 10,
+    "gcp_accounts": 10,
     "users": 12,
 }
 

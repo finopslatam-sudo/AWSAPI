@@ -16,6 +16,7 @@ partir de su nombre y versión. Es el equivalente más cercano al patrón
 boto3 (un solo SDK, muchos servicios) ya usado para AWS.
 """
 
+import json
 import logging
 from datetime import datetime
 
@@ -49,8 +50,11 @@ class GCPBaseScanner:
 
         self.project_id = gcp_account.project_id
 
+        # service_account_key se guarda cifrado como texto (JSON serializado)
+        key_info = json.loads(gcp_account.service_account_key)
+
         self.credentials = service_account.Credentials.from_service_account_info(
-            gcp_account.service_account_key, scopes=SCOPES
+            key_info, scopes=SCOPES
         )
 
     def _client(self, api_name, api_version):
