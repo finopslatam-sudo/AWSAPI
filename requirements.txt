@@ -59,6 +59,7 @@ azure-mgmt-network==32.0.0
 azure-mgmt-keyvault==12.1.1
 azure-mgmt-loganalytics==13.1.1
 azure-mgmt-cosmosdb==10.0.0
+azure-mgmt-resource==26.0.0
 
 # ===============================
 # GCP / FINOPS
