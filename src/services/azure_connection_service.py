@@ -1,7 +1,7 @@
 import logging
 
 from azure.identity import ClientSecretCredential
-from azure.mgmt.resource.subscriptions import SubscriptionClient
+from azure.mgmt.subscription import SubscriptionClient
 from azure.core.exceptions import ClientAuthenticationError, HttpResponseError
 
 from src.models.azure_account import AzureAccount
