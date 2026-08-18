@@ -9,7 +9,19 @@ class PubSubRules:
         total = 0
         total += PubSubRules.no_kms_encryption_rule(client_id)
         total += PubSubRules.no_labels_rule(client_id)
+        total += PubSubRules.no_subscriptions_rule(client_id)
         return total
+
+    @staticmethod
+    def no_subscriptions_rule(client_id: int):
+        return PubSubRules._evaluate_rule(
+            client_id,
+            condition=lambda r: (r.resource_metadata or {}).get('subscription_count', 0) == 0,
+            finding_type="PUBSUB_TOPIC_NO_SUBSCRIPTIONS",
+            severity="LOW",
+            message="Topico Pub/Sub sin suscriptores; los mensajes publicados se descartan sin que nadie los consuma.",
+            savings=0.0,
+        )
 
     @staticmethod
     def no_kms_encryption_rule(client_id: int):

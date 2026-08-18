@@ -19,6 +19,8 @@ class PubSubScanner(GCPBaseScanner):
                 pubsub.projects().topics(), "list", project=project_path
             ):
                 for topic in page.get("topics", []):
+                    subscription_count = self._count_subscriptions(pubsub, topic["name"])
+
                     self.upsert_resource(
                         service_name="PubSub",
                         resource_type="Topic",
@@ -29,9 +31,18 @@ class PubSubScanner(GCPBaseScanner):
                         resource_metadata={
                             "name": topic["name"].split("/")[-1],
                             "kms_key_name": topic.get("kmsKeyName"),
+                            "subscription_count": subscription_count,
                         }
                     )
 
         except Exception:
             logger.exception(f"GCP Pub/Sub scan failed | project={self.project_id}")
             raise
+
+    def _count_subscriptions(self, pubsub, topic_name):
+        count = 0
+        for page in self._paginate(
+            pubsub.projects().topics().subscriptions(), "list", topic=topic_name
+        ):
+            count += len(page.get("subscriptions", []))
+        return count

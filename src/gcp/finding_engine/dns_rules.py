@@ -9,7 +9,19 @@ class DNSRules:
         total = 0
         total += DNSRules.dnssec_disabled_rule(client_id)
         total += DNSRules.public_zone_review_rule(client_id)
+        total += DNSRules.empty_zone_rule(client_id)
         return total
+
+    @staticmethod
+    def empty_zone_rule(client_id: int):
+        return DNSRules._evaluate_rule(
+            client_id,
+            condition=lambda r: (r.resource_metadata or {}).get('rrset_count', 0) <= 2,
+            finding_type="DNS_ZONE_EMPTY",
+            severity="LOW",
+            message="Zona Cloud DNS sin registros propios (solo NS+SOA); revisar si sigue siendo necesaria, cada zona tiene un costo mensual fijo.",
+            savings=0.2,
+        )
 
     @staticmethod
     def dnssec_disabled_rule(client_id: int):

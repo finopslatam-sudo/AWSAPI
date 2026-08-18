@@ -18,6 +18,7 @@ class DNSScanner(GCPBaseScanner):
             ):
                 for zone in page.get("managedZones", []):
                     dnssec_state = (zone.get("dnssecConfig") or {}).get("state")
+                    rrset_count = self._count_record_sets(dns, zone.get("name"))
 
                     self.upsert_resource(
                         service_name="CloudDNS",
@@ -31,9 +32,18 @@ class DNSScanner(GCPBaseScanner):
                             "dns_name": zone.get("dnsName"),
                             "visibility": zone.get("visibility"),
                             "dnssec_state": dnssec_state,
+                            "rrset_count": rrset_count,
                         }
                     )
 
         except Exception:
             logger.exception(f"GCP Cloud DNS scan failed | project={self.project_id}")
             raise
+
+    def _count_record_sets(self, dns, zone_name):
+        count = 0
+        for page in self._paginate(
+            dns.resourceRecordSets(), "list", project=self.project_id, managedZone=zone_name
+        ):
+            count += len(page.get("rrsets", []))
+        return count
