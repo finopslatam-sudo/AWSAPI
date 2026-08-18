@@ -19,3 +19,6 @@ from .tag_policy import TagPolicy  # noqa: F401 — registra tabla en SQLAlchemy
 from .azure_account import AzureAccount  # noqa: F401 — registra tabla en SQLAlchemy
 from .azure_resource_inventory import AzureResourceInventory  # noqa: F401 — registra tabla en SQLAlchemy
 from .azure_finding import AzureFinding  # noqa: F401 — registra tabla en SQLAlchemy
+from .gcp_account import GCPAccount  # noqa: F401 — registra tabla en SQLAlchemy
+from .gcp_resource_inventory import GCPResourceInventory  # noqa: F401 — registra tabla en SQLAlchemy
+from .gcp_finding import GCPFinding  # noqa: F401 — registra tabla en SQLAlchemy
