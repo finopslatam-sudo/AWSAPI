@@ -16,8 +16,26 @@ cuando el canal es slack o teams.
 
 import requests
 
+from src.models.aws_account import AWSAccount
 from src.services.email_service import send_email
 from src.services.email_templates import build_alert_fired_email
+
+
+def _resolve_account_label(policy) -> str:
+    """
+    Identifica a qué cuenta AWS pertenece la alerta, para que el
+    destinatario no tenga que adivinarlo cuando tiene varias cuentas
+    conectadas. Si la política no está acotada a una cuenta específica,
+    aplica a todas las cuentas AWS del cliente.
+    """
+    if not policy.aws_account_id:
+        return "Todas las cuentas AWS conectadas"
+
+    account = AWSAccount.query.get(policy.aws_account_id)
+    if not account:
+        return f"Cuenta AWS #{policy.aws_account_id} (eliminada)"
+
+    return f"{account.account_name} ({account.account_id})"
 
 
 def dispatch_alert(policy, context: dict):
@@ -57,15 +75,18 @@ def _send_email_alert(policy, context: dict):
         print(f"[AlertNotifier] Política {policy.id} sin email destino")
         return False
 
+    account_label = _resolve_account_label(policy)
+
     body = build_alert_fired_email(
         policy_title=policy.title,
         policy_id=policy.policy_id,
         context=context,
+        account_label=account_label,
     )
 
     return send_email(
         to=policy.email,
-        subject=f"FinOpsLatam — Alerta: {policy.title}",
+        subject=f"FinOpsLatam — Alerta: {policy.title} — {account_label}",
         body=body,
     )
 
@@ -79,9 +100,11 @@ def _send_slack_alert(policy, context: dict):
         return False
 
     context_text = _context_as_text(context)
+    account_label = _resolve_account_label(policy)
     payload = {
         "text": (
-            f":rotating_light: *Alerta FinOpsLatam — {policy.title}*\n\n"
+            f":rotating_light: *Alerta FinOpsLatam — {policy.title}*\n"
+            f"Cuenta: {account_label}\n\n"
             f"{context_text}\n\n"
             f"Revisa tu dashboard: https://www.finopslatam.com/dashboard/alertas"
         )
@@ -110,13 +133,14 @@ def _send_teams_alert(policy, context: dict):
         return False
 
     context_text = _context_as_text(context)
+    account_label = _resolve_account_label(policy)
     payload = {
         "@type": "MessageCard",
         "@context": "http://schema.org/extensions",
         "summary": f"Alerta: {policy.title}",
         "themeColor": "FF4444",
         "title": f"🚨 Alerta FinOpsLatam — {policy.title}",
-        "text": context_text,
+        "text": f"Cuenta: {account_label}\n\n{context_text}",
         "potentialAction": [{
             "@type": "OpenUri",
             "name": "Ver en Dashboard",

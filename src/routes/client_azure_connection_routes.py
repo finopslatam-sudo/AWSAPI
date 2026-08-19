@@ -1,4 +1,6 @@
-from flask import Blueprint, jsonify, request
+import os
+
+from flask import Blueprint, jsonify, request, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from src.auth.decorators import require_client_user_role
@@ -13,6 +15,27 @@ client_azure_connection_bp = Blueprint(
     __name__,
     url_prefix="/api/client/azure"
 )
+
+
+# ======================================================
+# DOWNLOAD ARM TEMPLATE (role assignment "Reader")
+# ======================================================
+
+@client_azure_connection_bp.route("/template", methods=["GET"])
+def get_arm_template():
+
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    template_path = os.path.abspath(
+        os.path.join(base_dir, "..", "azure", "templates", "finopslatam_role_assignment.json")
+    )
+
+    return send_file(
+        template_path,
+        mimetype="application/json",
+        as_attachment=True,
+        download_name="finopslatam_role_assignment.json"
+    )
 
 
 # ======================================================

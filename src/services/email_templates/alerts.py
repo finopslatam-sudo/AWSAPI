@@ -3,7 +3,7 @@
 BASE_URL = "https://www.finopslatam.com"
 
 
-def build_alert_fired_email(policy_title: str, policy_id: str, context: dict) -> str:
+def build_alert_fired_email(policy_title: str, policy_id: str, context: dict, account_label: str = None) -> str:
     context_lines = []
     for key, value in context.items():
         label = key.replace("_", " ").capitalize()
@@ -15,12 +15,14 @@ def build_alert_fired_email(policy_title: str, policy_id: str, context: dict) ->
             context_lines.append(f"  • {label}: {value}")
     context_text = "\n".join(context_lines)
 
+    account_line = f"Cuenta: {account_label}\n" if account_label else ""
+
     return f"""
 🚨 ALERTA FINOPS — {policy_title.upper()}
 
 Se ha cumplido la condición configurada en tu política:
 "{policy_title}" (ID: {policy_id})
-
+{account_line}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Detalle de la alerta:
 

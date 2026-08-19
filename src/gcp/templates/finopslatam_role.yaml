@@ -1,0 +1,16 @@
+resources:
+  - name: finopslatam-audit-sa
+    type: iam.v1.serviceAccount
+    properties:
+      accountId: finopslatam-audit
+      displayName: FinOpsLatam Audit Service Account
+
+  - name: finopslatam-audit-binding
+    type: gcp-types/cloudresourcemanager-v1:virtual.projects.iamMemberBinding
+    properties:
+      resource: $(context.env["project"])
+      role: roles/viewer
+      member: serviceAccount:finopslatam-audit@$(context.env["project"]).iam.gserviceaccount.com
+    metadata:
+      dependsOn:
+        - finopslatam-audit-sa
