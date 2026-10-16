@@ -25,7 +25,9 @@ def register_client_report_routes(app):
     @jwt_required()
     @require_client_user_role()
     def client_stats(user):
-        stats = get_client_stats(user.client_id)
+        account_id_raw = request.args.get("account_id")
+        aws_account_id = int(account_id_raw) if account_id_raw else None
+        stats = get_client_stats(user.client_id, aws_account_id=aws_account_id)
 
         return jsonify(stats), 200
 
@@ -37,7 +39,9 @@ def register_client_report_routes(app):
     @jwt_required()
     @require_client_user_role()
     def client_pdf_report(user):
-        stats = get_client_stats(user.client_id)
+        account_id_raw = request.args.get("account_id")
+        aws_account_id = int(account_id_raw) if account_id_raw else None
+        stats = get_client_stats(user.client_id, aws_account_id=aws_account_id)
         pdf_data = build_client_pdf(stats)
 
         return Response(
@@ -56,7 +60,9 @@ def register_client_report_routes(app):
     @jwt_required()
     @require_client_user_role()
     def client_csv_report(user):
-        stats = get_client_stats(user.client_id)
+        account_id_raw = request.args.get("account_id")
+        aws_account_id = int(account_id_raw) if account_id_raw else None
+        stats = get_client_stats(user.client_id, aws_account_id=aws_account_id)
         csv_data = build_client_csv(stats)
 
         return Response(
@@ -75,7 +81,9 @@ def register_client_report_routes(app):
     @jwt_required()
     @require_client_user_role()
     def client_xlsx_report(user):
-        stats = get_client_stats(user.client_id)
+        account_id_raw = request.args.get("account_id")
+        aws_account_id = int(account_id_raw) if account_id_raw else None
+        stats = get_client_stats(user.client_id, aws_account_id=aws_account_id)
         xlsx_data = build_client_xlsx(stats)
 
         return Response(

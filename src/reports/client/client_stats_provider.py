@@ -19,15 +19,17 @@ from src.services.client_findings_service import ClientFindingsService
 from src.models.aws_account import AWSAccount
 
 
-def get_client_stats(client_id: int) -> dict:
+def get_client_stats(client_id: int, aws_account_id: int = None) -> dict:
     """
     Datos visibles SOLO para el cliente.
+    Opcionalmente filtrados por cuenta AWS si aws_account_id es provisto.
     Nunca incluir métricas globales.
     """
 
-    findings_summary = ClientFindingsService.get_stats(client_id)
+    findings_summary = ClientFindingsService.get_stats(client_id, aws_account_id=aws_account_id)
     findings_list = ClientFindingsService.list_findings(
         client_id=client_id,
+        aws_account_id=aws_account_id,
         page=1,
         per_page=200,
         status=None,
@@ -40,9 +42,10 @@ def get_client_stats(client_id: int) -> dict:
         sort_order="desc"
     ).get("data", [])
 
-    account_count = AWSAccount.query.filter_by(
-        client_id=client_id, is_active=True
-    ).count()
+    account_query = AWSAccount.query.filter_by(client_id=client_id, is_active=True)
+    if aws_account_id:
+        account_query = account_query.filter(AWSAccount.id == aws_account_id)
+    account_count = account_query.count()
 
     return {
         "client_id": client_id,

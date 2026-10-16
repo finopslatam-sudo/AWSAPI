@@ -3,6 +3,7 @@ from flask_jwt_extended import jwt_required
 
 from src.auth.decorators import require_client_user_role
 from src.services.client_findings_service import ClientFindingsService
+from src.services.multicloud_findings_service import MultiCloudFindingsService
 from src.services.client_dashboard_service import ClientDashboardService
 from src.auth.plan_permissions import has_feature
 
@@ -25,6 +26,7 @@ def get_client_findings(user):
         return jsonify({"error": "Feature not available in current plan"}), 403
 
     # ---------------- QUERY PARAMS ----------------
+    provider = (request.args.get("provider") or "").strip().lower()
     status = request.args.get("status")
     severity = request.args.get("severity")
     finding_type = request.args.get("finding_type")
@@ -39,20 +41,51 @@ def get_client_findings(user):
     sort_by = request.args.get("sort_by", "created_at")
     sort_order = request.args.get("sort_order", "desc")
 
-    result = ClientFindingsService.list_findings(
-        client_id=user.client_id,
-        aws_account_id=aws_account_id,
-        status=status,
-        severity=severity,
-        finding_type=finding_type,
-        service=service,
-        region=region,
-        page=page,
-        per_page=per_page,
-        search=search,
-        sort_by=sort_by,
-        sort_order=sort_order
-    )
+    if provider == "azure":
+        result = MultiCloudFindingsService.list_azure_findings(
+            client_id=user.client_id,
+            account_id=aws_account_id,
+            status=status,
+            severity=severity,
+            finding_type=finding_type,
+            service=service,
+            region=region,
+            page=page,
+            per_page=per_page,
+            search=search,
+            sort_by=sort_by,
+            sort_order=sort_order
+        )
+    elif provider == "gcp":
+        result = MultiCloudFindingsService.list_gcp_findings(
+            client_id=user.client_id,
+            account_id=aws_account_id,
+            status=status,
+            severity=severity,
+            finding_type=finding_type,
+            service=service,
+            region=region,
+            page=page,
+            per_page=per_page,
+            search=search,
+            sort_by=sort_by,
+            sort_order=sort_order
+        )
+    else:
+        result = ClientFindingsService.list_findings(
+            client_id=user.client_id,
+            aws_account_id=aws_account_id,
+            status=status,
+            severity=severity,
+            finding_type=finding_type,
+            service=service,
+            region=region,
+            page=page,
+            per_page=per_page,
+            search=search,
+            sort_by=sort_by,
+            sort_order=sort_order
+        )
 
     return jsonify({
         "status": "ok",
@@ -71,6 +104,7 @@ def get_client_findings_stats(user):
     if not has_feature(user.client_id, "findings"):
         return jsonify({"error": "Feature not available in current plan"}), 403
 
+    provider = (request.args.get("provider") or "").strip().lower()
     status = request.args.get("status")
     severity = request.args.get("severity")
     finding_type = request.args.get("finding_type")
@@ -79,16 +113,39 @@ def get_client_findings_stats(user):
     search = request.args.get("search")
     region = request.args.get("region")
 
-    stats = ClientFindingsService.get_stats(
-        user.client_id,
-        aws_account_id,
-        status=status,
-        severity=severity,
-        finding_type=finding_type,
-        service=service,
-        search=search,
-        region=region
-    )
+    if provider == "azure":
+        stats = MultiCloudFindingsService.get_azure_stats(
+            user.client_id,
+            account_id=aws_account_id,
+            status=status,
+            severity=severity,
+            finding_type=finding_type,
+            service=service,
+            search=search,
+            region=region
+        )
+    elif provider == "gcp":
+        stats = MultiCloudFindingsService.get_gcp_stats(
+            user.client_id,
+            account_id=aws_account_id,
+            status=status,
+            severity=severity,
+            finding_type=finding_type,
+            service=service,
+            search=search,
+            region=region
+        )
+    else:
+        stats = ClientFindingsService.get_stats(
+            user.client_id,
+            aws_account_id,
+            status=status,
+            severity=severity,
+            finding_type=finding_type,
+            service=service,
+            search=search,
+            region=region
+        )
 
     return jsonify({
         "status": "ok",
