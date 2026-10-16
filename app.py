@@ -90,8 +90,10 @@ from src.routes.payments_routes import payments_bp
 from src.routes.webhooks_routes import webhooks_bp
 from src.routes.mercadopago_routes import mercadopago_bp
 from src.routes.patpass_routes import patpass_bp
+from src.routes.client_cloud_routes import client_cloud_bp
 
 app.register_blueprint(snapshot_bp)
+app.register_blueprint(client_cloud_bp)
 app.register_blueprint(dashboard_bp)
 app.register_blueprint(finops_bp)
 app.register_blueprint(client_aws_connection_bp)
